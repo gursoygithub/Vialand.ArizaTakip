@@ -216,7 +216,7 @@ class TaskResource extends Resource
                                     ->label(__('ui.description'))
                                     ->rows(3)
                                     ->columnSpan(3)
-                                    ->placeholder(__('ui.description_placeholder'))
+                                    ->placeholder(__('ui.task_description_placeholder'))
                                     ->required()
                                     ->validationMessages([
                                         'required' => __('ui.required'),
@@ -232,10 +232,16 @@ class TaskResource extends Resource
                                             ->downloadable()
                                             ->openable()
                                             ->maxFiles(10)
+                                            ->maxSize(10240) // 10 MB
                                             ->image()
                                             ->required()
+                                            ->acceptedFileTypes(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])
+                                            ->maxSize(1024 * 5) // Maksimum 5MB örnek
                                             ->validationMessages([
                                                 'required' => __('ui.required'),
+                                                'accepted_file_types' => __('ui.invalid_file_type'),
+                                                'max' => __('ui.max_files_exceeded', ['max' => 10]),
+                                                'file' => __('ui.file_upload_error'),
                                             ])
                                             ->columnSpanFull(),
                                     ]),

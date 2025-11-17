@@ -401,5 +401,11 @@ return [
     'image' => 'Resim',
     'images' => 'Resimler',
     'upload_image' => 'Resim Yükle',
-    'task_photo_helper_text' => 'Görevle ilgili resimi yükleyin',
+    'task_photo_helper_text' => 'Sadece jpg, jpeg, png formatları desteklenir. Maksimum dosya boyutu 10MB olmalıdır.',
+    'task_description_placeholder' => 'Görev açıklamasını buraya giriniz...',
+    'invalid_file_type' => 'Geçersiz dosya türü',
+    'file_too_large' => 'Dosya çok büyük, en fazla 10MB olabilir',
+    'accepted_file_types' => 'Kabul edilen dosya türleri: jpg, jpeg, png, gif, webp',
+    'max_files_exceeded' => 'Maksimum dosya sayısı aşıldı',
+    'file_upload_error' => 'Dosya yükleme hatası',
 ];
