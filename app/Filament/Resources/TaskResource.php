@@ -225,10 +225,9 @@ class TaskResource extends Resource
                                     ->hiddenLabel()
                                     ->columns(1)
                                     ->schema([
-                                        Forms\Components\SpatieMediaLibraryFileUpload::make('images')
+                                        Forms\Components\FileUpload::make('images')
                                             ->label(__('ui.images'))
                                             ->helperText(__('ui.task_photo_helper_text'))
-                                            ->collection('task_attachments')
                                             ->downloadable()
                                             ->openable()
                                             ->maxFiles(10)
