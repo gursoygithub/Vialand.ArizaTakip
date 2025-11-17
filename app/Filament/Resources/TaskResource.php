@@ -243,7 +243,9 @@ class TaskResource extends Resource
                                                 'max' => __('ui.max_files_exceeded', ['max' => 10]),
                                                 'file' => __('ui.file_upload_error'),
                                             ])
-                                            ->columnSpanFull(),
+                                            ->columnSpanFull()
+                                            ->disk('public')
+                                            ->visibility('public'),
                                     ]),
                             ]),
                         Fieldset::make(__('ui.resolution_information'))

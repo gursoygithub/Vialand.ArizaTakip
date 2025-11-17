@@ -73,6 +73,7 @@ class Task extends Model Implements HasMedia
     public function registerMediaCollections(): void
     {
         $this->addMediaCollection('task_attachments')
+            ->useDisk('public')
             ->singleFile();
     }
 
