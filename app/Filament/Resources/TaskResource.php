@@ -225,9 +225,10 @@ class TaskResource extends Resource
                                     ->hiddenLabel()
                                     ->columns(1)
                                     ->schema([
-                                        Forms\Components\FileUpload::make('images')
+                                        Forms\Components\SpatieMediaLibraryFileUpload::make('images')
                                             ->label(__('ui.images'))
                                             ->helperText(__('ui.task_photo_helper_text'))
+                                            ->collection('task_attachments')
                                             ->downloadable()
                                             ->openable()
                                             ->maxFiles(10)
@@ -269,6 +270,7 @@ class TaskResource extends Resource
                                     ->hidden(fn ($get) => $get('status') != TaskStatusEnum::COMPLETED->value)
                                     ->label(__('ui.due_date'))
                                     ->minDate(fn ($get) => $get('task_date'))
+                                    ->maxDate(now())
                                     ->afterOrEqual('task_date')
                                     ->required()
                                     ->validationMessages([
@@ -284,6 +286,13 @@ class TaskResource extends Resource
                                         'required' => __('ui.required'),
                                     ])->columnSpanFull(),
                             ]),
+                        Forms\Components\Toggle::make('is_winter_maintenance')
+                            ->label(__('ui.winter_maintenance'))
+                            ->helperText(__('ui.winter_maintenance_helper_text'))
+                            ->visibleOn('create')
+                            ->onColor('success')
+                            ->offColor('danger')
+                            ->columnSpan(3),
                     ]),
             ]);
     }
@@ -296,7 +305,7 @@ class TaskResource extends Resource
             ->columns([
                 Tables\Columns\SpatieMediaLibraryImageColumn::make('images')
                     ->label(__('ui.images'))
-                    ->collection('task_photos')
+                    ->collection('task_attachments')
                     ->square()
                     ->size(50),
                 Tables\Columns\TextColumn::make('title')
@@ -374,6 +383,14 @@ class TaskResource extends Resource
 //                        TaskStatusEnum::COMPLETED->value => TaskStatusEnum::COMPLETED->getLabel(),
 //                        TaskStatusEnum::WINTER_MAINTENANCE->value => TaskStatusEnum::WINTER_MAINTENANCE->getLabel(),
 //                    ]),
+            ])
+            ->headerActions([
+                Tables\Actions\ExportAction::make()
+                    ->exporter(\App\Filament\Exports\TaskExporter::class)
+                    ->label(__('ui.export'))
+                    ->modalHeading(__('ui.export'))
+                    ->icon('heroicon-o-arrow-down-tray')
+                    ->visible(fn () => auth()->user()->hasRole('super_admin') || auth()->user()->can('export_tasks')),
             ])
             ->actions([
                 Tables\Actions\ActionGroup::make([

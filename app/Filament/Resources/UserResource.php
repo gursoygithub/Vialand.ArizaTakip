@@ -84,6 +84,8 @@ class UserResource extends Resource
                                         return DB::connection('sqlsrv2')
                                             ->table('dbo._TGRY_PERSONEL')
                                             ->where('AKTIF_MI', 1)
+                                            ->where('VERITABANI_ADI', 'VIALAND_EGLENCE')
+                                            ->whereNotNull('E_POSTA')
                                             ->selectRaw("UNIQUE_ID as id, CONCAT(ADI, ' ', SOYADI) as name")
                                             ->orderBy('name')
                                             ->pluck('name', 'id')
@@ -246,10 +248,10 @@ class UserResource extends Resource
                     ->label(__('ui.roles'))
                     ->badge()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('is_manager')
-                    ->label(__('ui.is_manager'))
-                    ->badge()
-                    ->sortable(),
+//                Tables\Columns\TextColumn::make('is_manager')
+//                    ->label(__('ui.is_manager'))
+//                    ->badge()
+//                    ->sortable(),
 //                Tables\Columns\TextColumn::make('staffs_count')
 //                    ->label(__('ui.staffs_count'))
 //                    ->counts('staffs')

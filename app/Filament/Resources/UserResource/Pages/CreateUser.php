@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\UserResource\Pages;
 
+use App\Enums\TaskStatusEnum;
 use App\Filament\Resources\UserResource;
 use App\Models\Employee;
 use App\Models\User;
@@ -46,7 +47,10 @@ class CreateUser extends CreateRecord
         //$password = substr(str_shuffle('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*'), 0, 10);
         //$password = 'password';
 
-        $password = $data['tc_no'];
+        //$password = $data['tc_no'];
+        //$password = substr($data['tc_no'], -4);
+
+        $password = substr($data['phone'], -8);
 
         $data['password'] = bcrypt($password);
 

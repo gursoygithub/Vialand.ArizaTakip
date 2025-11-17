@@ -19,6 +19,7 @@ class CustomPermissionSeeder extends Seeder
             'view_all_tasks',
             'create_custom_area',
             'create_custom_sub_area',
+            'export_tasks',
         ];
 
         foreach ($permissionName as $name) {

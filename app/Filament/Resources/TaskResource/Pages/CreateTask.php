@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\TaskResource\Pages;
 
+use App\Enums\TaskStatusEnum;
 use App\Filament\Resources\TaskResource;
 use App\Models\Technician;
 use Filament\Actions;
@@ -25,6 +26,11 @@ class CreateTask extends CreateRecord
     {
         $data['created_by'] = auth()->id();
         $data['user_id'] = auth()->id();
+
+        // if is_winter_maintenance is true, set status to 1
+        if (isset($data['is_winter_maintenance']) && $data['is_winter_maintenance']) {
+            $data['status'] = TaskStatusEnum::WINTER_MAINTENANCE;
+        }
 
         return $data;
     }

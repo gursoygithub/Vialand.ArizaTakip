@@ -45,13 +45,18 @@
 </head>
 <body>
 <div class="header">
-    <h1>{{ __('ui.user_created') }}</h1>
+    <h1>{{ __('ui.fault_tracking_portal') }}</h1>
 </div>
 
 <div class="content">
-    <p>{{ __('ui.hello') }} {{ $user?->name }}</p>
+    <p>{{ __('ui.hello') }} {{ $user?->name, }}</p>
 
-    <p>{{ $password }}</p>
+    <p>{{ __('ui.user_created_message') }}</p>
+
+    <div class="info">
+        {{ __('ui.email') }}: <strong>{{ $user?->email }}</strong><br>
+        {{ __('ui.password') }}: <strong>{{ $password }}</strong>
+    </div>
 
     <div class="danger">
         <strong>{{ __('ui.user_created_warning') }}</strong>
