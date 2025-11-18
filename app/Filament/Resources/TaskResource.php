@@ -331,6 +331,12 @@ class TaskResource extends Resource
                     ->badge()
                     ->searchable()
                     ->sortable(),
+                Tables\Columns\TextColumn::make('task_date')
+                    ->label(__('ui.date'))
+                    ->date()
+                    ->badge()
+                    ->color('primary')
+                    ->sortable(),
                 Tables\Columns\TextColumn::make('employee.name')
                     ->label(__('ui.assigned_to'))
                     ->badge()

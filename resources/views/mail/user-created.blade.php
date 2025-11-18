@@ -58,7 +58,7 @@
         {{ __('ui.password') }}: <strong>{{ $password }}</strong>
     </div>
 
-    <div class="danger">
+    <div class="danger" style="color: red;">
         <strong>{{ __('ui.user_created_warning') }}</strong>
     </div>
 </div>
