@@ -46,6 +46,7 @@ class ViewTask extends ViewRecord
                         ->columnSpanFull()
                         ->validationMessages([
                             'required' => __('ui.required'),
+                            'required_with' => __('ui.resolution_notes_required_with_due_date'),
                         ])->columnSpanFull(),
                 ])
                 ->action(function (array $data, Task $record) {
@@ -60,30 +61,15 @@ class ViewTask extends ViewRecord
                         ]);
                     });
 
+                    $record->refresh();
+
+                    $record->createdBy->notify(new \App\Notifications\TaskClosed($record));
+
                     Notification::make()
                         ->title(__('ui.task_closed_successfully'))
                         ->success()
                         ->send();
                 })
-//                        ->action(function (Task $record) {
-//                            DB::transaction(function () use ($record) {
-//                                $record->update([
-//                                    'status' => TaskStatusEnum::COMPLETED,
-//                                    'completed_by' => Auth::id(),
-//                                    'updated_by' => Auth::id(),
-//                                    'updated_at' => now(),
-//                                ]);
-//
-//                                // Send approval notification to the user
-//                                //$record->notify(new ReservationApproved($record));
-//
-//                                // Send success notification
-//                                Notification::make()
-//                                    ->title(__('ui.task_completed_successfully'))
-//                                    ->success()
-//                                    ->send();
-//                            });
-//                        })
                 ->requiresConfirmation()
                 ->color('success')
                 ->icon('heroicon-o-check'),

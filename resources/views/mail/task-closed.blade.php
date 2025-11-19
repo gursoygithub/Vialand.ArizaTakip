@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>{{ __('ui.user_created') }}</title>
+    <title>{{ __('ui.task_closed') }}</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -49,24 +49,26 @@
 </div>
 
 <div class="content">
-    <p>{{ __('ui.hello') }} {{ $user?->name, }}</p>
+    <p>{{ __('ui.hello') }} {{ $user?->name}},</p>
 
-    <p>{{ __('ui.user_created_message') }}</p>
+    <p>{{ __('ui.task_closed_message') }}</p>
 
-    <div class="info">
-        {{ __('ui.email') }}: <strong>{{ $user?->email }}</strong><br>
-        {{ __('ui.password') }}: <strong>{{ $password }}</strong>
-    </div>
+    <ul>
+        <u>{{__('ui.task_details')}}:</u>
+        <li>{{ __('ui.task_title') }}: <strong>{{ $task->title }}</strong></li>
+        <li>{{ __('ui.task_date') }}: <strong>{{ $task->task_date->format('d.m.Y H:i') }}</strong></li>
+        <li>{{ __('ui.assigned_to') }}: <strong>{{ $task->employee->name }}</strong></li>
+        <li>{{ __('ui.description') }}: <strong>{{ $task->description }}</strong></li>
+    </ul>
 
-    <div class="danger" style="color: red;">
-        <strong>{{ __('ui.user_created_warning') }}</strong>
-    </div>
+    <ul>
+        <u>{{__('ui.resolution_details')}}:</u>
+        <li>{{ __('ui.closed_by') }}: <strong>{{ $closed_by?->name }}</strong></li>
+        <li>{{ __('ui.due_date') }}: <strong>{{ $task->due_date->format('d.m.Y') }}</strong></li>
+        <li>{{ __('ui.resolution_notes') }}: <strong>{{ $task->resolution_notes }}</strong></li>
+    </ul>
 </div>
 
 <p>{{ __('ui.enjoy_your_work') }}</p>
-
-{{--    <div class="footer">--}}
-{{--        <p>{{ "Gürsoy Grup" }}<br>{{ __('ui.vialand_theme_parc') }}<br>{{ __('ui.guest_office')}}</p>--}}
-{{--    </div>--}}
 </body>
 </html>
