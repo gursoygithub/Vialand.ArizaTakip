@@ -28,6 +28,7 @@ return new class extends Migration
 
             //$table->string('technician_id')->comment('Employee ID of the technician assigned to the task');
             $table->date('task_date')->nullable();
+            $table->foreignId('completed_by')->nullable()->constrained('users')->onDelete('set null');
             $table->dateTime('due_date')->nullable();
             $table->text('resolution_notes')->nullable();
 

@@ -21,6 +21,7 @@ class Task extends Model Implements HasMedia
         'status',
         'employee_id',
         'task_date',
+        'completed_by',
         'due_date',
         'resolution_notes',
         'created_by',
@@ -86,5 +87,10 @@ class Task extends Model Implements HasMedia
         } else {
             return parent::query()->where('user_id', auth()->user()->id);
         }
+    }
+
+    public function completedBy()
+    {
+        return $this->belongsTo(User::class, 'completed_by');
     }
 }

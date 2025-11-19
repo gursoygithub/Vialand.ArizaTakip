@@ -14,11 +14,13 @@ use App\Models\Unit;
 use Filament\Forms;
 use Filament\Forms\Components\Fieldset;
 use Filament\Forms\Form;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 class TaskResource extends Resource
@@ -205,7 +207,7 @@ class TaskResource extends Resource
                                         'required' => __('ui.required'),
                                     ]),
                                 Forms\Components\DatePicker::make('task_date')
-                                    ->label(__('ui.date'))
+                                    ->label(__('ui.fault_date'))
                                     ->required()
                                     ->live()
                                     ->afterStateUpdated(fn (callable $set) => $set('due_date', null))
@@ -332,20 +334,20 @@ class TaskResource extends Resource
                     ->searchable()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('task_date')
-                    ->label(__('ui.date'))
+                    ->label(__('ui.fault_date'))
                     ->date()
                     ->badge()
                     ->color('primary')
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('status')
+                    ->label(__('ui.status'))
+                    ->badge()
+                    ->searchable()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('employee.name')
                     ->label(__('ui.assigned_to'))
                     ->badge()
                     ->color('primary')
-                    ->searchable()
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('status')
-                    ->label(__('ui.status'))
-                    ->badge()
                     ->searchable()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('due_date')
@@ -381,7 +383,13 @@ class TaskResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                // filter by status
+                // filter by unit
+                Tables\Filters\SelectFilter::make('unit_id')
+                    ->label(__('ui.unit'))
+                    ->options(
+                        Unit::all()
+                            ->pluck('name', 'id')
+                    ),
 //                Tables\Filters\SelectFilter::make('status')
 //                    ->label(__('ui.status'))
 //                    ->options([
@@ -400,6 +408,68 @@ class TaskResource extends Resource
             ])
             ->actions([
                 Tables\Actions\ActionGroup::make([
+                    Tables\Actions\Action::make(__('ui.close'))
+                        ->hidden(fn ($record) => $record->trashed())
+                        ->visible(fn ($record) => $record->status->isNot(TaskStatusEnum::COMPLETED) && (auth()->user()->hasRole('super_admin') || auth()->user()->can('approve_task')) && $record->task_date <= today())
+                        ->form([
+                            Forms\Components\DatePicker::make('due_date')
+                                ->label(__('ui.due_date'))
+                                ->minDate(fn ($record) => $record->task_date)
+                                ->maxDate(now())
+                                ->afterOrEqual('task_date')
+                                ->required()
+                                ->validationMessages([
+                                    'required' => __('ui.required'),
+                                    'after_or_equal' => __('ui.due_date_after_or_equal_task_date'),
+                                ]),
+                            Forms\Components\Textarea::make('resolution_notes')
+                                ->label(__('ui.resolution_notes'))
+                                ->placeholder(__('ui.resolution_placeholder'))
+                                ->requiredWith('due_date')
+                                ->columnSpanFull()
+                                ->validationMessages([
+                                    'required' => __('ui.required'),
+                                ])->columnSpanFull(),
+                        ])
+                        ->action(function (array $data, Task $record) {
+                            DB::transaction(function () use ($data, $record) {
+                                $record->update([
+                                    'status' => TaskStatusEnum::COMPLETED,
+                                    'due_date' => $data['due_date'],
+                                    'resolution_notes' => $data['resolution_notes'],
+                                    'completed_by' => Auth::id(),
+                                    'updated_by' => Auth::id(),
+                                    'updated_at' => now(),
+                                ]);
+                            });
+
+                            Notification::make()
+                                ->title(__('ui.task_closed_successfully'))
+                                ->success()
+                                ->send();
+                        })
+//                        ->action(function (Task $record) {
+//                            DB::transaction(function () use ($record) {
+//                                $record->update([
+//                                    'status' => TaskStatusEnum::COMPLETED,
+//                                    'completed_by' => Auth::id(),
+//                                    'updated_by' => Auth::id(),
+//                                    'updated_at' => now(),
+//                                ]);
+//
+//                                // Send approval notification to the user
+//                                //$record->notify(new ReservationApproved($record));
+//
+//                                // Send success notification
+//                                Notification::make()
+//                                    ->title(__('ui.task_completed_successfully'))
+//                                    ->success()
+//                                    ->send();
+//                            });
+//                        })
+                        ->requiresConfirmation()
+                        ->color('success')
+                        ->icon('heroicon-o-check'),
                     Tables\Actions\ViewAction::make(),
                     Tables\Actions\EditAction::make(),
                     Tables\Actions\DeleteAction::make(),
