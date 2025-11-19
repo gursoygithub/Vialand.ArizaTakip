@@ -80,7 +80,7 @@ class Task extends Model Implements HasMedia
 
     public static function query()
     {
-        $hasPermission = auth()->user()->hasRole('suepr_admin') || auth()->user()->can('view_all_tasks');
+        $hasPermission = auth()->user()->hasRole('super_admin') || auth()->user()->can('view_all_tasks');
 
         if ($hasPermission) {
             return parent::query();

@@ -27,7 +27,7 @@ class ViewTask extends ViewRecord
         return [
             Actions\Action::make(__('ui.close'))
                 ->hidden(fn ($record) => $record->trashed())
-                ->visible(fn ($record) => $record->status->isNot(TaskStatusEnum::COMPLETED) && (auth()->user()->hasRole('super_admin') || auth()->user()->can('approve_task')) && $record->task_date <= today())
+                ->visible(fn ($record) => $record->status->isNot(TaskStatusEnum::COMPLETED) && (auth()->user()->hasRole('super_admin') || auth()->user()->can('can_close_task')) && $record->task_date <= today())
                 ->form([
                     Forms\Components\DatePicker::make('due_date')
                         ->label(__('ui.due_date'))
@@ -112,6 +112,9 @@ class ViewTask extends ViewRecord
                                 Infolists\Components\TextEntry::make('subArea.name')
                                     ->label(__('ui.sub_area'))
                                     ->icon('heroicon-o-map-pin'),
+                                Infolists\Components\TextEntry::make('unit.name')
+                                    ->label(__('ui.unit'))
+                                    ->icon('heroicon-o-building-office'),
                                 Infolists\Components\TextEntry::make('task_date')
                                     ->label(__('ui.fault_date'))
                                     ->formatStateUsing(fn ($state) => Carbon::parse($state)->locale(app()->getLocale())->translatedFormat('d F Y'))
@@ -122,9 +125,6 @@ class ViewTask extends ViewRecord
                                     ->badge()
                                     ->color('primary')
                                     ->icon('heroicon-o-user'),
-                                Infolists\Components\TextEntry::make('unit.name')
-                                    ->label(__('ui.unit'))
-                                    ->icon('heroicon-o-building-office'),
                                 Infolists\Components\Fieldset::make(__('ui.description'))
                                     ->schema([
                                         Infolists\Components\TextEntry::make('description')

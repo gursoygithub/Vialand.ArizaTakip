@@ -332,17 +332,13 @@ class TaskResource extends Resource
                     ->label(__('ui.type'))
                     ->badge()
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('task_date')
                     ->label(__('ui.fault_date'))
                     ->date()
                     ->badge()
                     ->color('primary')
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('status')
-                    ->label(__('ui.status'))
-                    ->badge()
-                    ->searchable()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('employee.name')
                     ->label(__('ui.assigned_to'))
@@ -350,17 +346,24 @@ class TaskResource extends Resource
                     ->color('primary')
                     ->searchable()
                     ->sortable(),
+                Tables\Columns\TextColumn::make('status')
+                    ->label(__('ui.status'))
+                    ->badge()
+                    ->searchable()
+                    ->sortable(),
                 Tables\Columns\TextColumn::make('due_date')
                     ->label(__('ui.due_date'))
                     ->date()
                     ->badge()
                     ->color('success')
-//                    ->colors([
-//                        'warning' => fn ($state): bool => $state === TaskStatusEnum::PENDING->value,
-//                        'success' => fn ($state): bool => $state === TaskStatusEnum::COMPLETED->value,
-//                        'primary' => fn ($state): bool => $state === TaskStatusEnum::WINTER_MAINTENANCE->value,
-//                    ])
                     ->sortable(),
+                Tables\Columns\TextColumn::make('completedBy.name')
+                    ->label(__('ui.closed_by'))
+                    ->badge()
+                    ->color('success')
+                    ->searchable()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('createdBy.name')
                     ->visible(fn () => auth()->user()->hasRole('super_admin'))
                     ->label(__('ui.created_by'))
@@ -410,7 +413,7 @@ class TaskResource extends Resource
                 Tables\Actions\ActionGroup::make([
                     Tables\Actions\Action::make(__('ui.close'))
                         ->hidden(fn ($record) => $record->trashed())
-                        ->visible(fn ($record) => $record->status->isNot(TaskStatusEnum::COMPLETED) && (auth()->user()->hasRole('super_admin') || auth()->user()->can('approve_task')) && $record->task_date <= today())
+                        ->visible(fn ($record) => $record->status->isNot(TaskStatusEnum::COMPLETED) && (auth()->user()->hasRole('super_admin') || auth()->user()->can('can_close_task')) && $record->task_date <= today())
                         ->form([
                             Forms\Components\DatePicker::make('due_date')
                                 ->label(__('ui.due_date'))
