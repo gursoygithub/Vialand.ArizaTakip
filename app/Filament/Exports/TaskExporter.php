@@ -63,34 +63,6 @@ class TaskExporter extends Exporter
                 ->formatStateUsing(fn ($state) => $state ? date('d.m.Y', strtotime($state)) : ''),
             ExportColumn::make('resolution_notes')
                 ->label(__('ui.resolution_notes')),
-
-
-
-
-//            ExportColumn::make('full_name')
-//                ->label(__('ui.full_name')),
-//            ExportColumn::make('department_name')
-//                ->label(__('ui.department')),
-//            ExportColumn::make('position_name')
-//                ->label(__('ui.position')),
-//            ExportColumn::make('date')
-//                ->label(__('ui.date'))
-//                ->formatStateUsing(fn ($state) => date('d.m.Y', strtotime($state))),
-//            ExportColumn::make('first_reading')
-//                ->label(__('ui.first_reading'))
-//                ->formatStateUsing(fn ($state) => $state ? date('H:i:s', strtotime($state)) : ''),
-//            ExportColumn::make('last_reading')
-//                ->label(__('ui.last_reading'))
-//                ->formatStateUsing(fn ($state) => $state ? date('H:i:s', strtotime($state)) : ''),
-//            ExportColumn::make('working_time')
-//                ->label(__('ui.working_time')),
-//            ExportColumn::make('status')
-//                ->label(__('ui.status'))
-//                ->formatStateUsing(fn ($state): ?string =>
-//                $state instanceof \App\Enums\ManagerStatusEnum
-//                    ? $state->getLabel()
-//                    : (string) $state
-//                ),
         ]);
 
         return $columns;
