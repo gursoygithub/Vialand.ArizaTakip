@@ -394,13 +394,14 @@ class TaskResource extends Resource
                         Unit::all()
                             ->pluck('name', 'id')
                     ),
-//                Tables\Filters\SelectFilter::make('status')
-//                    ->label(__('ui.status'))
-//                    ->options([
-//                        TaskStatusEnum::PENDING->value => TaskStatusEnum::PENDING->getLabel(),
-//                        TaskStatusEnum::COMPLETED->value => TaskStatusEnum::COMPLETED->getLabel(),
-//                        TaskStatusEnum::WINTER_MAINTENANCE->value => TaskStatusEnum::WINTER_MAINTENANCE->getLabel(),
-//                    ]),
+                // filter by type
+                Tables\Filters\SelectFilter::make('type_id')
+                    ->label(__('ui.type'))
+                    ->options(
+                        collect(TaskTypeEnum::cases())
+                            ->mapWithKeys(fn ($case) => [$case->value => $case->getLabel()])
+                            ->toArray()
+                    ),
             ])
             ->headerActions([
                 Tables\Actions\ExportAction::make()

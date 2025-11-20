@@ -424,4 +424,6 @@ return [
     'fault_date' => 'Arıza Tarihi',
     'task_closed_message' => 'Oluşturmuş olduğunuz görev başarıyla kapatılmıştır. Detaylar aşağıdaki gibidir:',
     'resolution_notes_required_with_due_date' => 'Çözüm notları, bir çözüm tarihi belirtildiğinde zorunludur',
+    'tasks_by_type' => 'Tiplere Göre Görev Sayısı',
+    'number_of_tasks' => 'Görev Sayısı',
 ];
