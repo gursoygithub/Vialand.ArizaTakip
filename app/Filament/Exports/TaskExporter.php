@@ -56,9 +56,11 @@ class TaskExporter extends Exporter
             ExportColumn::make('task_date')
                 ->label(__('ui.task_date'))
                 ->formatStateUsing(fn ($state) => date('d.m.Y', strtotime($state))),
+            ExportColumn::make('completedBy.name')
+                ->label(__('ui.closed_by')),
             ExportColumn::make('due_date')
                 ->label(__('ui.due_date'))
-                ->formatStateUsing(fn ($state) => $state ? date('d.m.Y H:i:s', strtotime($state)) : ''),
+                ->formatStateUsing(fn ($state) => $state ? date('d.m.Y', strtotime($state)) : ''),
             ExportColumn::make('resolution_notes')
                 ->label(__('ui.resolution_notes')),
 
