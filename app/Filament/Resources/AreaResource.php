@@ -33,7 +33,7 @@ class AreaResource extends Resource
 
     public static function getNavigationGroup(): ?string
     {
-        return __('ui.panel_management');
+        return __('ui.task_management');
     }
 
     public static function getNavigationBadge(): ?string
@@ -67,6 +67,8 @@ class AreaResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
+            ->defaultSort('updated_at', 'desc')
+            ->paginated([5, 10, 25, 50])
             ->columns([
                 Tables\Columns\TextColumn::make('name')
                     ->label(__('ui.name'))

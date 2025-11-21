@@ -58,6 +58,7 @@ class SubAreasRelationManager extends RelationManager
     {
         return $table
             ->defaultSort('updated_at', 'desc')
+            ->paginated([5, 10, 25, 50])
             ->columns([
                 Tables\Columns\TextColumn::make('name')
                     ->label(__('ui.name'))
