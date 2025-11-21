@@ -15,14 +15,14 @@ return Application::configure(basePath: dirname(__DIR__))
         //
     })
     ->withSchedule(callback: function (\Illuminate\Console\Scheduling\Schedule $schedule): void {
-        $schedule->command('report:daily')
+        $schedule->command('employee:sync')
             ->everyFiveMinutes()
             ->timezone(timezone: config('app.timezone', 'UTC'))
             ->onSuccess(callback: function (): void {
-                info(message: 'Günlük rapor komutu başarıyla tamamlandı.');
+                info(message: 'Personel senkronizasyon komutu başarıyla tamamlandı.');
             })
             ->onFailure(callback: function ():void {
-                info(message: 'Günlük rapor komutu başarısız oldu.');
+                info(message: 'Personel senkronizasyon komutu başarısız oldu.');
             });
     })
     ->withExceptions(function (Exceptions $exceptions) {
