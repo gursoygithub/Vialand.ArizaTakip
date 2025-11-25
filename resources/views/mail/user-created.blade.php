@@ -62,6 +62,5 @@
 </div>
 
 <p>{{ __('ui.enjoy_your_work') }}</p>
-<p>{{ __('ui.best_regards') }},<br><strong>{{ config('app.name') }}</strong></p>
 </body>
 </html>
