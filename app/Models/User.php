@@ -111,14 +111,14 @@ class User extends Authenticatable implements FilamentUser
 
 
     // send mail to user after creation
-    protected static function booted()
-    {
-        static::created(function ($user) {
-            $password = Str::substr($user->phone, -8);
-            //$password =  Str::mask($user->phone, '*', 0, strlen($user->tc_no) - 4);
-            //$password =  Str::mask($user->tc_no, '*', 0, strlen($user->tc_no) - 4);
-            // Send welcome email or notification
-            Mail::to($user->email)->send(new SendPasswordToUser($user, $password));
-        });
-    }
+//    protected static function booted()
+//    {
+//        static::created(function ($user) {
+//            $password = Str::substr($user->phone, -8);
+//            //$password =  Str::mask($user->phone, '*', 0, strlen($user->tc_no) - 4);
+//            //$password =  Str::mask($user->tc_no, '*', 0, strlen($user->tc_no) - 4);
+//            // Send welcome email or notification
+//            Mail::to($user->email)->send(new SendPasswordToUser($user, $password));
+//        });
+//    }
 }

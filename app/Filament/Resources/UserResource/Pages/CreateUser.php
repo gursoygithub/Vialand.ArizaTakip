@@ -10,6 +10,7 @@ use App\Notifications\UserCreated;
 use Filament\Actions;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class CreateUser extends CreateRecord
 {
@@ -43,17 +44,23 @@ class CreateUser extends CreateRecord
             session()->flash('error', 'Çalışan ID boş olamaz.');
         }
 
-        // create a alfanumeric random password
-        //$password = substr(str_shuffle('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*'), 0, 10);
-        //$password = 'password';
+//        $password = substr($data['phone'], -8);
+//
+//        $data['password'] = bcrypt($password);
 
-        //$password = $data['tc_no'];
-        //$password = substr($data['tc_no'], -4);
+        // 8 hanelik alfanümerik şifre üret
+        $this->generatedPassword = Str::random(8);
 
-        $password = substr($data['phone'], -8);
-
-        $data['password'] = bcrypt($password);
+        $data['password'] = $this->generatedPassword;
 
         return $data;
+    }
+
+    protected function afterCreate(): void
+    {
+        // Filament create işleminden sonra notification gönder
+        $this->record->notify(
+            new UserCreated($this->record, $this->generatedPassword)
+        );
     }
 }

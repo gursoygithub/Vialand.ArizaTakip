@@ -32,7 +32,7 @@ class SendPasswordToUser extends Mailable
     {
         return new Envelope(
             to: $this->user->email,
-            subject: 'Send Password To User',
+            subject: (__('ui.user_created')),
         );
     }
 

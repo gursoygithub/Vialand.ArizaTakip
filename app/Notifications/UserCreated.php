@@ -39,7 +39,7 @@ class UserCreated extends Notification
     {
         return (new MailMessage)
             ->subject(__('ui.user_created'))
-            ->view('emails.user-created', [
+            ->view('mail.user-created', [
                 'user' => $this->user,
                 'password' => $this->password,
             ]);

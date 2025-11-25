@@ -44,19 +44,17 @@
     </style>
 </head>
 <body>
-<div class="header">
-    <h1>{{ __('ui.fault_tracking_panel') }}</h1>
-</div>
 
 <div class="content">
     <p>{{ __('ui.hello') }} {{ $user?->name, }}</p>
 
     <p>{{ __('ui.user_created_message') }}</p>
 
-    <div class="info">
+    <p>
+        {{ __('ui.link_to_panel') }}: <a href="{{ config('app.url') }}">{{ config('app.url') }}</a><br><br>
         {{ __('ui.email') }}: <strong>{{ $user?->email }}</strong><br>
         {{ __('ui.password') }}: <strong>{{ $password }}</strong>
-    </div>
+    </p>
 
     <div class="danger" style="color: red;">
         <strong>{{ __('ui.user_created_warning') }}</strong>
@@ -64,9 +62,6 @@
 </div>
 
 <p>{{ __('ui.enjoy_your_work') }}</p>
-
-{{--    <div class="footer">--}}
-{{--        <p>{{ "Gürsoy Grup" }}<br>{{ __('ui.vialand_theme_parc') }}<br>{{ __('ui.guest_office')}}</p>--}}
-{{--    </div>--}}
+<p>{{ __('ui.best_regards') }},<br><strong>{{ config('app.name') }}</strong></p>
 </body>
 </html>

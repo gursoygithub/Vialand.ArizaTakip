@@ -426,4 +426,7 @@ return [
     'resolution_notes_required_with_due_date' => 'Çözüm notları, bir çözüm tarihi belirtildiğinde zorunludur',
     'tasks_by_type' => 'Tiplere Göre Görev Sayısı',
     'number_of_tasks' => 'Görev Sayısı',
+    'your_account_has_been_created' => 'Hesabınız Oluşturuldu',
+    'best_regards' => 'Saygılarımızla',
+    'link_to_panel' => 'Panel Bağlantısı',
 ];
