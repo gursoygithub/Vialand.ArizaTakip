@@ -232,6 +232,7 @@ class TaskResource extends Resource
                                             ->label(__('ui.images'))
                                             ->helperText(__('ui.task_photo_helper_text'))
                                             ->collection('task_attachments')
+                                            ->visibility('public')
                                             ->downloadable()
                                             ->openable()
                                             ->maxFiles(10)
@@ -246,9 +247,7 @@ class TaskResource extends Resource
                                                 'max' => __('ui.max_files_exceeded', ['max' => 10]),
                                                 'file' => __('ui.file_upload_error'),
                                             ])
-                                            ->columnSpanFull()
-                                            ->disk('public')
-                                            ->visibility('public'),
+                                            ->columnSpanFull(),
                                     ]),
                             ]),
                         Fieldset::make(__('ui.resolution_information'))
