@@ -44,9 +44,14 @@ class TaskByTypeOverview extends BaseWidget
             $completed = (clone $q)->where('status', TaskStatusEnum::COMPLETED)->count();
             $winter = (clone $q)->where('status', TaskStatusEnum::WINTER_MAINTENANCE)->count();
 
+            $pending = 9999999;
+            $completed = 9999999;
+            $winter = 9999999;
+
+            $totalLabel = __('ui.all');
             $pendingLabel = __('ui.task_by_unit_overview_waiting_label');
             $completedLabel = __('ui.task_by_unit_overview_completed_label');
-            $winterLabel = __('ui.task_by_unit_overview_winter_label');
+            $winterLabel = __('ui.winter_maintenance');
 
 //            $stats[] = Stat::make(
 //                new \Illuminate\Support\HtmlString("<span style='font-size:1.3rem;font-weight:700'>{$unitLabel}</span>"),
@@ -65,15 +70,16 @@ class TaskByTypeOverview extends BaseWidget
 
 
             //$stats[] = Stat::make(new \Illuminate\Support\HtmlString("<span style=\"font-size:1.125rem;font-weight:600\">{$unitLabel}</span>"), new \Illuminate\Support\HtmlString("<span style=\"font-size:1.25rem;font-weight:700\">{$total}</span>"))
-            $stats[] = Stat::make(new \Illuminate\Support\HtmlString("<span style=\"font-size:1.125rem;font-weight:600\">{$unitLabel}</span>"), new \Illuminate\Support\HtmlString("<span style=\"\">{$total}</span>"))
+            $stats[] = Stat::make(new \Illuminate\Support\HtmlString("<span style=\"font-size:1.125rem;font-weight:600\">{$unitLabel}</span>"), new \Illuminate\Support\HtmlString("<span style=\"\"></span>"))
             //$stats[] = Stat::make(new \Illuminate\Support\HtmlString("<span style=\"\">{$unitLabel}</span>"), new \Illuminate\Support\HtmlString("<span style=\"\">{$total}</span>"))
                 ->icon('heroicon-o-wrench-screwdriver')
                 ->description(
                     new \Illuminate\Support\HtmlString("
                         <span style='font-size:1.05rem'>
-                            {$pendingLabel}: <span style='color:#F59E0B; font-weight:700; font-size: 1.6rem'>{$pending}</span>
-                            {$completedLabel}: <span style='color:#10B981; font-weight:700;  font-size: 1.6rem'>{$completed}</span>
-                            {$winterLabel}: <span style='color:#3B82F6; font-weight:700;  font-size: 1.6rem'>{$winter}</span>
+                            <span style='font-weight:700; font-size: 1rem'>{$totalLabel}: </span>{$total} <br>
+                            <span style='color:#F59E0B; font-weight:700; font-size: 1rem'>{$pendingLabel}:</span> {$pending} <br>
+                            {$completedLabel}: <span style='color:#10B981; font-weight:700;  font-size: 1rem'>{$completed}</span> <br>
+                            {$winterLabel}: <span style='color:#3B82F6; font-weight:700;  font-size: 1rem'>{$winter}</span>
                         </span>
                     ")
                 );
