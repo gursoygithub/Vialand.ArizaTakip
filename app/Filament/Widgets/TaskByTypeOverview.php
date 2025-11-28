@@ -55,39 +55,90 @@ class TaskByTypeOverview extends BaseWidget
             $iconWinter = '<svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="1.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v18M5 8l14 0M5 16l14 0M8 6l8 12M16 6l-8 12"/></svg>';
 
             // Badge markup — renk sınıfları badge container üzerinde (ikon + sayı aynı renk alır)
+//            $html = "
+//                <div class='space-y-2 mt-2 text-sm'>
+//                    <div class='flex items-center justify-between'>
+//                        <div class='text-amber-600 font-medium'>{$pendingLabel}</div>
+//                        <div class='inline-flex items-center gap-2'>
+//                            <span class='inline-flex items-center gap-2 px-2 py-0.5 rounded-md bg-gray-100 text-gray-900 font-medium'>
+//                                {$iconPending}
+//                                <span>{$pending}</span>
+//                            </span>
+//                        </div>
+//                    </div>
+//
+//                    <div class='flex items-center justify-between'>
+//                        <div class='text-emerald-600 font-medium'>{$completedLabel}</div>
+//                        <div class='inline-flex items-center gap-2'>
+//                            <span class='inline-flex items-center gap-2 px-2 py-0.5 rounded-md bg-gray-100 text-gray-900 font-medium'>
+//                                {$iconCompleted}
+//                                <span>{$completed}</span>
+//                            </span>
+//                        </div>
+//                    </div>
+//
+//                    <div class='flex items-center justify-between'>
+//                        <div class='text-blue-600 font-medium'>{$winterLabel}</div>
+//                        <div class='inline-flex items-center gap-2'>
+//                            <span class='inline-flex items-center gap-2 px-2 py-0.5 rounded-md bg-gray-100 text-gray-900 font-medium'>
+//                                {$iconWinter}
+//                                <span>{$winter}</span>
+//                            </span>
+//                        </div>
+//                    </div>
+//                </div>
+//            ";
             $html = "
-                <div class='space-y-2 mt-2 text-sm'>
-                    <div class='flex items-center justify-between'>
-                        <div class='text-amber-600 font-medium'>{$pendingLabel}</div>
-                        <div class='inline-flex items-center gap-2'>
-                            <span class='inline-flex items-center gap-2 px-2 py-0.5 rounded-md bg-amber-100 text-amber-600 font-semibold'>
-                                {$iconPending}
-                                <span>{$pending}</span>
-                            </span>
-                        </div>
-                    </div>
+<div class='space-y-2 mt-2 text-sm'>
 
-                    <div class='flex items-center justify-between'>
-                        <div class='text-emerald-600 font-medium'>{$completedLabel}</div>
-                        <div class='inline-flex items-center gap-2'>
-                            <span class='inline-flex items-center gap-2 px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-600 font-semibold'>
-                                {$iconCompleted}
-                                <span>{$completed}</span>
-                            </span>
-                        </div>
-                    </div>
+    <div class='flex items-center justify-between'>
+        <div class='text-amber-600 font-medium'>{$pendingLabel}</div>
+        <div class='inline-flex items-center gap-2'>
+            <span class='inline-flex items-center gap-2 px-2 py-0.5 rounded-md bg-gray-100 text-amber-600 font-semibold ml-2'>
+                <!-- clock ikon -->
+                <svg xmlns='http://www.w3.org/2000/svg' class='w-4 h-4' fill='none' viewBox='0 0 24 24' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>
+                    <circle cx='12' cy='12' r='10'/>
+                    <path d='M12 6v6l4 2'/>
+                </svg>
+                <span>{$pending}</span>
+            </span>
+        </div>
+    </div>
 
-                    <div class='flex items-center justify-between'>
-                        <div class='text-blue-600 font-medium'>{$winterLabel}</div>
-                        <div class='inline-flex items-center gap-2'>
-                            <span class='inline-flex items-center gap-2 px-2 py-0.5 rounded-md bg-blue-100 text-blue-600 font-semibold'>
-                                {$iconWinter}
-                                <span>{$winter}</span>
-                            </span>
-                        </div>
-                    </div>
-                </div>
-            ";
+    <div class='flex items-center justify-between'>
+        <div class='text-emerald-600 font-medium'>{$completedLabel}</div>
+        <div class='inline-flex items-center gap-2'>
+            <span class='inline-flex items-center gap-2 px-2 py-0.5 rounded-md bg-gray-100 text-emerald-600 font-semibold ml-2'>
+                <!-- check-circle ikon -->
+                <svg xmlns='http://www.w3.org/2000/svg' class='w-4 h-4' fill='none' viewBox='0 0 24 24' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>
+                    <path stroke-linecap='round' stroke-linejoin='round' d='M5 13l4 4L19 7'/>
+                </svg>
+                <span>{$completed}</span>
+            </span>
+        </div>
+    </div>
+
+    <div class='flex items-center justify-between'>
+        <div class='text-blue-600 font-medium'>{$winterLabel}</div>
+        <div class='inline-flex items-center gap-2'>
+            <span class='inline-flex items-center gap-2 px-2 py-0.5 rounded-md bg-gray-100 text-blue-600 font-semibold ml-2'>
+                <!-- lifebuoy ikon -->
+                <svg xmlns='http://www.w3.org/2000/svg' class='w-4 h-4' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>
+                    <circle cx='12' cy='12' r='10'/>
+                    <circle cx='12' cy='12' r='4'/>
+                    <line x1='4.93' y1='4.93' x2='9.17' y2='9.17'/>
+                    <line x1='14.83' y1='14.83' x2='19.07' y2='19.07'/>
+                    <line x1='14.83' y1='9.17' x2='19.07' y2='4.93'/>
+                    <line x1='4.93' y1='19.07' x2='9.17' y2='14.83'/>
+                </svg>
+                <span>{$winter}</span>
+            </span>
+        </div>
+    </div>
+
+</div>
+";
+
 
             $stats[] = Stat::make($unitLabel, $total)
                 ->icon('heroicon-o-wrench-screwdriver')
