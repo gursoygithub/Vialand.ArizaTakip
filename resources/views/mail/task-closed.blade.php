@@ -57,7 +57,7 @@
         <u>{{__('ui.task_details')}}:</u>
         <li>{{ __('ui.task_title') }}: <strong>{{ $task->title }}</strong></li>
         <li>{{ __('ui.task_date') }}: <strong>{{ $task->task_date->format('d.m.Y H:i') }}</strong></li>
-        <li>{{ __('ui.assigned_to') }}: <strong>{{ $task->employee->name }}</strong></li>
+        <!--<li>{{ __('ui.assigned_to') }}: <strong>{{ $task->employee?->name }}</strong></li>-->
         <li>{{ __('ui.description') }}: <strong>{{ $task->description }}</strong></li>
     </ul>
 

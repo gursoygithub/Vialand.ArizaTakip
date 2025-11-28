@@ -323,20 +323,24 @@ class TaskResource extends Resource
                     ->sortable(),
                 Tables\Columns\TextColumn::make('area.name')
                     ->label(__('ui.area'))
+                    ->icon('heroicon-o-map')
                     ->searchable()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('subArea.name')
                     ->label(__('ui.sub_area'))
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->icon('heroicon-o-map-pin'),
                 Tables\Columns\TextColumn::make('unit.name')
                     ->label(__('ui.unit'))
+                    ->icon('heroicon-o-building-office')
                     ->badge()
                     ->color('primary')
                     ->searchable()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('task_date')
                     ->label(__('ui.fault_date'))
+                    ->icon('heroicon-o-calendar-days')
                     ->date()
                     ->badge()
                     ->color('primary')
