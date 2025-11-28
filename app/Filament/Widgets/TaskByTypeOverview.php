@@ -71,9 +71,9 @@ class TaskByTypeOverview extends BaseWidget
                 ->description(
                     new \Illuminate\Support\HtmlString("
                         <span style='font-size:1.05rem'>
-                            {$pendingLabel}: <span style='color:#F59E0B; font-weight:700;'>{$pending}</span>
-                            {$completedLabel}: <span style='color:#10B981; font-weight:700'>{$completed}</span>
-                            {$winterLabel}: <span style='color:#3B82F6; font-weight:700'>{$winter}</span>
+                            {$pendingLabel}: <span style='color:#F59E0B; font-weight:700; font-size: 1.6rem'>{$pending}</span>
+                            {$completedLabel}: <span style='color:#10B981; font-weight:700;  font-size: 1.6rem'>{$completed}</span>
+                            {$winterLabel}: <span style='color:#3B82F6; font-weight:700;  font-size: 1.6rem'>{$winter}</span>
                         </span>
                     ")
                 );
@@ -85,7 +85,7 @@ class TaskByTypeOverview extends BaseWidget
 
     public static function canView(): bool
     {
-        return auth()->user()->hasRole('super_admin') || auth()->user()->can('view_task_by_unit_overview');
+        return auth()->user()->hasRole('super_admin') || auth()->user()->can('widget_TaskByTypeOverview');
     }
 }
 

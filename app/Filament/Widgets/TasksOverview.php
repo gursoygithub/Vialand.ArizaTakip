@@ -57,6 +57,6 @@ class TasksOverview extends BaseWidget
 
     public static function canView(): bool
     {
-        return auth()->user()->can('view_tasks_overview_widget');
+        return auth()->user()->can('widget_TasksOverview');
     }
 }
