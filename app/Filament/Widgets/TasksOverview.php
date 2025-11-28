@@ -13,7 +13,7 @@ class TasksOverview extends BaseWidget
      */
     public function getHeading(): ?string
     {
-        return __('ui.tasks');
+        return __('ui.task_by_status');
     }
     protected function getStats(): array
     {

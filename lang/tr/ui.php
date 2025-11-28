@@ -438,4 +438,5 @@ return [
     'stores' => 'Mağazalar',
     'fair_services' => 'Panayır',
     'location' => 'Lokasyon',
+    'task_by_status' => 'Durumlara Göre Görev Sayısı',
 ];
