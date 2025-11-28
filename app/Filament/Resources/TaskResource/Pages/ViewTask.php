@@ -90,8 +90,11 @@ class ViewTask extends ViewRecord
                     ->schema([
                         Infolists\Components\Fieldset::make(__('ui.task_details'))
                             ->schema([
-                                Infolists\Components\TextEntry::make('title')
-                                    ->label(__('ui.task_title')),
+//                                Infolists\Components\TextEntry::make('title')
+//                                    ->label(__('ui.task_title')),
+                                Infolists\Components\TextEntry::make('type_id')
+                                    ->label(__('ui.type'))
+                                    ->badge(),
                                 Infolists\Components\TextEntry::make('area.name')
                                     ->label(__('ui.area'))
                                     ->icon('heroicon-o-map-pin'),

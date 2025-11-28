@@ -27,21 +27,21 @@ class TaskExporter extends Exporter
 
         // Diğer sütunlar
         $columns = array_merge($columns, [
-            ExportColumn::make('title')
-                ->label(__('ui.task_title')),
+//            ExportColumn::make('title')
+//                ->label(__('ui.task_title')),
+            ExportColumn::make('type_id')
+                ->label(__('ui.type'))
+                ->formatStateUsing(fn ($state): ?string =>
+                $state instanceof \App\Enums\TaskTypeEnum
+                    ? $state->getLabel()
+                    : (string) $state
+                ),
             ExportColumn::make('area.name')
                 ->label(__('ui.area')),
             ExportColumn::make('subArea.name')
                 ->label(__('ui.sub_area')),
             ExportColumn::make('unit.name')
                 ->label(__('ui.unit')),
-            ExportColumn::make('type_id')
-                ->label(__('ui.type'))
-                ->formatStateUsing(fn ($state): ?string =>
-                    $state instanceof \App\Enums\TaskTypeEnum
-                        ? $state->getLabel()
-                        : (string) $state
-                ),
             ExportColumn::make('description')
                 ->label(__('ui.description')),
             ExportColumn::make('status')
@@ -51,8 +51,8 @@ class TaskExporter extends Exporter
                         ? $state->getLabel()
                         : (string) $state
                 ),
-            ExportColumn::make('employee.name')
-                ->label(__('ui.assigned_to')),
+//            ExportColumn::make('employee.name')
+//                ->label(__('ui.assigned_to')),
             ExportColumn::make('task_date')
                 ->label(__('ui.task_date'))
                 ->formatStateUsing(fn ($state) => date('d.m.Y', strtotime($state))),

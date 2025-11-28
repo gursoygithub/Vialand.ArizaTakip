@@ -60,6 +60,7 @@ class TaskResource extends Resource
                 \Filament\Forms\Components\Card::make()
                     ->schema([
                         Forms\Components\TextInput::make('title')
+                            ->hidden()
                             ->label(__('ui.task_title'))
                             ->placeholder(__('ui.task_placeholder'))
                             ->required()
@@ -69,6 +70,17 @@ class TaskResource extends Resource
                         Fieldset::make(__('ui.task_information'))
                             ->columns(3)
                             ->schema([
+                                Forms\Components\Select::make('type_id')
+                                    ->label(__('ui.type'))
+                                    ->options(
+                                        collect(TaskTypeEnum::cases())
+                                            ->mapWithKeys(fn ($case) => [$case->value => $case->getLabel()])
+                                            ->toArray()
+                                    )
+                                    ->required()
+                                    ->validationMessages([
+                                        'required' => __('ui.required'),
+                                    ]),
                                 Forms\Components\Select::make('area_id')
                                     ->label(__('ui.area'))
                                     ->options(
@@ -173,18 +185,8 @@ class TaskResource extends Resource
                                     ->validationMessages([
                                         'required' => __('ui.required'),
                                     ]),
-                                Forms\Components\Select::make('type_id')
-                                    ->label(__('ui.type'))
-                                    ->options(
-                                        collect(TaskTypeEnum::cases())
-                                            ->mapWithKeys(fn ($case) => [$case->value => $case->getLabel()])
-                                            ->toArray()
-                                    )
-                                    ->required()
-                                    ->validationMessages([
-                                        'required' => __('ui.required'),
-                                    ]),
                                 Forms\Components\Select::make('employee_id')
+                                    ->hidden()
                                     ->label(__('ui.assigned_to'))
                                     ->options(
                                         \App\Models\Employee::all()
@@ -238,11 +240,11 @@ class TaskResource extends Resource
                                             ->maxFiles(10)
                                             ->maxSize(10240) // 10 MB
                                             ->image()
-                                            ->required()
+                                            //->required()
                                             ->acceptedFileTypes(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])
                                             ->maxSize(1024 * 5) // Maksimum 5MB örnek
                                             ->validationMessages([
-                                                'required' => __('ui.required'),
+                                                //'required' => __('ui.required'),
                                                 'accepted_file_types' => __('ui.invalid_file_type'),
                                                 'max' => __('ui.max_files_exceeded', ['max' => 10]),
                                                 'file' => __('ui.file_upload_error'),
@@ -310,8 +312,13 @@ class TaskResource extends Resource
                     ->collection('task_attachments')
                     ->square()
                     ->size(50),
-                Tables\Columns\TextColumn::make('title')
-                    ->label(__('ui.task_title'))
+//                Tables\Columns\TextColumn::make('title')
+//                    ->label(__('ui.task_title'))
+//                    ->searchable()
+//                    ->sortable(),
+                Tables\Columns\TextColumn::make('type_id')
+                    ->label(__('ui.type'))
+                    ->badge()
                     ->searchable()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('area.name')
@@ -328,24 +335,18 @@ class TaskResource extends Resource
                     ->color('primary')
                     ->searchable()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('type_id')
-                    ->label(__('ui.type'))
-                    ->badge()
-                    ->searchable()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('task_date')
                     ->label(__('ui.fault_date'))
                     ->date()
                     ->badge()
                     ->color('primary')
                     ->sortable(),
-                Tables\Columns\TextColumn::make('employee.name')
-                    ->label(__('ui.assigned_to'))
-                    ->badge()
-                    ->color('primary')
-                    ->searchable()
-                    ->sortable(),
+//                Tables\Columns\TextColumn::make('employee.name')
+//                    ->label(__('ui.assigned_to'))
+//                    ->badge()
+//                    ->color('primary')
+//                    ->searchable()
+//                    ->sortable(),
                 Tables\Columns\TextColumn::make('status')
                     ->label(__('ui.status'))
                     ->badge()
