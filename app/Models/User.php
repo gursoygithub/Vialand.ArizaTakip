@@ -74,18 +74,6 @@ class User extends Authenticatable implements FilamentUser
         ];
     }
 
-    // Relation with managers
-//    public function managers()
-//    {
-//        return $this->hasMany(Manager::class);
-//    }
-//
-//    // Relation with employee
-//    public function employee()
-//    {
-//        return $this->belongsTo(Employee::class, 'employee_id', 'id');
-//    }
-
     public function canAccessPanel(Panel $panel): bool
     {
         return $this->status->is(ManagerStatusEnum::ACTIVE);
@@ -107,6 +95,24 @@ class User extends Authenticatable implements FilamentUser
     public function deletedBy()
     {
         return $this->belongsTo(User::class, 'deleted_by');
+    }
+
+    // relation with areas
+    public function areas()
+    {
+        return $this->hasMany(Area::class, 'created_by');
+    }
+
+    // relation with sub_areas
+    public function subAreas()
+    {
+        return $this->hasMany(SubArea::class, 'created_by');
+    }
+
+    // relation with tasks
+    public function tasks()
+    {
+        return $this->hasMany(Task::class, 'created_by');
     }
 
 

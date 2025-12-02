@@ -338,6 +338,21 @@ class UserResource extends Resource
 
     public static function canDelete(Model $record): bool
     {
-        return $record->id !== auth()->id() && auth()->user()->hasRole('super_admin') === false;
+        // Check if the user is trying to delete themselves or a super admin
+        if ($record->id === auth()->id() || $record->hasRole('super_admin')) {
+            return false;
+        }
+
+        // Check if the user is not the creator of the record
+        if ($record->created_by !== auth()->id()) {
+            return false;
+        }
+
+        // Check if the user is associated with any Area, SubArea, or Task
+        if ($record->areas()->exists() || $record->subAreas()->exists() || $record->tasks()->exists()) {
+            return false;
+        }
+
+        return true;
     }
 }
