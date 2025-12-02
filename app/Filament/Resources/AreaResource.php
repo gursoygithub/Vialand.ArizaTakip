@@ -117,6 +117,7 @@ class AreaResource extends Resource
                         ->requiresConfirmation()
                         ->action(function ($record) {
                             $record->deleted_by = Auth::id();
+                            $record->deleted_at = now();
                             $record->save();
                             $record->delete();
                         }),

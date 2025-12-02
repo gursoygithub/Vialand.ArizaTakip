@@ -13,7 +13,11 @@ class ListSubAreas extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            Actions\CreateAction::make(),
+            Actions\CreateAction::make()
+                ->mutateFormDataUsing(function (array $data): array {
+                    $data['created_by'] = auth()->user()->id;
+                    return $data;
+                }),
         ];
     }
 }

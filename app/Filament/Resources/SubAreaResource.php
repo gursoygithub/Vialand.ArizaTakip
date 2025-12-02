@@ -6,6 +6,7 @@ use App\Filament\Resources\SubAreaResource\Pages;
 use App\Filament\Resources\SubAreaResource\RelationManagers;
 use App\Models\SubArea;
 use Filament\Forms;
+use Filament\Forms\Components\Fieldset;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
@@ -20,7 +21,7 @@ class SubAreaResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-map-pin';
 
-    protected static bool $shouldRegisterNavigation = false;
+    //protected static bool $shouldRegisterNavigation = false;
 
     public static function getModelLabel(): string
     {
@@ -42,11 +43,42 @@ class SubAreaResource extends Resource
         return __('ui.task_management');
     }
 
+    public static function getNavigationBadge(): ?string
+    {
+        if (auth()->user()?->hasRole('super_admin') || auth()->user()?->can('view_all_sub_areas')) {
+            return static::getModel()::count();
+        }
+
+        return static::getModel()::where('created_by', auth()->id())->count();
+    }
+
     public static function form(Form $form): Form
     {
         return $form
             ->schema([
-                //
+                \Filament\Forms\Components\Card::make()
+                    ->schema([
+                        Fieldset::make(__('ui.sub_area_information'))
+                            ->columns(2)
+                            ->schema([
+                                Forms\Components\TextInput::make('name')
+                                    ->label(__('ui.name'))
+                                    ->placeholder(__('ui.sub_area_placeholder'))
+                                    ->required()
+                                    ->validationMessages([
+                                        'required' => __('ui.required'),
+                                    ]),
+                                Forms\Components\Select::make('area_id')
+                                    ->label(__('ui.area'))
+                                    ->relationship('area', 'name')
+                                    ->preload()
+                                    ->searchable()
+                                    ->required()
+                                    ->validationMessages([
+                                        'required' => __('ui.required'),
+                                    ]),
+                            ]),
+                    ]),
             ]);
     }
 
@@ -58,6 +90,10 @@ class SubAreaResource extends Resource
             ->columns([
                 Tables\Columns\TextColumn::make('name')
                     ->label(__('ui.name'))
+                    ->sortable()
+                    ->searchable(),
+                Tables\Columns\TextColumn::make('area.name')
+                    ->label(__('ui.area'))
                     ->sortable()
                     ->searchable(),
                 Tables\Columns\TextColumn::make('createdBy.name')
@@ -85,7 +121,23 @@ class SubAreaResource extends Resource
                 //
             ])
             ->actions([
-                //Tables\Actions\EditAction::make(),
+                Tables\Actions\ActionGroup::make([
+                    Tables\Actions\ViewAction::make(),
+                    Tables\Actions\EditAction::make()
+                        ->mutateFormDataUsing(function (array $data): array {
+                            $data['updated_by'] = auth()->user()->id;
+                            return $data;
+                        }),
+                    Tables\Actions\DeleteAction::make()
+                        ->requiresConfirmation()
+                        ->action(function (Model $record) {
+                            $record->deleted_by = auth()->user()->id;
+                            $record->deleted_at = now();
+                            $record->save();
+                            $record->delete();
+                        }
+                    ),
+                ])
             ])
             ->bulkActions([
                 //
@@ -103,8 +155,14 @@ class SubAreaResource extends Resource
     {
         return [
             'index' => Pages\ListSubAreas::route('/'),
-            'create' => Pages\CreateSubArea::route('/create'),
-            'edit' => Pages\EditSubArea::route('/{record}/edit'),
+            //'create' => Pages\CreateSubArea::route('/create'),
+            //'edit' => Pages\EditSubArea::route('/{record}/edit'),
+            //'view' => Pages\ViewSubArea::route('/{record}')
         ];
+    }
+
+    public static function canDelete(Model $record): bool
+    {
+        return $record->tasks()->count() === 0 && (auth()->user()->hasRole('super_admin') || $record->created_by === auth()->user()->id);
     }
 }
