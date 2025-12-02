@@ -11,6 +11,7 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class SubAreaResource extends Resource
@@ -20,6 +21,21 @@ class SubAreaResource extends Resource
     protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
 
     protected static bool $shouldRegisterNavigation = false;
+
+    public static function getModelLabel(): string
+    {
+        return __('ui.sub_area');
+    }
+
+    public static function getTitle(Model $ownerRecord, string $pageClass): string
+    {
+        return __('ui.sub_areas');
+    }
+
+    public static function getPluralModelLabel(): string
+    {
+        return __('ui.sub_areas');
+    }
 
     public static function form(Form $form): Form
     {
