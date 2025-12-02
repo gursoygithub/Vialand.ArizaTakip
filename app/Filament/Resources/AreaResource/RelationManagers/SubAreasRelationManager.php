@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\AreaResource\RelationManagers;
 
+use App\Models\SubArea;
 use Filament\Forms;
 use Filament\Forms\Components\Fieldset;
 use Filament\Forms\Form;
@@ -116,6 +117,11 @@ class SubAreasRelationManager extends RelationManager
     {
         return false;
     }
+
+//    protected function canCreate(): bool
+//    {
+//        return auth()->user()->hasRole('super_admin') || auth()->user()->can('create_sub::area');
+//    }
 
     protected function canDelete(Model $record): bool
     {
