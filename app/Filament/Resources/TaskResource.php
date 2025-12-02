@@ -20,6 +20,7 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -370,7 +371,7 @@ class TaskResource extends Resource
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('createdBy.name')
-                    ->visible(fn () => auth()->user()->hasRole('super_admin'))
+                    ->visible(fn () => auth()->user()->hasRole('super_admin') || auth()->user()->can('view_all_tasks'))
                     ->label(__('ui.created_by'))
                     ->searchable()
                     ->sortable()
@@ -490,5 +491,10 @@ class TaskResource extends Resource
             'edit' => Pages\EditTask::route('/{record}/edit'),
             'view' => Pages\ViewTask::route('/{record}'),
         ];
+    }
+
+    public static function canDelete(Model $record): bool
+    {
+        return auth()->user()?->hasRole('super_admin') || $record->created_by === auth()->id();
     }
 }

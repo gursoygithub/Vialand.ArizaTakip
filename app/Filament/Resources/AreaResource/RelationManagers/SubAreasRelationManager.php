@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\AreaResource\RelationManagers;
 
+use App\Models\SubArea;
 use Filament\Forms;
 use Filament\Forms\Components\Fieldset;
 use Filament\Forms\Form;
@@ -65,7 +66,7 @@ class SubAreasRelationManager extends RelationManager
                     ->sortable()
                     ->searchable(),
                 Tables\Columns\TextColumn::make('createdBy.name')
-                    ->visible(fn () => auth()->user()->hasRole('super_admin'))
+                    ->visible(fn () => auth()->user()->hasRole('super_admin') || auth()->user()->can('view_all_sub_areas'))
                     ->label(__('ui.created_by'))
                     ->searchable()
                     ->sortable()
@@ -115,5 +116,15 @@ class SubAreasRelationManager extends RelationManager
     public function isReadOnly(): bool
     {
         return false;
+    }
+
+//    protected function canCreate(): bool
+//    {
+//        return auth()->user()->hasRole('super_admin') || auth()->user()->can('create_sub::area');
+//    }
+
+    protected function canDelete(Model $record): bool
+    {
+        return auth()->user()->hasRole('super_admin') || $record->created_by == auth()->id();
     }
 }
