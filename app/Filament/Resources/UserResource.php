@@ -86,6 +86,7 @@ class UserResource extends Resource
                                             ->table('dbo._TGRY_PERSONEL')
                                             ->where('AKTIF_MI', 1)
                                             ->where('VERITABANI_ADI', 'VIALAND_EGLENCE')
+                                            ->orWhere('VERITABANI_ADI', 'GURSOY_PROJE')
                                             ->whereNotNull('E_POSTA')
                                             ->selectRaw("UNIQUE_ID as id, CONCAT(ADI, ' ', SOYADI) as name")
                                             ->orderBy('name')
