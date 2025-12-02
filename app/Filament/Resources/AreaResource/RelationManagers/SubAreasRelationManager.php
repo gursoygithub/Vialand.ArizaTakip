@@ -19,6 +19,8 @@ class SubAreasRelationManager extends RelationManager
 {
     protected static string $relationship = 'subAreas';
 
+    protected static ?string $navigationIcon = 'heroicon-o-map-pin';
+
     public static function getModelLabel(): ?string
     {
         return __('ui.sub_area');

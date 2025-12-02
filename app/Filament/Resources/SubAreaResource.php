@@ -18,7 +18,7 @@ class SubAreaResource extends Resource
 {
     protected static ?string $model = SubArea::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static ?string $navigationIcon = 'heroicon-o-map-pin';
 
     protected static bool $shouldRegisterNavigation = false;
 
@@ -37,6 +37,11 @@ class SubAreaResource extends Resource
         return __('ui.sub_areas');
     }
 
+    public static function getNavigationGroup(): ?string
+    {
+        return __('ui.task_management');
+    }
+
     public static function form(Form $form): Form
     {
         return $form
@@ -48,19 +53,42 @@ class SubAreaResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
+            ->defaultSort('updated_at', 'desc')
+            ->paginated([5, 10, 25, 50])
             ->columns([
-                //
+                Tables\Columns\TextColumn::make('name')
+                    ->label(__('ui.name'))
+                    ->sortable()
+                    ->searchable(),
+                Tables\Columns\TextColumn::make('createdBy.name')
+                    ->visible(fn () => auth()->user()->hasRole('super_admin') || auth()->user()->can('view_all_sub_areas'))
+                    ->label(__('ui.created_by'))
+                    ->searchable()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                Tables\Columns\TextColumn::make('created_at')
+                    ->label(__('ui.created_at'))
+                    ->dateTime(),
+                Tables\Columns\TextColumn::make('updatedBy.name')
+                    ->label(__('ui.updated_by'))
+                    ->searchable()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                Tables\Columns\TextColumn::make('updated_at')
+                    ->label(__('ui.updated_at'))
+                    ->getStateUsing(fn ($record) => $record->updated_by ? $record->updated_at : null)
+                    ->dateTime()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
                 //
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
+                //Tables\Actions\EditAction::make(),
             ])
             ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
-                ]),
+                //
             ]);
     }
 
