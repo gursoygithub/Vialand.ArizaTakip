@@ -12,6 +12,7 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Illuminate\Support\Facades\Auth;
 
@@ -85,7 +86,7 @@ class AreaResource extends Resource
                     ->badge()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('createdBy.name')
-                    ->visible(fn () => auth()->user()->hasRole('super_admin'))
+                    ->visible(fn () => auth()->user()->hasRole('super_admin') || auth()->user()->can('view_all_areas'))
                     ->label(__('ui.created_by'))
                     ->searchable()
                     ->sortable()
@@ -114,7 +115,6 @@ class AreaResource extends Resource
                     Tables\Actions\EditAction::make(),
                     Tables\Actions\DeleteAction::make()
                         ->requiresConfirmation()
-                        ->visible(fn ($record) => $record->subAreas()->count() === 0)
                         ->action(function ($record) {
                             $record->deleted_by = Auth::id();
                             $record->save();
@@ -142,5 +142,10 @@ class AreaResource extends Resource
             'edit' => Pages\EditArea::route('/{record}/edit'),
             'view' => Pages\ViewArea::route('/{record}')
         ];
+    }
+
+    public static function canDelete(Model $record): bool
+    {
+        return $record->subAreas()->count() === 0 && (auth()->user()?->hasRole('super_admin') || $record->created_by === auth()->id());
     }
 }

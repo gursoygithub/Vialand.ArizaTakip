@@ -16,6 +16,7 @@ use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 
 class UserResource extends Resource
@@ -264,7 +265,7 @@ class UserResource extends Resource
                     ->badge()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('createdBy.name')
-                    ->visible(fn () => auth()->user()->hasRole('super_admin'))
+                    ->visible(fn () => auth()->user()->hasRole('super_admin') || auth()->user()->can('view_all_users'))
                     ->label(__('ui.created_by'))
                     ->searchable()
                     ->sortable()
@@ -311,10 +312,6 @@ class UserResource extends Resource
                     Tables\Actions\ViewAction::make(),
                     Tables\Actions\EditAction::make(),
                     Tables\Actions\DeleteAction::make(),
-//                        ->hidden(fn ($record) => $record->id === auth()->user()->id ||
-//                            $record->cards()->count() > 0 ||
-//                            $record->visitors()->count() > 0 ||
-//                            $record->visitorCards()->count() > 0),
                 ]),
             ])
             ->bulkActions([
@@ -337,5 +334,10 @@ class UserResource extends Resource
             'view' => Pages\ViewUser::route('/{record}'),
             'edit' => Pages\EditUser::route('/{record}/edit'),
         ];
+    }
+
+    public static function canDelete(Model $record): bool
+    {
+        return $record->id !== auth()->id() && auth()->user()->hasRole('super_admin') === false;
     }
 }

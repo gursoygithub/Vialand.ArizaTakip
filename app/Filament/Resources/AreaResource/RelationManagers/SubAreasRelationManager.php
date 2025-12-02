@@ -65,7 +65,7 @@ class SubAreasRelationManager extends RelationManager
                     ->sortable()
                     ->searchable(),
                 Tables\Columns\TextColumn::make('createdBy.name')
-                    ->visible(fn () => auth()->user()->hasRole('super_admin'))
+                    ->visible(fn () => auth()->user()->hasRole('super_admin') || auth()->user()->can('view_all_sub_areas'))
                     ->label(__('ui.created_by'))
                     ->searchable()
                     ->sortable()
@@ -115,5 +115,10 @@ class SubAreasRelationManager extends RelationManager
     public function isReadOnly(): bool
     {
         return false;
+    }
+
+    protected function canDelete(Model $record): bool
+    {
+        return auth()->user()->hasRole('super_admin') || $record->created_by == auth()->id();
     }
 }
