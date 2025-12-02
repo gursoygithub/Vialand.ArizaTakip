@@ -19,6 +19,8 @@ class SubAreasRelationManager extends RelationManager
 {
     protected static string $relationship = 'subAreas';
 
+    protected static ?string $navigationIcon = 'heroicon-o-map-pin';
+
     public static function getModelLabel(): ?string
     {
         return __('ui.sub_area');
@@ -125,6 +127,6 @@ class SubAreasRelationManager extends RelationManager
 
     protected function canDelete(Model $record): bool
     {
-        return auth()->user()->hasRole('super_admin') || $record->created_by == auth()->id();
+        return $record->tasks()->count() === 0 && (auth()->user()->hasRole('super_admin') || $record->created_by === auth()->user()->id);
     }
 }

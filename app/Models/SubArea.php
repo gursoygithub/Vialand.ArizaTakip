@@ -40,6 +40,11 @@ class SubArea extends Model
         return $this->belongsTo(User::class, 'deleted_by');
     }
 
+    public function tasks()
+    {
+        return $this->hasMany(Task::class, 'sub_area_id');
+    }
+
 //    public static function query()
 //    {
 //        $hasPermission = auth()->user()->hasRole('super_admin') || auth()->user()->can('view_all sub_areas');
