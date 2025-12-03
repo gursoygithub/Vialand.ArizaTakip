@@ -6,6 +6,7 @@ use App\Enums\TaskStatusEnum;
 use App\Filament\Resources\TaskResource;
 use App\Models\Task;
 use Filament\Actions;
+use Filament\Facades\Filament;
 use Filament\Forms;
 use Filament\Forms\Components\Field;
 use Filament\Forms\Components\Fieldset;
@@ -111,6 +112,9 @@ class ViewTask extends ViewRecord
                                     ->formatStateUsing(fn ($state) => Carbon::parse($state)->locale(app()->getLocale())->translatedFormat('d F Y'))
                                     ->badge()
                                     ->color('primary'),
+                                Infolists\Components\TextEntry::make('status')
+                                    ->label(__('ui.status'))
+                                    ->badge(),
 //                                Infolists\Components\TextEntry::make('employee.name')
 //                                    ->label(__('ui.assigned_to'))
 //                                    ->badge()
@@ -124,22 +128,59 @@ class ViewTask extends ViewRecord
                                             ->html()
                                             ->columnSpanFull()
                                     ]),
-                                Infolists\Components\TextEntry::make('status')
-                                    ->label(__('ui.status'))
-                                    ->badge(),
+                                Infolists\Components\Fieldset::make(__('ui.image'))
+                                    ->schema([
+                                        Infolists\Components\ImageEntry::make('media.task_attachments')
+                                            ->hiddenLabel()
+                                            ->visible(fn ($record) => $record->hasMedia('task_attachments'))
+                                            ->getStateUsing(fn ($record) =>
+                                                $record->getMedia('task_attachments')->map->getUrl()
+                                            )
+                                            ->alignCenter()
+                                            ->columnSpanFull(),
+                                    ]),
+                                //->stacked() // Alt alta sıralamak için (opsiyonel)
+                                Infolists\Components\Fieldset::make(__('ui.record_info'))
+                                    ->schema([
+                                        Infolists\Components\TextEntry::make('createdBy.name')
+                                            ->label(__('ui.created_by'))
+                                            ->badge()
+                                            ->color('primary')
+                                            ->icon('heroicon-o-user'),
+                                        Infolists\Components\TextEntry::make('created_at')
+                                            ->label(__('ui.created_at'))
+                                            ->formatStateUsing(fn ($state) => Carbon::parse($state)->locale(app()->getLocale())->translatedFormat('d F Y - H:i'))
+                                            ->badge()
+                                            ->color('primary')
+                                            ->icon('heroicon-o-calendar-days'),
+                                        Infolists\Components\TextEntry::make('updatedBy.name')
+                                            ->visible(fn ($record) => $record->updated_by !== null)
+                                            ->label(__('ui.last_updated_by'))
+                                            ->badge()
+                                            ->color('primary')
+                                            ->icon('heroicon-o-user'),
+                                        Infolists\Components\TextEntry::make('updated_at')
+                                            ->visible(fn ($record) => $record->updated_by !== null)
+                                            ->label(__('ui.last_updated_at'))
+                                            ->formatStateUsing(fn ($state) => Carbon::parse($state)->locale(app()->getLocale())->translatedFormat('d F Y - H:i'))
+                                            ->badge()
+                                            ->color('primary')
+                                            ->icon('heroicon-o-calendar-days'),
+                                    ])->columns(4),
                                 Infolists\Components\Fieldset::make(__('ui.resolution_information'))
                                     ->visible(fn ($record) => $record->status === \App\Enums\TaskStatusEnum::COMPLETED)
                                     ->schema([
                                         Infolists\Components\TextEntry::make('completedBy.name')
                                             ->label(__('ui.closed_by'))
                                             ->badge()
-                                            ->color('primary')
+                                            ->color('success')
                                             ->icon('heroicon-o-user'),
                                         Infolists\Components\TextEntry::make('due_date')
                                             ->label(__('ui.due_date'))
                                             ->formatStateUsing(fn ($state) => Carbon::parse($state)->locale(app()->getLocale())->translatedFormat('d F Y H:i'))
                                             ->badge()
-                                            ->color('primary'),
+                                            ->color('success')
+                                            ->icon('heroicon-o-calendar-days'),
                                         Infolists\Components\Fieldset::make(__('ui.resolution_notes'))
                                             ->schema([
                                                 Infolists\Components\TextEntry::make('resolution_notes')
@@ -149,15 +190,6 @@ class ViewTask extends ViewRecord
                                                     ->columnSpanFull()
                                             ]),
                                     ]),
-                                Infolists\Components\ImageEntry::make('media.task_attachments')
-                                    ->label(__('ui.images'))
-                                    ->visible(fn ($record) => $record->hasMedia('task_attachments'))
-                                    ->getStateUsing(fn ($record) =>
-                                        $record->getMedia('task_attachments')->map->getUrl()
-                                    )
-                                    ->columnSpanFull()
-                                    //->stacked() // Alt alta sıralamak için (opsiyonel)
-
                             ])->columns(3),
                     ]),
             ]);
