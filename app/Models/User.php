@@ -115,6 +115,17 @@ class User extends Authenticatable implements FilamentUser
         return $this->hasMany(Task::class, 'created_by');
     }
 
+    public static function query()
+    {
+        $hasPermission = auth()->user()->hasRole('super_admin') || auth()->user()->can('view_all_users');
+
+        if ($hasPermission) {
+            return parent::query();
+        } else {
+            return parent::query()->where('created_by', auth()->id());
+        }
+    }
+
 
     // send mail to user after creation
 //    protected static function booted()

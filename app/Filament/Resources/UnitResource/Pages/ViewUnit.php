@@ -4,39 +4,32 @@ namespace App\Filament\Resources\UnitResource\Pages;
 
 use App\Filament\Resources\UnitResource;
 use Filament\Actions;
-use Filament\Resources\Pages\EditRecord;
+use Filament\Resources\Pages\ViewRecord;
 
-class EditUnit extends EditRecord
+class ViewUnit extends ViewRecord
 {
     protected static string $resource = UnitResource::class;
 
     protected function getHeaderActions(): array
     {
         return [
-            Actions\ViewAction::make(),
+            Actions\EditAction::make()
+                ->mutateFormDataUsing(function (array $data): array {
+                    $data['updated_by'] = auth()->user()->id;
+                    return $data;
+                }),
             Actions\DeleteAction::make()
                 ->requiresConfirmation()
 //                ->action(function ($record) {
 //                    $record->deleted_by = auth()->user()->id;
 //                    $record->deleted_at = now();
+//                    $record->save();
+//
 //                    $record->delete();
 //
-//                    // redirect to area list page after delete
-//                    return redirect(static::getResource()::getUrl('index'));
+//                    // redirect to area list after deletion
+//                    return redirect($this->getResource()::getUrl('index'));
 //                }),
         ];
     }
-
-    protected function getRedirectUrl(): string
-    {
-        return $this->getResource()::getUrl('view', [
-            'record' => $this->record,
-        ]);
-    }
-
-//    protected function mutateFormDataBeforeSave(array $data): array
-//    {
-//        $data['updated_by'] = auth()->id();
-//        return $data;
-//    }
 }

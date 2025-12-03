@@ -45,14 +45,15 @@ class SubArea extends Model
         return $this->hasMany(Task::class, 'sub_area_id');
     }
 
-//    public static function query()
-//    {
-//        $hasPermission = auth()->user()->hasRole('super_admin') || auth()->user()->can('view_all sub_areas');
-//
-//        if ($hasPermission) {
-//            return parent::query();
-//        } else {
-//            return parent::query()->where('created_by', auth()->id());
-//        }
-//    }
+
+    public static function query()
+    {
+        $hasPermission = auth()->user()->hasRole('super_admin') || auth()->user()->can('view_all_sub_areas');
+
+        if ($hasPermission) {
+            return parent::query();
+        } else {
+            return parent::query()->where('created_by', auth()->id());
+        }
+    }
 }

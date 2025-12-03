@@ -28,6 +28,8 @@ class EditArea extends EditRecord
                 ->action(function ($record) {
                     $record->deleted_by = auth()->user()->id;
                     $record->deleted_at = now();
+                    $record->save();
+
                     $record->delete();
 
                     // redirect to area list page after delete

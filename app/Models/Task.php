@@ -71,6 +71,11 @@ class Task extends Model Implements HasMedia
         return $this->belongsTo(User::class, 'deleted_by');
     }
 
+    public function completedBy()
+    {
+        return $this->belongsTo(User::class, 'completed_by');
+    }
+
     public function registerMediaCollections(): void
     {
         $this->addMediaCollection('task_attachments')
@@ -89,8 +94,20 @@ class Task extends Model Implements HasMedia
         }
     }
 
-    public function completedBy()
+    protected static function booted()
     {
-        return $this->belongsTo(User::class, 'completed_by');
+        static::creating(function ($task) {
+            $task->created_by = auth()->id();
+        });
+
+        static::updating(function ($task) {
+            $task->updated_by = auth()->id();
+        });
+
+        static::deleting(function ($task) {
+            $task->deleted_by = auth()->id();
+            $task->deleted_at = now();
+            $task->save();
+        });
     }
 }

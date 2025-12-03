@@ -313,10 +313,6 @@ class TaskResource extends Resource
                     ->collection('task_attachments')
                     ->square()
                     ->size(50),
-//                Tables\Columns\TextColumn::make('title')
-//                    ->label(__('ui.task_title'))
-//                    ->searchable()
-//                    ->sortable(),
                 Tables\Columns\TextColumn::make('type_id')
                     ->label(__('ui.type'))
                     ->badge()
@@ -346,12 +342,6 @@ class TaskResource extends Resource
                     ->badge()
                     ->color('primary')
                     ->sortable(),
-//                Tables\Columns\TextColumn::make('employee.name')
-//                    ->label(__('ui.assigned_to'))
-//                    ->badge()
-//                    ->color('primary')
-//                    ->searchable()
-//                    ->sortable(),
                 Tables\Columns\TextColumn::make('status')
                     ->label(__('ui.status'))
                     ->badge()

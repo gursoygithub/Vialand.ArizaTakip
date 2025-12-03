@@ -59,7 +59,10 @@ class AreaResource extends Resource
                                     ->label(__('ui.name'))
                                     ->placeholder(__('ui.area_placeholder'))
                                     ->required()
-                                    ->maxLength(255),
+                                    ->maxLength(255)
+                                    ->validationMessages([
+                                        'required' => __('ui.required'),
+                                    ]),
                             ]),
                     ]),
             ]);
@@ -76,7 +79,7 @@ class AreaResource extends Resource
                     ->searchable()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('sub_areas_count')
-                    ->label(__('ui.sub_areas'))
+                    ->label(__('ui.sub_area_count'))
                     ->badge()
                     ->color('primary')
                     ->counts('subAreas')
