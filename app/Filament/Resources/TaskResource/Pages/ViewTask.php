@@ -149,6 +149,15 @@ class ViewTask extends ViewRecord
                                                     ->columnSpanFull()
                                             ]),
                                     ]),
+                                Infolists\Components\ImageEntry::make('media.task_attachments')
+                                    ->label(__('ui.images'))
+                                    ->visible(fn ($record) => $record->hasMedia('task_attachments'))
+                                    ->getStateUsing(fn ($record) =>
+                                        $record->getMedia('task_attachments')->map->getUrl()
+                                    )
+                                    ->columnSpanFull()
+                                    //->stacked() // Alt alta sıralamak için (opsiyonel)
+
                             ])->columns(3),
                     ]),
             ]);
