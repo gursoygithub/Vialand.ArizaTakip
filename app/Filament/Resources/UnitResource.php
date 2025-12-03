@@ -82,12 +82,21 @@ class UnitResource extends Resource
                     ->color('primary')
                     ->searchable()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('tasks_count')
-                    ->label(__('ui.task_count'))
+                Tables\Columns\TextColumn::make('pending_tasks_count')
+                    ->label(__('ui.pending'))
+                    ->getStateUsing(fn ($record) => $record->tasks()->where('status', \App\Enums\TaskStatusEnum::PENDING)->count())
                     ->badge()
-                    ->color('primary')
-                    ->counts('tasks')
-                    ->sortable(),
+                    ->color(\App\Enums\TaskStatusEnum::PENDING->getColor()),
+                Tables\Columns\TextColumn::make('completed_tasks_count')
+                    ->label(__('ui.completed'))
+                    ->getStateUsing(fn ($record) => $record->tasks()->where('status', \App\Enums\TaskStatusEnum::COMPLETED)->count())
+                    ->badge()
+                    ->color(\App\Enums\TaskStatusEnum::COMPLETED->getColor()),
+                Tables\Columns\TextColumn::make('winter_maintenance_tasks_count')
+                    ->label(__('ui.winter_maintenance'))
+                    ->getStateUsing(fn ($record) => $record->tasks()->where('status', \App\Enums\TaskStatusEnum::WINTER_MAINTENANCE)->count())
+                    ->badge()
+                    ->color(\App\Enums\TaskStatusEnum::WINTER_MAINTENANCE->getColor()),
                 Tables\Columns\TextColumn::make('createdBy.name')
                     ->visible(fn () => auth()->user()->hasRole('super_admin') || auth()->user()->can('view_all_areas'))
                     ->label(__('ui.created_by'))
