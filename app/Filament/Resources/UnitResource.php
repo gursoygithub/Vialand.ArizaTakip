@@ -84,16 +84,19 @@ class UnitResource extends Resource
                     ->sortable(),
                 Tables\Columns\TextColumn::make('pending_tasks_count')
                     ->label(__('ui.pending'))
+                    ->icon('heroicon-o-clock')
                     ->getStateUsing(fn ($record) => $record->tasks()->where('status', \App\Enums\TaskStatusEnum::PENDING)->count())
                     ->badge()
                     ->color(\App\Enums\TaskStatusEnum::PENDING->getColor()),
                 Tables\Columns\TextColumn::make('completed_tasks_count')
                     ->label(__('ui.completed'))
+                    ->icon('heroicon-o-check-circle')
                     ->getStateUsing(fn ($record) => $record->tasks()->where('status', \App\Enums\TaskStatusEnum::COMPLETED)->count())
                     ->badge()
                     ->color(\App\Enums\TaskStatusEnum::COMPLETED->getColor()),
                 Tables\Columns\TextColumn::make('winter_maintenance_tasks_count')
                     ->label(__('ui.winter_maintenance'))
+                    ->icon('heroicon-o-lifebuoy')
                     ->getStateUsing(fn ($record) => $record->tasks()->where('status', \App\Enums\TaskStatusEnum::WINTER_MAINTENANCE)->count())
                     ->badge()
                     ->color(\App\Enums\TaskStatusEnum::WINTER_MAINTENANCE->getColor()),
