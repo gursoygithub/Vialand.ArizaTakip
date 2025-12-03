@@ -485,6 +485,6 @@ class TaskResource extends Resource
 
     public static function canDelete(Model $record): bool
     {
-        return auth()->user()?->hasRole('super_admin') || $record->created_by === auth()->id();
+        return $record->status !== TaskStatusEnum::COMPLETED && (auth()->user()->hasRole('super_admin') || auth()->user()->can('delete_tasks') || $record->created_by == auth()->id());
     }
 }
