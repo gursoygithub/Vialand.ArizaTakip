@@ -70,6 +70,12 @@ class ViewUser extends ViewRecord
                                     ->label(__('ui.status'))
                                     ->badge()
                                     ->placeholder('-'),
+                                Infolists\Components\TextEntry::make('roles.name')
+                                    ->label(__('ui.roles'))
+                                    ->icon('heroicon-o-shield-check')
+                                    ->iconColor('success')
+                                    ->listWithLineBreaks()
+                                    ->placeholder('-'),
                             ])->columns(3),
                         Infolists\Components\Fieldset::make(__('ui.record_info'))
                             ->schema([
