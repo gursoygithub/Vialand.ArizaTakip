@@ -26,7 +26,9 @@ class ListUsers extends ListRecords
         $canViewAllUsers = auth()->user()->hasRole('super_admin') || auth()->user()->can('view_all_users');
 
         // "All" tab
-        $allQuery = User::query()->where('id', '>', 1);
+        $allQuery = User::query()
+            ->where('id', '>', 1)
+            ->where('id', '!=', auth()->id());
         if (!$canViewAllUsers) {
             $allQuery->where('created_by', auth()->id());
         }
@@ -34,7 +36,8 @@ class ListUsers extends ListRecords
         $tabs['all'] = Tab::make(__('ui.all'))
             ->badge($allQuery->count())
             ->modifyQueryUsing(function ($query) use ($canViewAllUsers) {
-                $query->where('id', '>', 1);
+                $query->where('id', '>', 1)
+                    ->where('id', '!=', auth()->id());
                 if (!$canViewAllUsers) {
                     $query->where('created_by', auth()->id());
                 }
@@ -42,7 +45,9 @@ class ListUsers extends ListRecords
             });
 
         // "Active" tab
-        $activeQuery = User::query()->where('status', ManagerStatusEnum::ACTIVE)->where('id', '>', 1);
+        $activeQuery = User::query()->where('status', ManagerStatusEnum::ACTIVE)
+            ->where('id', '>', 1)
+            ->where('id', '!=', auth()->id());
         if (!$canViewAllUsers) {
             $activeQuery->where('created_by', auth()->id());
         }
@@ -52,7 +57,9 @@ class ListUsers extends ListRecords
             ->badgeIcon('heroicon-o-check-circle')
             ->badgeColor('success')
             ->modifyQueryUsing(function ($query) use ($canViewAllUsers) {
-                $query->where('status', ManagerStatusEnum::ACTIVE)->where('id', '>', 1);
+                $query->where('status', ManagerStatusEnum::ACTIVE)
+                    ->where('id', '>', 1)
+                    ->where('id', '!=', auth()->id());
                 if (!$canViewAllUsers) {
                     $query->where('created_by', auth()->id());
                 }
@@ -60,7 +67,9 @@ class ListUsers extends ListRecords
             });
 
         // "Inactive" tab
-        $inactiveQuery = User::query()->where('status', ManagerStatusEnum::INACTIVE)->where('id', '>', 1);
+        $inactiveQuery = User::query()->where('status', ManagerStatusEnum::INACTIVE)
+            ->where('id', '>', 1)
+            ->where('id', '!=', auth()->id());
         if (!$canViewAllUsers) {
             $inactiveQuery->where('created_by', auth()->id());
         }
@@ -70,7 +79,9 @@ class ListUsers extends ListRecords
             ->badgeIcon('heroicon-o-x-circle')
             ->badgeColor('danger')
             ->modifyQueryUsing(function ($query) use ($canViewAllUsers) {
-                $query->where('status', ManagerStatusEnum::INACTIVE)->where('id', '>', 1);
+                $query->where('status', ManagerStatusEnum::INACTIVE)
+                    ->where('id', '>', 1)
+                    ->where('id', '!=', auth()->id());
                 if (!$canViewAllUsers) {
                     $query->where('created_by', auth()->id());
                 }
