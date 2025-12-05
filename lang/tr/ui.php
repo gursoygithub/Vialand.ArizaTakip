@@ -447,4 +447,5 @@ return [
     'task_count' => 'Görev Sayısı',
     'sub_area_count' => 'Lokasyon Sayısı',
     'related_tasks' => 'İlgili Görevler',
+    'click_image_to_view_full_size' => 'Resme tıklayarak tam boyutta görüntüleyebilirsiniz',
 ];
