@@ -342,6 +342,14 @@ class TaskResource extends Resource
                     ->badge()
                     ->color('primary')
                     ->sortable(),
+                Tables\Columns\TextColumn::make('description')
+                    ->label(__('ui.description'))
+                    ->limit(20)
+                    ->wrap()
+                    ->tooltip(fn ($record) => $record->description)
+                    ->searchable()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('status')
                     ->label(__('ui.status'))
                     ->badge()
@@ -352,7 +360,8 @@ class TaskResource extends Resource
                     ->date()
                     ->badge()
                     ->color('success')
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('completedBy.name')
                     ->label(__('ui.closed_by'))
                     ->badge()
@@ -368,7 +377,9 @@ class TaskResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('created_at')
                     ->label(__('ui.created_at'))
-                    ->dateTime(),
+                    ->dateTime()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('updatedBy.name')
                     ->label(__('ui.updated_by'))
                     ->searchable()
