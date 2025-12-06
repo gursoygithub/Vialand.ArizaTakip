@@ -21,6 +21,7 @@ return new class extends Migration
             $table->foreignId('area_id')->constrained('areas')->onDelete('cascade');
             $table->foreignId('sub_area_id')->constrained('sub_areas')->onDelete('cascade');
             $table->foreignId('unit_id')->constrained('units')->onDelete('cascade');
+            $table->text('unit_description')->nullable();
             $table->bigInteger('employee_id')->nullable();
             //$table->foreignId('employee_id')->constrained('employees')->onDelete('cascade');
 
