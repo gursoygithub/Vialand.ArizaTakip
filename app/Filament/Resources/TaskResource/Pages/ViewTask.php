@@ -120,25 +120,21 @@ class ViewTask extends ViewRecord
 //                                    ->badge()
 //                                    ->color('primary')
 //                                    ->icon('heroicon-o-user'),
-                                Infolists\Components\Fieldset::make(__('ui.description'))
+                                Infolists\Components\Fieldset::make(__('ui.descriptions'))
+                                    ->columns(2)
                                     ->schema([
                                         Infolists\Components\TextEntry::make('description')
-                                            ->hiddenLabel()
-                                            ->formatStateUsing(fn ($state) => nl2br(e($state)))
+                                            ->label(__('ui.task_description'))
+                                            //->formatStateUsing(fn ($state) => nl2br(e($state)))
+                                            ->formatStateUsing(fn ($state) => '<strong>' . nl2br(e($state)) . '</strong>')
                                             ->html()
-                                            ->columnSpanFull()
+                                            ->columnSpan(1),
+                                        Infolists\Components\TextEntry::make('unit_description')
+                                            ->label(__('ui.unit_description'))
+                                            ->formatStateUsing(fn ($state) => '<strong>' . nl2br(e($state)) . '</strong>')
+                                            ->html()
+                                            ->columnSpan(1),
                                     ]),
-//                                Infolists\Components\Fieldset::make(__('ui.image'))
-//                                    ->schema([
-//                                        Infolists\Components\ImageEntry::make('media.task_attachments')
-//                                            ->hiddenLabel()
-//                                            ->visible(fn ($record) => $record->hasMedia('task_attachments'))
-//                                            ->getStateUsing(fn ($record) =>
-//                                                $record->getMedia('task_attachments')->map->getUrl()
-//                                            )
-//                                            ->alignCenter()
-//                                            ->columnSpanFull(),
-//                                    ]),
                                 Infolists\Components\Fieldset::make(__('ui.image'))
                                     ->schema([
                                         Infolists\Components\TextEntry::make('media.task_attachments')

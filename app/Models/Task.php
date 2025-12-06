@@ -17,6 +17,7 @@ class Task extends Model Implements HasMedia
         'area_id',
         'sub_area_id',
         'unit_id',
+        'unit_description',
         'type_id',
         'status',
         'employee_id',
