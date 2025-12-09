@@ -120,7 +120,7 @@
                             {{ __('ui.footer_message') }}
                         </p>
                         <p style="margin: 5px 0 0 0; font-size: 12px; color: #6c757d;">
-                            &copy; {{ date('Y') }} {{ config('app.name') }}. {{ __('ui.all_rights_reserved') }}
+                            &copy; {{ date('Y') }} {{ __('ui.gursoy_group') }} - {{ config('app.name') }}. {{ __('ui.all_rights_reserved') }}
                         </p>
                     </td>
                 </tr>
