@@ -432,7 +432,7 @@ return [
     'tasks_by_type' => 'Tiplere Göre Görev Dağılımı',
     'number_of_tasks' => 'Görev Sayısı',
     'your_account_has_been_created' => 'Hesabınız Oluşturuldu',
-    'best_regards' => 'Saygılarımızla',
+    'best_regards' => 'Saygılarımızla,',
     'link_to_panel' => 'Panel Bağlantısı',
     'tasks_by_unit' => 'Birimlere Göre Görev Sayısı',
     'task_by_unit_overview_waiting_label' => 'Beklemede',

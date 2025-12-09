@@ -38,18 +38,18 @@
                             {{ __('ui.user_created_message') }}
                         </p>
 
-                        <table width="100%" cellpadding="10" cellspacing="0" border="0" style="border-radius: 6px; margin-bottom: 25px;">
+                        <table width="100%" cellpadding="10" cellspacing="0" border="0" style="background-color: #e9ecef; border-radius: 6px; margin-bottom: 25px; border: 1px solid #ced4da;">
                             <tr>
-                                <td style="font-size: 16px; color: #333333; padding-bottom: 10px;">
-                                    <strong style="display: inline-block; width: 120px;">{{ __('ui.email') }}:</strong>
+                                <td style="font-size: 16px; color: #333333; padding-bottom: 5px;">
+                                    <strong style="display: inline-block; width: 120px; color: #555;">{{ __('ui.email') }}:</strong>
                                     <span style="font-weight: bold; color: #007bff;">{{ $user?->email }}</span>
                                 </td>
                             </tr>
                             <tr>
-                                <td style="font-size: 16px; color: #333333; padding-top: 10px;">
-                                    <strong style="display: block; margin-bottom: 8px;">{{ __('ui.password') }}:</strong>
+                                <td style="font-size: 16px; color: #333333; padding-top: 5px;">
+                                    <strong style="display: block; margin-bottom: 8px; color: #555;">{{ __('ui.password') }}:</strong>
 
-                                    <div style="background-color: #f8f9fa; border: 1px dashed #ced4da; padding: 10px; border-radius: 4px; text-align: center; overflow-x: auto;">
+                                    <div style="background-color: #ffffff; border: 1px dashed #adb5bd; padding: 10px; border-radius: 4px; text-align: center; overflow-x: auto;">
                                         <code style="font-family: 'Courier New', Courier, monospace; font-size: 18px; font-weight: bold; color: #dc3545; white-space: nowrap; display: block;">
                                             {{$password}}
                                         </code>
@@ -57,6 +57,26 @@
                                 </td>
                             </tr>
                         </table>
+
+{{--                        <table width="100%" cellpadding="10" cellspacing="0" border="0" style="border-radius: 6px; margin-bottom: 25px;">--}}
+{{--                            <tr>--}}
+{{--                                <td style="font-size: 16px; color: #333333; padding-bottom: 10px;">--}}
+{{--                                    <strong style="display: inline-block; width: 120px;">{{ __('ui.email') }}:</strong>--}}
+{{--                                    <span style="font-weight: bold; color: #007bff;">{{ $user?->email }}</span>--}}
+{{--                                </td>--}}
+{{--                            </tr>--}}
+{{--                            <tr>--}}
+{{--                                <td style="font-size: 16px; color: #333333; padding-top: 10px;">--}}
+{{--                                    <strong style="display: block; margin-bottom: 8px;">{{ __('ui.password') }}:</strong>--}}
+
+{{--                                    <div style="background-color: #f8f9fa; border: 1px dashed #ced4da; padding: 10px; border-radius: 4px; text-align: center; overflow-x: auto;">--}}
+{{--                                        <code style="font-family: 'Courier New', Courier, monospace; font-size: 18px; font-weight: bold; color: #dc3545; white-space: nowrap; display: block;">--}}
+{{--                                            {{$password}}--}}
+{{--                                        </code>--}}
+{{--                                    </div>--}}
+{{--                                </td>--}}
+{{--                            </tr>--}}
+{{--                        </table>--}}
 
                         <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin-bottom: 25px;">
                             <tr>
@@ -79,8 +99,7 @@
                         </p>
 
                         <p style="font-size: 16px; margin-top: 25px;">
-                            {{__('ui.best_regards')}}<br>
-                            {{ __('ui.support_team') }}
+                            {{__('ui.best_regards')}}
                         </p>
                     </td>
                 </tr>
