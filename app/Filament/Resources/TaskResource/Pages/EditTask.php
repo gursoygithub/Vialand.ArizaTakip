@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\TaskResource\Pages;
 
+use App\Enums\TaskStatusEnum;
 use App\Filament\Resources\TaskResource;
 use Filament\Actions;
 use Filament\Resources\Pages\EditRecord;
@@ -28,6 +29,16 @@ class EditTask extends EditRecord
     protected function mutateFormDataBeforeSave(array $data): array
     {
         $data['updated_by'] = auth()->id();
+
+        // if status is not completed, set completed_by to null, due_date to null, resolution_notes to null
+        if (isset($data['status']) && $data['status'] != TaskStatusEnum::COMPLETED->value) {
+            $data['completed_by'] = null;
+            $data['due_date'] = null;
+            $data['resolution_notes'] = null;
+        } else {
+            $data['completed_by'] = $this->record->completed_by ?? auth()->id();
+        }
+
         return $data;
     }
 }

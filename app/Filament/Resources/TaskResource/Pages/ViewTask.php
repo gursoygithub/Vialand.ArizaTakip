@@ -120,22 +120,36 @@ class ViewTask extends ViewRecord
 //                                    ->badge()
 //                                    ->color('primary')
 //                                    ->icon('heroicon-o-user'),
-                                Infolists\Components\Fieldset::make(__('ui.description'))
+                                Infolists\Components\Fieldset::make(__('ui.descriptions'))
+                                    ->columns(2)
                                     ->schema([
                                         Infolists\Components\TextEntry::make('description')
-                                            ->hiddenLabel()
-                                            ->formatStateUsing(fn ($state) => nl2br(e($state)))
+                                            ->label(__('ui.task_description'))
+                                            //->formatStateUsing(fn ($state) => nl2br(e($state)))
+                                            ->formatStateUsing(fn ($state) => '<strong>' . nl2br(e($state)) . '</strong>')
                                             ->html()
-                                            ->columnSpanFull()
+                                            ->columnSpan(1),
+                                        Infolists\Components\TextEntry::make('unit_description')
+                                            ->label(__('ui.unit_description'))
+                                            ->formatStateUsing(fn ($state) => '<strong>' . nl2br(e($state)) . '</strong>')
+                                            ->html()
+                                            ->columnSpan(1),
                                     ]),
                                 Infolists\Components\Fieldset::make(__('ui.image'))
                                     ->schema([
-                                        Infolists\Components\ImageEntry::make('media.task_attachments')
+                                        Infolists\Components\TextEntry::make('media.task_attachments')
                                             ->hiddenLabel()
                                             ->visible(fn ($record) => $record->hasMedia('task_attachments'))
                                             ->getStateUsing(fn ($record) =>
-                                                $record->getMedia('task_attachments')->map->getUrl()
+                                            $record->getMedia('task_attachments')->map(function ($media) {
+                                                $url = $media->getUrl();
+                                                return '<a href="'.e($url).'" target="_blank" rel="noopener noreferrer">'
+                                                    .'<img src="'.e($url).'" alt="'.e($media->file_name ?? '').'" style="width:480px;height:320px;object-fit:cover;cursor:pointer;border-radius:8px;margin:12px;" onclick="window.open(this.src)" />'
+                                                    .'</a>';
+                                            })->implode('')
                                             )
+                                            ->html()
+                                            ->helperText(__('ui.click_image_to_view_full_size'))
                                             ->alignCenter()
                                             ->columnSpanFull(),
                                     ]),

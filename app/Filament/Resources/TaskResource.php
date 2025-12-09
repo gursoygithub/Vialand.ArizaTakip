@@ -218,14 +218,23 @@ class TaskResource extends Resource
                                     ->validationMessages([
                                         'required' => __('ui.required'),
                                     ]),
-                                Forms\Components\Textarea::make('description')
-                                    ->label(__('ui.description'))
-                                    ->rows(3)
-                                    ->columnSpan(3)
-                                    ->placeholder(__('ui.task_description_placeholder'))
-                                    ->required()
-                                    ->validationMessages([
-                                        'required' => __('ui.required'),
+                                Fieldset::make(__('ui.descriptions'))
+                                    ->columns(2)
+                                    ->schema([
+                                        Forms\Components\Textarea::make('description')
+                                            ->label(__('ui.task_description'))
+                                            ->rows(3)
+                                            ->placeholder(__('ui.task_description_placeholder'))
+                                            ->required()
+                                            ->validationMessages([
+                                                'required' => __('ui.required'),
+                                            ]),
+                                        Forms\Components\Textarea::make('unit_description')
+                                            ->visibleOn('edit')
+                                            ->label(__('ui.unit_description'))
+                                            ->rows(3)
+                                            ->label(__('ui.unit_description'))
+                                            ->placeholder(__('ui.unit_description_placeholder')),
                                     ]),
                                 Fieldset::make(__('ui.image'))
                                     ->hiddenLabel()
@@ -342,6 +351,26 @@ class TaskResource extends Resource
                     ->badge()
                     ->color('primary')
                     ->sortable(),
+                Tables\Columns\TextColumn::make('description')
+                        ->label(__('ui.description'))
+                        ->limit(30)
+                        ->wrap()
+                        ->formatStateUsing(fn ($state) => $state ? "<strong>{$state}</strong>" : $state)
+                        ->html()
+                        ->tooltip(fn ($record) => $record->description)
+                        ->searchable()
+                        ->sortable()
+                        ->toggleable(isToggledHiddenByDefault: true),
+                    Tables\Columns\TextColumn::make('unit_description')
+                        ->label(__('ui.unit_description'))
+                        ->limit(30)
+                        ->wrap()
+                        ->formatStateUsing(fn ($state) => $state ? "<strong>{$state}</strong>" : $state)
+                        ->html()
+                        ->tooltip(fn ($record) => $record->unit_description)
+                        ->searchable()
+                        ->sortable()
+                        ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('status')
                     ->label(__('ui.status'))
                     ->badge()
@@ -352,7 +381,8 @@ class TaskResource extends Resource
                     ->date()
                     ->badge()
                     ->color('success')
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('completedBy.name')
                     ->label(__('ui.closed_by'))
                     ->badge()
@@ -368,7 +398,9 @@ class TaskResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('created_at')
                     ->label(__('ui.created_at'))
-                    ->dateTime(),
+                    ->dateTime()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('updatedBy.name')
                     ->label(__('ui.updated_by'))
                     ->searchable()
