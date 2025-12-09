@@ -365,7 +365,7 @@ return [
     'title' => 'Ünvan',
     'profession' => 'Meslek',
     'user_created' => 'Hesabınız Oluşturuldu',
-    'user_created_message' => 'Kullanıcı hesabınız başarıyla oluşturuldu. Aşağıdaki bilgilerle giriş hesabınıza erişebilirsiniz:',
+    'user_created_message' => 'Kullanıcı hesabınız başarıyla oluşturuldu. Aşağıdaki bilgilerle hesabınıza giriş yapabilirsiniz:',
     'user_created_warning' => 'Lütfen güvenlik nedeniyle şifrenizi ilk girişinizde değiştiriniz.',
     'enjoy_your_work' => 'İyi çalışmalar dileriz.',
     'panel' => 'Panel',
@@ -452,4 +452,9 @@ return [
     'unit_description' => 'Birim Açıklaması',
     'unit_description_placeholder' => 'Birim açıklamasını giriniz...',
     'task_description' => 'Görev Açıklaması',
+    'support_team' => 'Destek Ekibi',
+    'footer_message' => 'Bu e-posta otomatik olarak oluşturulmuştur, lütfen yanıtlamayınız.',
+    'all_rights_reserved' => 'Tüm hakları saklıdır',
+    'task_type' => 'Görev Tipi',
+    'task_unit' => 'Görev Birimi',
 ];
