@@ -53,7 +53,7 @@
     <p>
         {{ __('ui.link_to_panel') }}: <a href="{{ config('app.url') }}">{{ config('app.url') }}</a><br><br>
         {{ __('ui.email') }}: <strong>{{ $user?->email }}</strong><br>
-        {{ __('ui.password') }}: <strong>{{ $password }}</strong>
+        {{ __('ui.password') }}: <strong>{{$password}}</strong>
     </p>
 
     <div class="danger" style="color: red;">
