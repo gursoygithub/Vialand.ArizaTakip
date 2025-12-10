@@ -87,6 +87,7 @@ class UserResource extends Resource
                                             ->where('AKTIF_MI', 1)
                                             ->where('VERITABANI_ADI', 'VIALAND_EGLENCE')
                                             ->orWhere('VERITABANI_ADI', 'GURSOY_PROJE')
+                                            ->orWhere('VERITABANI_ADI', 'MEGA_AVM')
                                             ->whereNotNull('E_POSTA')
                                             ->selectRaw("UNIQUE_ID as id, CONCAT(ADI, ' ', SOYADI) as name")
                                             ->orderBy('name')
