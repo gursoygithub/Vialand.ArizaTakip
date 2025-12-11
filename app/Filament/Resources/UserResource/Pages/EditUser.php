@@ -59,6 +59,11 @@ class EditUser extends EditRecord
             }
         }
 
+        // update password if new_password_confirmation is set
+        if (isset($data['new_password_confirmation'])) {
+            $data['password'] = bcrypt($data['new_password_confirmation']);
+        }
+
         return $data;
     }
 }
