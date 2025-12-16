@@ -65,24 +65,29 @@ class SubAreasRelationManager extends RelationManager
             ->columns([
                 Tables\Columns\TextColumn::make('name')
                     ->label(__('ui.name'))
+                    ->icon('heroicon-o-map-pin')
                     ->sortable()
                     ->searchable(),
                 Tables\Columns\TextColumn::make('createdBy.name')
                     ->visible(fn () => auth()->user()->hasRole('super_admin') || auth()->user()->can('view_all_sub_areas'))
                     ->label(__('ui.created_by'))
+                    ->icon('heroicon-o-user')
                     ->searchable()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('created_at')
                     ->label(__('ui.created_at'))
+                    ->icon('heroicon-o-calendar-days')
                     ->dateTime(),
                 Tables\Columns\TextColumn::make('updatedBy.name')
                     ->label(__('ui.updated_by'))
+                    ->icon('heroicon-o-user')
                     ->searchable()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('updated_at')
                     ->label(__('ui.updated_at'))
+                    ->icon('heroicon-o-calendar-days')
                     ->getStateUsing(fn ($record) => $record->updated_by ? $record->updated_at : null)
                     ->dateTime()
                     ->sortable()
