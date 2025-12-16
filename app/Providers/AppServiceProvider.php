@@ -29,12 +29,13 @@ class AppServiceProvider extends ServiceProvider
 //                ->locales(['fr', 'ar']); // also accepts a closure
 //        });
 
-        Table::$defaultDateTimeDisplayFormat = 'd.m.Y H:i';
-        Table::$defaultDateDisplayFormat = 'd.m.Y';
+        Table::$defaultDateTimeDisplayFormat = 'd F Y - H:i';
+        Table::$defaultDateDisplayFormat = 'd F Y';
         Table::$defaultCurrency = 'TRY';
 
         Infolist::$defaultCurrency = 'TRY';
-        Infolist::$defaultDateTimeDisplayFormat = 'd.m.Y H:i';
+        Infolist::$defaultDateTimeDisplayFormat = 'd F Y - H:i';
+        Infolist::$defaultDateDisplayFormat = 'd F Y';
 
         Number::useLocale('tr');
         Number::useCurrency('TRY');

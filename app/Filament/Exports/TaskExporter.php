@@ -2,6 +2,7 @@
 
 namespace App\Filament\Exports;
 
+use App\Helpers\DateHelper;
 use App\Models\Task;
 use Filament\Actions\Exports\ExportColumn;
 use Filament\Actions\Exports\Exporter;
@@ -15,15 +16,9 @@ class TaskExporter extends Exporter
     {
         $isSuperAdmin = auth()->user()->hasRole('super_admin');
         $canViewTcNo = auth()->user()->can('view_tc_no');
+        $canViewAllTasks = auth()->user()->can('view_all_tasks');
 
         $columns = [];
-
-        // TC No sütunu sadece süper admin veya ilgili izne sahip kullanıcılar için gösterilir
-        // ve dizinin başına eklenir
-//        if ($isSuperAdmin || $canViewTcNo) {
-//            $columns[] = ExportColumn::make('tc_no')
-//                ->label(__('ui.tc_no'));
-//        }
 
         // Diğer sütunlar
         $columns = array_merge($columns, [
@@ -42,28 +37,52 @@ class TaskExporter extends Exporter
                 ->label(__('ui.sub_area')),
             ExportColumn::make('unit.name')
                 ->label(__('ui.unit')),
-            ExportColumn::make('description')
-                ->label(__('ui.description')),
-            ExportColumn::make('status')
-                ->label(__('ui.status'))
-                ->formatStateUsing(fn ($state): ?string =>
-                    $state instanceof \App\Enums\TaskStatusEnum
-                        ? $state->getLabel()
-                        : (string) $state
-                ),
-//            ExportColumn::make('employee.name')
-//                ->label(__('ui.assigned_to')),
             ExportColumn::make('task_date')
                 ->label(__('ui.task_date'))
-                ->formatStateUsing(fn ($state) => date('d.m.Y', strtotime($state))),
+                ->formatStateUsing(fn ($state) => DateHelper::formatForExport($state, 'd F Y')),
+            ExportColumn::make('description')
+                ->label(__('ui.description')),
+            ExportColumn::make('unit_description')
+                ->label(__('ui.unit_description')),
+            ExportColumn::make('status')
+                ->label(__('ui.status'))
+                ->formatStateUsing(fn ($state): ?string => $state instanceof \App\Enums\TaskStatusEnum ? $state->getLabel() : (string) $state),
+//            ExportColumn::make('employee.name')
+//                ->label(__('ui.assigned_to')),
             ExportColumn::make('completedBy.name')
                 ->label(__('ui.closed_by')),
             ExportColumn::make('due_date')
                 ->label(__('ui.due_date'))
-                ->formatStateUsing(fn ($state) => $state ? date('d.m.Y', strtotime($state)) : ''),
+                ->formatStateUsing(fn ($state) => DateHelper::formatForExport($state, 'd F Y')),
             ExportColumn::make('resolution_notes')
                 ->label(__('ui.resolution_notes')),
         ]);
+
+        if ($isSuperAdmin || $canViewAllTasks) {
+            $columns[] = ExportColumn::make('createdBy.name')
+                ->label(__('ui.created_by'));
+        }
+
+        $columns[] = ExportColumn::make('created_at')
+            ->label(__('ui.created_at'))
+            ->formatStateUsing(fn ($state) => DateHelper::formatForExport($state, 'd F Y - H:i'));
+
+//        $columns[] = ExportColumn::make('updatedBy.name')
+//            ->label(__('ui.last_updated_by'));
+//
+//        $columns[] = ExportColumn::make('updated_at')
+//            ->label(__('ui.updated_at'))
+//            ->formatStateUsing(function ($state, $record) {
+//                // 1. Güncelleyen kişinin olup olmadığını kontrol et.
+//                // Eğer 'updatedBy' ilişkisi NULL ise (yani updated_by_id boşsa),
+//                // veya updated_at alanı NULL ise, boş döndür.
+//                if (is_null($record->updatedBy) || is_null($state)) {
+//                    return '';
+//                }
+//
+//                // 2. Güncelleyen kişi varsa, tarihi formatla.
+//                return DateHelper::formatForExport($state, 'd F Y - H:i');
+//            });
 
         return $columns;
     }

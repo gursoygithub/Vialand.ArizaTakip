@@ -65,7 +65,7 @@
 
                                 <p style="margin: 5px 0;">
                                     <strong style="display: inline-block; width: 150px; color: #555;">{{ __('ui.task_date') }}:</strong>
-                                    <span style="font-weight: bold;">{{ $task->task_date->format('d.m.Y H:i') }}</span>
+                                    <span style="font-weight: bold;">{{ $task->task_date->format('d.m.Y') }}</span>
                                 </p>
                                 <p style="margin: 5px 0;">
                                     <strong style="display: block; margin-bottom: 5px; color: #555;">{{ __('ui.description') }}:</strong>

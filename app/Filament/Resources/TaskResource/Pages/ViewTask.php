@@ -109,7 +109,7 @@ class ViewTask extends ViewRecord
                                 Infolists\Components\TextEntry::make('task_date')
                                     ->label(__('ui.fault_date'))
                                     ->icon('heroicon-o-calendar-days')
-                                    ->formatStateUsing(fn ($state) => Carbon::parse($state)->locale(app()->getLocale())->translatedFormat('d F Y'))
+                                    ->date()
                                     ->badge()
                                     ->color('primary'),
                                 Infolists\Components\TextEntry::make('status')
@@ -163,7 +163,7 @@ class ViewTask extends ViewRecord
                                             ->icon('heroicon-o-user'),
                                         Infolists\Components\TextEntry::make('created_at')
                                             ->label(__('ui.created_at'))
-                                            ->formatStateUsing(fn ($state) => Carbon::parse($state)->locale(app()->getLocale())->translatedFormat('d F Y - H:i'))
+                                            ->dateTime()
                                             ->badge()
                                             ->color('primary')
                                             ->icon('heroicon-o-calendar-days'),
@@ -176,7 +176,7 @@ class ViewTask extends ViewRecord
                                         Infolists\Components\TextEntry::make('updated_at')
                                             ->visible(fn ($record) => $record->updated_by !== null)
                                             ->label(__('ui.last_updated_at'))
-                                            ->formatStateUsing(fn ($state) => Carbon::parse($state)->locale(app()->getLocale())->translatedFormat('d F Y - H:i'))
+                                            ->dateTime()
                                             ->badge()
                                             ->color('primary')
                                             ->icon('heroicon-o-calendar-days'),
@@ -191,7 +191,7 @@ class ViewTask extends ViewRecord
                                             ->icon('heroicon-o-user'),
                                         Infolists\Components\TextEntry::make('due_date')
                                             ->label(__('ui.due_date'))
-                                            ->formatStateUsing(fn ($state) => Carbon::parse($state)->locale(app()->getLocale())->translatedFormat('d F Y H:i'))
+                                            ->date()
                                             ->badge()
                                             ->color('success')
                                             ->icon('heroicon-o-calendar-days'),
