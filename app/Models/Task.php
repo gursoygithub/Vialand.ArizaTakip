@@ -5,11 +5,14 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Notifications\Notifiable;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 use Spatie\MediaLibrary\HasMedia;
+use Spatie\MediaLibrary\InteractsWithMedia;
 
 class Task extends Model Implements HasMedia
 {
-    use Notifiable, SoftDeletes, \Spatie\MediaLibrary\InteractsWithMedia;
+    use Notifiable, SoftDeletes, InteractsWithMedia, LogsActivity;
     protected $fillable = [
         'title',
         'description',
@@ -110,5 +113,15 @@ class Task extends Model Implements HasMedia
             $task->deleted_at = now();
             $task->save();
         });
+    }
+
+    protected static $logName = 'tasks';
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logAll()
+            ->logOnlyDirty()
+            ->useLogName(static::$logName);
     }
 }

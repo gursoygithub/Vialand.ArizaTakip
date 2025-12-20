@@ -5,10 +5,12 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Notifications\Notifiable;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 class SubArea extends Model
 {
-    use Notifiable, SoftDeletes;
+    use Notifiable, SoftDeletes, LogsActivity;
 
     protected $fillable = [
         'area_id',
@@ -55,5 +57,16 @@ class SubArea extends Model
         } else {
             return parent::query()->where('created_by', auth()->id());
         }
+    }
+
+    // Activity log configuration
+    protected static $logName = 'sub_areas';
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logAll()
+            ->logOnlyDirty()
+            ->useLogName(static::$logName);
     }
 }

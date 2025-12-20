@@ -15,6 +15,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 use Spatie\Permission\Traits\HasRoles;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
@@ -25,6 +27,7 @@ class User extends Authenticatable implements FilamentUser
     use HasFactory, Notifiable;
     use SoftDeletes;
     use HasRoles;
+    use LogsActivity;
 
     /**
      * The attributes that are mass assignable.
@@ -124,6 +127,16 @@ class User extends Authenticatable implements FilamentUser
         } else {
             return parent::query()->where('created_by', auth()->id());
         }
+    }
+
+    protected static $logName = 'users';
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logAll()
+            ->logOnlyDirty()
+            ->useLogName(static::$logName);
     }
 
 

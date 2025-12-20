@@ -6,10 +6,12 @@ use App\Enums\ActiveStatusEnum;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Notifications\Notifiable;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 class Area extends Model
 {
-    use Notifiable, SoftDeletes;
+    use Notifiable, SoftDeletes, LogsActivity;
     protected $fillable = [
         'name',
         'status',
@@ -52,5 +54,16 @@ class Area extends Model
         } else {
             return parent::query()->where('created_by', auth()->id());
         }
+    }
+
+    // Activity Log Options
+    protected static $logName = 'areas';
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logAll()
+            ->logOnlyDirty()
+            ->useLogName(static::$logName);
     }
 }

@@ -6,10 +6,12 @@ use App\Enums\ActiveStatusEnum;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Notifications\Notifiable;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 class Employee extends Model
 {
-    use Notifiable, SoftDeletes;
+    use Notifiable, SoftDeletes, LogsActivity;
 
     protected $fillable = [
         'employee_id',
@@ -47,5 +49,15 @@ class Employee extends Model
     public function deletedBy()
     {
         return $this->belongsTo(User::class, 'deleted_by');
+    }
+
+    protected static $logName = 'employees';
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logAll()
+            ->logOnlyDirty()
+            ->useLogName(static::$logName);
     }
 }
