@@ -24,6 +24,13 @@ class TaskExporter extends Exporter
         $columns = array_merge($columns, [
 //            ExportColumn::make('title')
 //                ->label(__('ui.task_title')),
+            ExportColumn::make('priority')
+                ->label(__('ui.priority'))
+                ->formatStateUsing(fn ($state): ?string =>
+                $state instanceof \App\Enums\TaskPriorityEnum
+                    ? $state->getLabel()
+                    : (string) $state
+                ),
             ExportColumn::make('type_id')
                 ->label(__('ui.type'))
                 ->formatStateUsing(fn ($state): ?string =>

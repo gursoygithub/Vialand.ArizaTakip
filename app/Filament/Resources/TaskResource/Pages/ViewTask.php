@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\TaskResource\Pages;
 
+use App\Enums\TaskPriorityEnum;
 use App\Enums\TaskStatusEnum;
 use App\Filament\Resources\TaskResource;
 use App\Models\Task;
@@ -93,9 +94,11 @@ class ViewTask extends ViewRecord
                             ->schema([
 //                                Infolists\Components\TextEntry::make('title')
 //                                    ->label(__('ui.task_title')),
-                                Infolists\Components\TextEntry::make('type_id')
-                                    ->label(__('ui.type'))
+                                Infolists\Components\TextEntry::make('priority')
+                                    ->label(__('ui.priority'))
                                     ->badge(),
+                                Infolists\Components\TextEntry::make('type_id')
+                                    ->label(__('ui.type')),
                                 Infolists\Components\TextEntry::make('area.name')
                                     ->label(__('ui.area'))
                                     ->icon('heroicon-o-map'),

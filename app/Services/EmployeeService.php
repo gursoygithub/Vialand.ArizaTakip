@@ -29,7 +29,7 @@ class EmployeeService
             foreach ($this->sqlsrvConnection
                          ->table('_TGRY_PERSONEL')
                          ->where('AKTIF_MI', 1)
-                         ->where('VERITABANI_ADI', 'VIALAND_EGLENCE')
+                         ->where('VERITABANI_ADI', 'VIALAND_EGLENCE') // only Vialand employees
                          ->orderBy('ADI')
                          ->cursor() as $data) {
 

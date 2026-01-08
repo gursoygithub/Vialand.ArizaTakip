@@ -3,6 +3,7 @@
 namespace App\Filament\Resources;
 
 use App\Enums\ActiveStatusEnum;
+use App\Enums\TaskPriorityEnum;
 use App\Enums\TaskStatusEnum;
 use App\Enums\TaskTypeEnum;
 use App\Filament\Resources\TaskResource\Pages;
@@ -14,6 +15,7 @@ use App\Models\Unit;
 use App\Notifications\TaskClosed;
 use Filament\Forms;
 use Filament\Forms\Components\Fieldset;
+use Filament\Forms\Components\ToggleButtons;
 use Filament\Forms\Form;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
@@ -71,6 +73,36 @@ class TaskResource extends Resource
                         Fieldset::make(__('ui.task_information'))
                             ->columns(3)
                             ->schema([
+                                Fieldset::make(__('ui.priority_level'))
+                                    ->columns(1)
+                                    ->schema([
+                                        ToggleButtons::make('priority')
+                                            ->hiddenLabel()
+                                            ->options([TaskPriorityEnum::Low->value => TaskPriorityEnum::Low->getLabel(),
+                                                TaskPriorityEnum::Medium->value => TaskPriorityEnum::Medium->getLabel(),
+                                                TaskPriorityEnum::High->value => TaskPriorityEnum::High->getLabel(),
+                                                TaskPriorityEnum::Urgent->value => TaskPriorityEnum::Urgent->getLabel(),
+                                            ])
+                                            ->icons([
+                                                TaskPriorityEnum::Low->value => TaskPriorityEnum::Low->getIcon(),
+                                                TaskPriorityEnum::Medium->value => TaskPriorityEnum::Medium->getIcon(),
+                                                TaskPriorityEnum::High->value => TaskPriorityEnum::High->getIcon(),
+                                                TaskPriorityEnum::Urgent->value => TaskPriorityEnum::Urgent->getIcon(),
+                                            ])
+                                            ->colors([
+                                                TaskPriorityEnum::Low->value => TaskPriorityEnum::Low->getColor(),
+                                                TaskPriorityEnum::Medium->value => TaskPriorityEnum::Medium->getColor(),
+                                                TaskPriorityEnum::High->value => TaskPriorityEnum::High->getColor(),
+                                                TaskPriorityEnum::Urgent->value => TaskPriorityEnum::Urgent->getColor(),
+                                            ])
+                                            ->inline()
+                                            ->default(TaskPriorityEnum::Medium->value)
+                                            ->required()
+                                            ->validationMessages([
+                                                'required' => __('ui.required'),
+                                            ])
+                                            ->columnSpanFull(),
+                                    ]),
                                 Forms\Components\Select::make('type_id')
                                     ->label(__('ui.type'))
                                     ->options(
@@ -213,10 +245,13 @@ class TaskResource extends Resource
                                 Forms\Components\DatePicker::make('task_date')
                                     ->label(__('ui.fault_date'))
                                     ->required()
+                                    ->maxDate(today())
                                     ->live()
                                     ->afterStateUpdated(fn (callable $set) => $set('due_date', null))
                                     ->validationMessages([
                                         'required' => __('ui.required'),
+                                        'max' => __('ui.fault_date_cannot_be_in_future'),
+                                        'maxDate' => __('ui.fault_date_cannot_be_in_future'),
                                     ]),
                                 Fieldset::make(__('ui.descriptions'))
                                     ->columns(2)
@@ -322,6 +357,10 @@ class TaskResource extends Resource
                     ->collection('task_attachments')
                     ->square()
                     ->size(50),
+                Tables\Columns\TextColumn::make('priority')
+                    ->label(__('ui.priority'))
+                    ->badge()
+                    ->sortable(),
                 Tables\Columns\TextColumn::make('type_id')
                     ->label(__('ui.type'))
                     ->badge()
@@ -420,6 +459,14 @@ class TaskResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
+                // filter by priority
+                Tables\Filters\SelectFilter::make('priority')
+                    ->label(__('ui.priority'))
+                    ->options(
+                        collect(TaskPriorityEnum::cases())
+                            ->mapWithKeys(fn ($case) => [$case->value => $case->getLabel()])
+                            ->toArray()
+                    ),
                 // filter by unit
                 Tables\Filters\SelectFilter::make('unit_id')
                     ->label(__('ui.unit'))
@@ -450,6 +497,14 @@ class TaskResource extends Resource
                         ->hidden(fn ($record) => $record->trashed())
                         ->visible(fn ($record) => $record->status->isNot(TaskStatusEnum::COMPLETED) && (auth()->user()->hasRole('super_admin') || auth()->user()->can('can_close_task')) && $record->task_date <= today())
                         ->form([
+                            Forms\Components\Select::make('employee_id')
+                                ->hidden()
+                                ->label(__('ui.assigned_to'))
+                                ->options(
+                                    \App\Models\Employee::all()
+                                        ->where('status', ActiveStatusEnum::ACTIVE)
+                                        ->pluck('name', 'id')
+                                ),
                             Forms\Components\DatePicker::make('due_date')
                                 ->label(__('ui.due_date'))
                                 ->minDate(fn ($record) => $record->task_date)

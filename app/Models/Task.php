@@ -22,6 +22,7 @@ class Task extends Model Implements HasMedia
         'unit_id',
         'unit_description',
         'type_id',
+        'priority',
         'status',
         'employee_id',
         'task_date',
@@ -31,6 +32,7 @@ class Task extends Model Implements HasMedia
         'created_by',
         'updated_by',
         'deleted_by',
+        'updated_at',
     ];
 
     protected $casts = [
@@ -38,6 +40,7 @@ class Task extends Model Implements HasMedia
         'due_date' => 'datetime',
         'type_id' => \App\Enums\TaskTypeEnum::class,
         'status' => \App\Enums\TaskStatusEnum::class,
+        'priority' => \App\Enums\TaskPriorityEnum::class,
     ];
 
     public function employee()
