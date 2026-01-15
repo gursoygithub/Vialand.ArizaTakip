@@ -25,6 +25,7 @@ class Task extends Model Implements HasMedia
         'priority',
         'status',
         'employee_id',
+        'assigned_person_type_id',
         'task_date',
         'completed_by',
         'due_date',
@@ -41,11 +42,18 @@ class Task extends Model Implements HasMedia
         'type_id' => \App\Enums\TaskTypeEnum::class,
         'status' => \App\Enums\TaskStatusEnum::class,
         'priority' => \App\Enums\TaskPriorityEnum::class,
+        'assigned_person_type_id' => \App\Enums\AssignedPersonTypeEnum::class,
     ];
 
     public function employee()
     {
         return $this->belongsTo(Employee::class);
+    }
+
+    public function subcontractorEmployee()
+    {
+        return $this->belongsTo(SubcontractorEmployee::class, 'employee_id', 'id')
+            ->with('subcontractor');
     }
 
     public function area()

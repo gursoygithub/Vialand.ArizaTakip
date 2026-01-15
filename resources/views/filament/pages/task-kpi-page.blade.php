@@ -47,18 +47,12 @@
             </div>
         </x-filament::card>
 
-        <x-filament::card class="flex items-center gap-4 p-6">
-            <x-heroicon-o-exclamation-circle class="w-8 h-8 text-danger-600"/>
-            <div>
-                <p class="text-sm text-gray-500">{{ __('ui.overdue') }}</p>
-                <p class="text-2xl font-bold">{{ $kpi['performance']['overdue'] }}</p>
-            </div>
-        </x-filament::card>
+
     </div>
 
     {{-- 3. Durum / Öncelik --}}
     <x-filament::card>
-        <h3 class="text-lg font-bold mb-6">Durum / Öncelik Dağılımı</h3>
+        <h3 class="text-lg font-bold mb-6">Durum / Öncelik Dağılımı</h3><br>
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
             @foreach($kpi['status_priority'] as $status => $items)
@@ -90,8 +84,7 @@
                                     bg-{{ $priority->getColor() }}-100
                                     text-{{ $priority->getColor() }}-700
                                     ring-1 ring-inset ring-{{ $priority->getColor() }}-300
-                                "
-                            >
+                                ">
                                 <x-dynamic-component
                                         :component="$priority->getIcon()"
                                         class="w-4 h-4"
@@ -170,7 +163,7 @@
 
         {{-- Lider --}}
         <x-filament::card>
-            <h3 class="text-lg font-bold mb-4">Lider Tablosu</h3>
+            <h3 class="text-lg font-bold mb-4">{{__('ui.closers')}}</h3>
 
             <div class="space-y-3">
                 @forelse($kpi['by_closer'] as $i => $closer)

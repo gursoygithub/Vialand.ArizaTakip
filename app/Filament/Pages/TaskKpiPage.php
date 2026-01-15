@@ -23,6 +23,8 @@ class TaskKpiPage extends Page implements HasForms
 
     protected static ?string $navigationIcon = 'heroicon-o-chart-bar-square';
 
+    protected static ?int $navigationSort = 100;
+
     public static function getNavigationLabel(): string
     {
         return __('ui.kpi_dashboard');
@@ -81,6 +83,7 @@ class TaskKpiPage extends Page implements HasForms
                             ->label(__('ui.closed_by'))
                             ->options(
                                 User::query()
+                                    ->whereNot('id', 1)
                                     ->orderBy('name')
                                     ->pluck('name', 'id')
                             )

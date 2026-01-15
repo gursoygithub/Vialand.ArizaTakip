@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources\TaskResource\Pages;
 
+use App\Enums\ActiveStatusEnum;
+use App\Enums\AssignedPersonTypeEnum;
 use App\Enums\TaskPriorityEnum;
 use App\Enums\TaskStatusEnum;
 use App\Filament\Resources\TaskResource;
@@ -27,6 +29,82 @@ class ViewTask extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
+            Actions\Action::make(__('ui.related_person'))
+                ->visible(fn ($record) => auth()->user()->hasRole('super_admin') || auth()->user()->can('can_assign_task') && $record->employee_id === null)
+                ->form([
+                    Fieldset::make(__('ui.assign_task'))
+                        ->columns(1)
+                        ->schema([
+                            Forms\Components\Select::make('person_type')
+                                ->label(__('ui.person_type'))
+                                ->options([
+                                    AssignedPersonTypeEnum::EMPLOYEE->value => AssignedPersonTypeEnum::EMPLOYEE->getLabel(),
+                                    AssignedPersonTypeEnum::SUBCONTRACTOR->value => AssignedPersonTypeEnum::SUBCONTRACTOR->getLabel(),
+                                ])
+                                ->required()
+                                ->live()
+                                ->afterStateUpdated(fn (callable $set) => $set('employee_id', null))
+                                ->validationMessages([
+                                    'required' => __('ui.required'),
+                                ]),
+                            Forms\Components\Select::make('employee_id')
+                                ->label(__('ui.related_person'))
+                                ->options(function (callable $get) {
+                                    $personType = $get('person_type');
+
+                                    if ($personType == AssignedPersonTypeEnum::EMPLOYEE->value) {
+                                        return \App\Models\Employee::all()
+                                            ->where('status', ActiveStatusEnum::ACTIVE)
+                                            ->pluck('name', 'id');
+                                    } elseif ($personType == AssignedPersonTypeEnum::SUBCONTRACTOR->value) {
+                                        return \App\Models\SubcontractorEmployee::all()
+                                            ->where('active', ActiveStatusEnum::ACTIVE)
+                                            ->pluck('name', 'id');
+                                    }
+
+//                                    if ($personType === 'employee') {
+//                                        return \App\Models\Employee::all()
+//                                            ->where('status', ActiveStatusEnum::ACTIVE)
+//                                            ->pluck('name', 'id');
+//                                    } elseif ($personType === 'subcontractor') {
+//                                        return \App\Models\SubcontractorEmployee::all()
+//                                            ->where('active', ActiveStatusEnum::ACTIVE)
+//                                            ->pluck('name', 'id');
+//                                    }
+
+                                    return [];
+                                })
+                                ->preload()
+                                ->searchable()
+                                ->required()
+                                ->visible(fn (callable $get) => filled($get('person_type')))
+                                ->validationMessages([
+                                    'required' => __('ui.required'),
+                                ]),
+                        ]),
+                ])
+                ->action(function (array $data, Task $record) {
+                    DB::transaction(function () use ($data, $record) {
+                        $record->update([
+                            'employee_id' => $data['employee_id'],
+                            'assigned_person_type_id' => $data['person_type'],
+                            'updated_by' => Auth::id(),
+                            'updated_at' => now(),
+                        ]);
+                    });
+
+                    $record->refresh();
+
+                    //$record->employee->notify(new \App\Notifications\TaskAssigned($record));
+
+                    Notification::make()
+                        ->title(__('ui.task_assigned_successfully'))
+                        ->success()
+                        ->send();
+                })
+                ->requiresConfirmation()
+                ->color('warning')
+                ->icon('heroicon-o-user'),
             Actions\Action::make(__('ui.close'))
                 ->hidden(fn ($record) => $record->trashed())
                 ->visible(fn ($record) => $record->status->isNot(TaskStatusEnum::COMPLETED) && (auth()->user()->hasRole('super_admin') || auth()->user()->can('can_close_task')) && $record->task_date <= today())
@@ -74,13 +152,15 @@ class ViewTask extends ViewRecord
                 })
                 ->requiresConfirmation()
                 ->color('success')
-                ->icon('heroicon-o-check'),
+                ->icon('heroicon-o-check-circle'),
             Actions\EditAction::make()
+                ->icon('heroicon-o-pencil')
                 ->mutateFormDataUsing(function (array $data): array {
                     $data['updated_by'] = auth()->id();
                     return $data;
                 }),
-            Actions\DeleteAction::make(),
+            Actions\DeleteAction::make()
+                ->icon('heroicon-o-trash'),
         ];
     }
 
@@ -94,9 +174,44 @@ class ViewTask extends ViewRecord
                             ->schema([
 //                                Infolists\Components\TextEntry::make('title')
 //                                    ->label(__('ui.task_title')),
-                                Infolists\Components\TextEntry::make('priority')
-                                    ->label(__('ui.priority'))
-                                    ->badge(),
+                                Infolists\Components\Fieldset::make(__('ui.priority_and_assigned_to'))
+                                    ->columns(3)
+                                    ->schema([
+                                        Infolists\Components\TextEntry::make('priority')
+                                            ->label(__('ui.priority'))
+                                            ->badge(),
+                                        Infolists\Components\TextEntry::make('status')
+                                            ->label(__('ui.status'))
+                                            ->badge(),
+//                                        Infolists\Components\TextEntry::make('employee.name')
+//                                            ->label(__('ui.related_person'))
+//                                            ->placeholder(__('ui.not_assigned_yet'))
+//                                            ->badge()
+//                                            ->color('primary')
+//                                            ->icon('heroicon-o-user'),
+                                        Infolists\Components\TextEntry::make('assigned_person')
+                                            ->label(__('ui.related_person'))
+                                            ->placeholder(__('ui.not_assigned_yet'))
+                                            ->badge()
+                                            ->color('primary')
+                                            ->icon('heroicon-o-user')
+                                            ->getStateUsing(function ($record) {
+                                                if ($record->assigned_person_type_id === AssignedPersonTypeEnum::EMPLOYEE) {
+                                                    return $record->employee?->name;
+                                                } elseif ($record->assigned_person_type_id === AssignedPersonTypeEnum::SUBCONTRACTOR) {
+                                                    return $record->subcontractorEmployee?->name;
+                                                }
+                                                return null;
+                                            }),
+                                        Infolists\Components\TextEntry::make('subcontractor')
+                                            ->hidden()
+                                            ->visible(fn ($record) => $record->assigned_person_type_id === AssignedPersonTypeEnum::SUBCONTRACTOR && $record->subcontractorEmployee?->subcontractor)
+                                            ->getStateUsing(fn ($record) => $record->subcontractorEmployee?->subcontractor?->name)
+                                            ->label(__('ui.subcontractor_company'))
+                                            ->badge()
+                                            ->color('primary')
+                                            ->icon('heroicon-o-building-office-2')
+                                    ]),
                                 Infolists\Components\TextEntry::make('type_id')
                                     ->label(__('ui.type')),
                                 Infolists\Components\TextEntry::make('area.name')
@@ -115,14 +230,6 @@ class ViewTask extends ViewRecord
                                     ->date()
                                     ->badge()
                                     ->color('primary'),
-                                Infolists\Components\TextEntry::make('status')
-                                    ->label(__('ui.status'))
-                                    ->badge(),
-//                                Infolists\Components\TextEntry::make('employee.name')
-//                                    ->label(__('ui.assigned_to'))
-//                                    ->badge()
-//                                    ->color('primary')
-//                                    ->icon('heroicon-o-user'),
                                 Infolists\Components\Fieldset::make(__('ui.descriptions'))
                                     ->columns(2)
                                     ->schema([
@@ -139,6 +246,7 @@ class ViewTask extends ViewRecord
                                             ->columnSpan(1),
                                     ]),
                                 Infolists\Components\Fieldset::make(__('ui.image'))
+                                    ->hidden(fn ($record) => !$record->hasMedia('task_attachments'))
                                     ->schema([
                                         Infolists\Components\TextEntry::make('media.task_attachments')
                                             ->hiddenLabel()

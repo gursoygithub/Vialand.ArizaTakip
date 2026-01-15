@@ -494,17 +494,67 @@ class TaskResource extends Resource
             ->actions([
                 Tables\Actions\ActionGroup::make([
                     Tables\Actions\Action::make(__('ui.close'))
-                        ->hidden(fn ($record) => $record->trashed())
+                        //->hidden(fn ($record) => $record->trashed())
                         ->visible(fn ($record) => $record->status->isNot(TaskStatusEnum::COMPLETED) && (auth()->user()->hasRole('super_admin') || auth()->user()->can('can_close_task')) && $record->task_date <= today())
                         ->form([
-                            Forms\Components\Select::make('employee_id')
-                                ->hidden()
-                                ->label(__('ui.assigned_to'))
-                                ->options(
-                                    \App\Models\Employee::all()
-                                        ->where('status', ActiveStatusEnum::ACTIVE)
-                                        ->pluck('name', 'id')
-                                ),
+                            Fieldset::make(__('ui.resolution_information'))
+                                ->columns(1)
+                                ->schema([
+//                                    Forms\Components\Select::make('employee_id')
+//                                        ->label(__('ui.assigned_to'))
+//                                        ->options(
+//                                            \App\Models\Employee::all()
+//                                                ->where('status', ActiveStatusEnum::ACTIVE)
+//                                                ->pluck('name', 'id')
+//                                        )
+//                                        ->preload()
+//                                        ->searchable(),
+//                                    Forms\Components\Select::make('employee_id')
+//                                        ->label(__('ui.subcontractor_employee'))
+//                                        ->options(
+//                                            \App\Models\SubcontractorEmployee::all()
+//                                                ->where('active', ActiveStatusEnum::ACTIVE)
+//                                                ->pluck('name', 'id')
+//                                        )
+//                                        ->preload()
+//                                        ->searchable(),
+                                    Forms\Components\Select::make('person_type')
+                                        ->label(__('ui.person_type'))
+                                        ->options([
+                                            'employee' => __('ui.employee'),
+                                            'subcontractor' => __('ui.subcontractor'),
+                                        ])
+                                        ->required()
+                                        ->live()
+                                        ->afterStateUpdated(fn (callable $set) => $set('assigned_person_id', null))
+                                        ->validationMessages([
+                                            'required' => __('ui.required'),
+                                        ]),
+                                    Forms\Components\Select::make('assigned_person_id')
+                                        ->label(__('ui.assigned_to'))
+                                        ->options(function (callable $get) {
+                                            $personType = $get('person_type');
+
+                                            if ($personType === 'employee') {
+                                                return \App\Models\Employee::all()
+                                                    ->where('status', ActiveStatusEnum::ACTIVE)
+                                                    ->pluck('name', 'id');
+                                            } elseif ($personType === 'subcontractor') {
+                                                return \App\Models\SubcontractorEmployee::all()
+                                                    ->where('active', ActiveStatusEnum::ACTIVE)
+                                                    ->pluck('name', 'id');
+                                            }
+
+                                            return [];
+                                        })
+                                        ->preload()
+                                        ->searchable()
+                                        ->required()
+                                        ->visible(fn (callable $get) => filled($get('person_type')))
+                                        ->validationMessages([
+                                            'required' => __('ui.required'),
+                                        ]),
+                                ]),
                             Forms\Components\DatePicker::make('due_date')
                                 ->label(__('ui.due_date'))
                                 ->minDate(fn ($record) => $record->task_date)
@@ -526,14 +576,35 @@ class TaskResource extends Resource
                         ])
                         ->action(function (array $data, Task $record) {
                             DB::transaction(function () use ($data, $record) {
-                                $record->update([
+//                                $record->update([
+//                                    'status' => TaskStatusEnum::COMPLETED,
+//                                    'due_date' => $data['due_date'],
+//                                    'resolution_notes' => $data['resolution_notes'],
+//                                    'completed_by' => Auth::id(),
+//                                    'updated_by' => Auth::id(),
+//                                    'updated_at' => now(),
+//                                ]);
+
+                                $personType = $data['person_type'];
+                                $assignedPersonId = $data['assigned_person_id'];
+                                $updateData = [
                                     'status' => TaskStatusEnum::COMPLETED,
                                     'due_date' => $data['due_date'],
                                     'resolution_notes' => $data['resolution_notes'],
                                     'completed_by' => Auth::id(),
                                     'updated_by' => Auth::id(),
                                     'updated_at' => now(),
-                                ]);
+                                ];
+
+                                if ($personType === 'employee') {
+                                    $updateData['employee_id'] = $assignedPersonId;
+                                    $updateData['subcontractor_employee_id'] = null;
+                                } elseif ($personType === 'subcontractor') {
+                                    $updateData['subcontractor_employee_id'] = $assignedPersonId;
+                                    $updateData['employee_id'] = null;
+                                }
+
+                                $record->update($updateData);
                             });
 
                             $record->refresh();
