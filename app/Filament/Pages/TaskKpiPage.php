@@ -63,6 +63,7 @@ class TaskKpiPage extends Page implements HasForms
         return $form
             ->schema([
                 Section::make(__('ui.filters'))
+                    ->columns(2)
                     ->schema([
                         DatePicker::make('start_date')
                             ->label(__('ui.start_date'))
@@ -80,6 +81,7 @@ class TaskKpiPage extends Page implements HasForms
                             ->reactive(),
 
                         Select::make('completed_by')
+                            ->hidden()
                             ->label(__('ui.closed_by'))
                             ->options(
                                 User::query()
@@ -91,11 +93,11 @@ class TaskKpiPage extends Page implements HasForms
                             ->placeholder(__('ui.all')),
 
                         Select::make('priority')
+                            ->hidden()
                             ->label(__('ui.priority'))
                             ->options(TaskPriorityEnum::class)
                             ->placeholder(__('ui.all')),
-                    ])
-                    ->columns(4),
+                    ]),
             ])
             ->statePath('data');
     }

@@ -9,6 +9,7 @@ use App\Enums\TaskTypeEnum;
 use App\Filament\Resources\TaskResource\Pages;
 use App\Filament\Resources\TaskResource\RelationManagers;
 use App\Models\Area;
+use App\Models\Employee;
 use App\Models\SubArea;
 use App\Models\Task;
 use App\Models\Unit;
@@ -209,39 +210,6 @@ class TaskResource extends Resource
                                         ]);
                                         return $area->id;
                                     })),
-                                Forms\Components\Select::make('unit_id')
-                                    ->label(__('ui.unit'))
-                                    ->options(Unit::query()->pluck('name', 'id'))
-                                    ->preload()
-                                    ->searchable()
-                                    ->required()
-                                    ->validationMessages([
-                                        'required' => __('ui.required'),
-                                    ]),
-                                Forms\Components\Select::make('employee_id')
-                                    ->hidden()
-                                    ->label(__('ui.assigned_to'))
-                                    ->options(
-                                        \App\Models\Employee::all()
-                                            ->where('status', ActiveStatusEnum::ACTIVE)
-                                            ->pluck('name', 'id')
-                                    )
-//                                    ->options(function () {
-//                                        return DB::connection('sqlsrv2')
-//                                            ->table('dbo._TGRY_PERSONEL')
-//                                            ->where('AKTIF_MI', 1)
-//                                            ->where('VERITABANI_ADI' , '=', 'VIALAND_EGLENCE')
-//                                            ->selectRaw("UNIQUE_ID as id, CONCAT(ADI, ' ', SOYADI) as name")
-//                                            ->orderBy('name')
-//                                            ->pluck('name', 'id')
-//                                            ->toArray();
-//                                    })
-                                    ->preload()
-                                    ->searchable()
-                                    ->required()
-                                    ->validationMessages([
-                                        'required' => __('ui.required'),
-                                    ]),
                                 Forms\Components\DatePicker::make('task_date')
                                     ->label(__('ui.fault_date'))
                                     ->required()
@@ -252,6 +220,47 @@ class TaskResource extends Resource
                                         'required' => __('ui.required'),
                                         'max' => __('ui.fault_date_cannot_be_in_future'),
                                         'maxDate' => __('ui.fault_date_cannot_be_in_future'),
+                                    ]),
+                                Forms\Components\Select::make('unit_id')
+                                    ->label(__('ui.unit'))
+                                    ->options(Unit::query()->pluck('name', 'id'))
+                                    ->live()
+                                    ->afterStateUpdated(fn (callable $set) => $set('employee_id', null))
+                                    ->preload()
+                                    ->searchable()
+                                    ->required()
+                                    ->validationMessages([
+                                        'required' => __('ui.required'),
+                                    ]),
+                                Forms\Components\Select::make('employee_id')
+                                    //->hidden()
+                                    ->label(__('ui.related_person'))
+                                    ->options(function (callable $get) {
+
+                                        $unitId = $get('unit_id');
+
+                                        if (!$unitId) {
+                                            return [];
+                                        }
+
+                                        $unitName = Unit::query()
+                                            ->where('id', $unitId)
+                                            ->value('name');
+
+                                        if (!$unitName) {
+                                            return [];
+                                        }
+
+                                        return Employee::query()
+                                            ->where('status', ActiveStatusEnum::ACTIVE)
+                                            ->where('profession', 'LIKE', $unitName . '%')
+                                            ->pluck('name', 'id');
+                                    })
+                                    ->preload()
+                                    ->searchable()
+                                    //->required()
+                                    ->validationMessages([
+                                        'required' => __('ui.required'),
                                     ]),
                                 Fieldset::make(__('ui.descriptions'))
                                     ->columns(2)

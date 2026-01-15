@@ -30,6 +30,7 @@ class ViewTask extends ViewRecord
     {
         return [
             Actions\Action::make(__('ui.related_person'))
+                ->hidden()
                 ->visible(fn ($record) => auth()->user()->hasRole('super_admin') || auth()->user()->can('can_assign_task') && $record->employee_id === null)
                 ->form([
                     Fieldset::make(__('ui.assign_task'))
@@ -183,26 +184,26 @@ class ViewTask extends ViewRecord
                                         Infolists\Components\TextEntry::make('status')
                                             ->label(__('ui.status'))
                                             ->badge(),
-//                                        Infolists\Components\TextEntry::make('employee.name')
-//                                            ->label(__('ui.related_person'))
-//                                            ->placeholder(__('ui.not_assigned_yet'))
-//                                            ->badge()
-//                                            ->color('primary')
-//                                            ->icon('heroicon-o-user'),
-                                        Infolists\Components\TextEntry::make('assigned_person')
+                                        Infolists\Components\TextEntry::make('employee.name')
                                             ->label(__('ui.related_person'))
                                             ->placeholder(__('ui.not_assigned_yet'))
                                             ->badge()
                                             ->color('primary')
-                                            ->icon('heroicon-o-user')
-                                            ->getStateUsing(function ($record) {
-                                                if ($record->assigned_person_type_id === AssignedPersonTypeEnum::EMPLOYEE) {
-                                                    return $record->employee?->name;
-                                                } elseif ($record->assigned_person_type_id === AssignedPersonTypeEnum::SUBCONTRACTOR) {
-                                                    return $record->subcontractorEmployee?->name;
-                                                }
-                                                return null;
-                                            }),
+                                            ->icon('heroicon-o-user'),
+//                                        Infolists\Components\TextEntry::make('assigned_person')
+//                                            ->label(__('ui.related_person'))
+//                                            ->placeholder(__('ui.not_assigned_yet'))
+//                                            ->badge()
+//                                            ->color('primary')
+//                                            ->icon('heroicon-o-user')
+//                                            ->getStateUsing(function ($record) {
+//                                                if ($record->assigned_person_type_id === AssignedPersonTypeEnum::EMPLOYEE) {
+//                                                    return $record->employee?->name;
+//                                                } elseif ($record->assigned_person_type_id === AssignedPersonTypeEnum::SUBCONTRACTOR) {
+//                                                    return $record->subcontractorEmployee?->name;
+//                                                }
+//                                                return null;
+//                                            }),
                                         Infolists\Components\TextEntry::make('subcontractor')
                                             ->hidden()
                                             ->visible(fn ($record) => $record->assigned_person_type_id === AssignedPersonTypeEnum::SUBCONTRACTOR && $record->subcontractorEmployee?->subcontractor)
@@ -241,6 +242,7 @@ class ViewTask extends ViewRecord
                                             ->columnSpan(1),
                                         Infolists\Components\TextEntry::make('unit_description')
                                             ->label(__('ui.unit_description'))
+                                            ->placeholder(__('ui.not_yet'))
                                             ->formatStateUsing(fn ($state) => '<strong>' . nl2br(e($state)) . '</strong>')
                                             ->html()
                                             ->columnSpan(1),

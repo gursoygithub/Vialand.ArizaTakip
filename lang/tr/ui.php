@@ -497,4 +497,5 @@ return [
     'not_assigned_yet' => 'Henüz atanmamış',
     'task_assigned_successfully' => 'Görev başarıyla atandı',
     'priority_and_assigned_to' => 'Öncelik ve Atanan Kişi',
+    'not_yet' => 'Henüz Yok',
 ];

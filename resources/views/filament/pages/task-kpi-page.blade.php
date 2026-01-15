@@ -113,6 +113,28 @@
 
     {{-- 4. Alt Bölüm --}}
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {{-- Closer --}}
+        <x-filament::card>
+            <h3 class="text-lg font-bold mb-4">{{__('ui.closers')}}</h3>
+
+            <div class="space-y-3">
+                @forelse($kpi['by_closer'] as $i => $closer)
+                    <div class="flex items-center gap-3">
+                        <span class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center font-bold">
+                            {{ $i + 1 }}
+                        </span>
+                        <div>
+                            <div class="font-semibold">{{ $closer['name'] }}</div>
+                            <div class="text-xs text-gray-500">
+                                {{ $closer['count'] }} görev
+                            </div>
+                        </div>
+                    </div>
+                @empty
+                    <p class="text-center text-gray-500">Veri bulunamadı.</p>
+                @endforelse
+            </div>
+        </x-filament::card>
 
         {{-- Günlük Trend --}}
         <x-filament::card class="lg:col-span-2">
@@ -159,29 +181,6 @@
                 </div>
             </div>
 
-        </x-filament::card>
-
-        {{-- Lider --}}
-        <x-filament::card>
-            <h3 class="text-lg font-bold mb-4">{{__('ui.closers')}}</h3>
-
-            <div class="space-y-3">
-                @forelse($kpi['by_closer'] as $i => $closer)
-                    <div class="flex items-center gap-3">
-                        <span class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center font-bold">
-                            {{ $i + 1 }}
-                        </span>
-                        <div>
-                            <div class="font-semibold">{{ $closer['name'] }}</div>
-                            <div class="text-xs text-gray-500">
-                                {{ $closer['count'] }} görev
-                            </div>
-                        </div>
-                    </div>
-                @empty
-                    <p class="text-center text-gray-500">Veri bulunamadı.</p>
-                @endforelse
-            </div>
         </x-filament::card>
     </div>
 </x-filament-panels::page>
