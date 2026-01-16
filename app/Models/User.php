@@ -50,6 +50,18 @@ class User extends Authenticatable implements FilamentUser
         'created_by',
         'updated_by',
         'deleted_by',
+
+        //ldap attributes
+        'first_name',
+        'last_name',
+        'department',
+        'office',
+        'address',
+        'username',
+        'ldap_guid',
+        'ldap_dn',
+        'ldap_groups',
+        'last_ldap_sync',
     ];
 
     /**
@@ -74,6 +86,8 @@ class User extends Authenticatable implements FilamentUser
             'password' => 'hashed',
             'status' => ManagerStatusEnum::class,
             'is_manager' => BooleanStatusEnum::class,
+            'ldap_groups' => 'array',
+            'last_ldap_sync' => 'datetime',
         ];
     }
 

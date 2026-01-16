@@ -504,4 +504,10 @@ return [
     'completed_in_same_day' => 'Aynı Günde Tamamlandı',
     'elapsed_time_in_days' => 'Geçen Süre',
     'days' => 'Gün',
+    'ldap_authentication' => 'LDAP dizini üzerinden doğrulandı',
+    'sign_in_to_account' => 'Hesabınıza giriş yapın',
+    'enter_username' => 'Kullanıcı adınızı giriniz',
+    'enter_password' => 'Şifrenizi giriniz',
+    'login' => 'Giriş Yap',
+    'username' => 'Kullanıcı Adı',
 ];

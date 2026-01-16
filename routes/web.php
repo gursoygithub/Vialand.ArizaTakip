@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ReservationController;
 use Illuminate\Support\Facades\Route;
 
@@ -21,3 +22,19 @@ Route::get('/reservation-form/create', [ReservationController::class, 'create'])
 //        ->toMediaCollection('task_attachments', 's3');
 //    return 'Upload tamam!';
 //});
+
+//Route::prefix('auth')
+//    ->controller(AuthController::class)
+//    ->middleware('guest')
+//    ->group(function () {
+//        Route::get('login', 'showLoginForm')->name('auth.login');
+//        Route::post('login', 'login')->name('auth.login.submit');
+//    });
+
+Route::controller(AuthController::class)
+    ->middleware('guest')
+    ->group(function () {
+        Route::get('/', 'showLoginForm')->name('login');
+        Route::post('/', 'login')->name('login.submit');
+    });
+

@@ -12,7 +12,7 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
-        //
+        $middleware->redirectGuestsTo('/auth/login');
     })
     ->withSchedule(callback: function (\Illuminate\Console\Scheduling\Schedule $schedule): void {
         $schedule->command('employee:sync')

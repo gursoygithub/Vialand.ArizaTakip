@@ -2,12 +2,16 @@
 
 namespace App\Providers;
 
+use App\Ldap\AttributeHandler;
+use App\Listeners\UserAuthenticated;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 use BezhanSalleh\FilamentLanguageSwitch\LanguageSwitch;
 use Filament\Infolists\Infolist;
 use Filament\Tables\Table;
 use Illuminate\Support\Number;
+use LdapRecord\Laravel\Events\Import\Synchronized;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -43,5 +47,17 @@ class AppServiceProvider extends ServiceProvider
         if (app()->isProduction()) {
             URL::forceScheme('https');
         }
+
+        // LDAP senkronizasyonu sonrası custom attribute'ları kaydet
+        Event::listen(Synchronized::class, function (Synchronized $event) {
+            $handler = new AttributeHandler();
+            $handler->handle($event->object, $event->model);
+            $event->model->save();
+        });
+
+        Event::listen(
+            'Illuminate\Auth\Events\Authenticated',
+            USerAuthenticated::class
+        );
     }
 }

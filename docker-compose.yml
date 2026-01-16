@@ -8,6 +8,7 @@ services:
         image: 'laravel-php82-app'
         extra_hosts:
             - 'host.docker.internal:host-gateway'
+            - 'ldap.proxy:172.28.128.190'  # Your WSL IP
         ports:
             - '${APP_PORT:-80}:80'
             - '${VITE_PORT:-5173}:${VITE_PORT:-5173}'
@@ -15,8 +16,11 @@ services:
             WWWUSER: '${WWWUSER}'
             LARAVEL_SAIL: 1
             XDEBUG_MODE: '${SAIL_XDEBUG_MODE:-off}'
-            XDEBUG_CONFIG: '${SAIL_XDEBUG_CONFIG:-client_host=host.docker.internal}'
+            # XDEBUG_CONFIG: '${SAIL_XDEBUG_CONFIG:-client_host=host.docker.internal}'
+            XDEBUG_CONFIG: '${SAIL_XDEBUG_CONFIG:-client_host=127.0.0.1}'
             IGNITION_LOCAL_SITES_PATH: '${PWD}'
+            LDAP_DEFAULT_HOSTS: 'ldap.proxy'
+            LDAP_DEFAULT_PORT: '3389'
         volumes:
             # Laravel projesini doğru yere mount et
             - '.:/var/www/html'

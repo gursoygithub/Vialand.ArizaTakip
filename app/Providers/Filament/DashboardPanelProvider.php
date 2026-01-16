@@ -29,12 +29,12 @@ class DashboardPanelProvider extends PanelProvider
             ->default()
             ->id('dashboard')
             ->path('')
-            ->login()
-            ->profile(EditProfile::class)
-            ->userMenuItems([
-                'profile' => \Filament\Navigation\MenuItem::make()
-                    ->label(fn (): string => auth()->user()->name),
-            ])
+            //->login()
+//            ->profile(EditProfile::class)
+//            ->userMenuItems([
+//                'profile' => \Filament\Navigation\MenuItem::make()
+//                    ->label(fn (): string => auth()->user()->name),
+//            ])
             ->colors([
                 'primary' => Color::Blue,
             ])
