@@ -17,6 +17,7 @@ use Filament\Forms;
 use Filament\Forms\Components\Field;
 use Filament\Forms\Components\Fieldset;
 use Filament\Infolists;
+use Filament\Infolists\Components\Tabs;
 use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
 use Filament\Resources\Components\Tab;
@@ -435,6 +436,7 @@ class ViewTask extends ViewRecord
                                     ]),
                                 //->stacked() // Alt alta sıralamak için (opsiyonel)
                                 Infolists\Components\Fieldset::make(__('ui.record_info'))
+                                    ->hidden()
                                     ->schema([
                                         Infolists\Components\TextEntry::make('createdBy.name')
                                             ->label(__('ui.created_by'))
@@ -461,7 +463,9 @@ class ViewTask extends ViewRecord
                                             ->color('primary')
                                             ->icon('heroicon-o-calendar-days'),
                                     ])->columns(4),
+
                                 Infolists\Components\Fieldset::make(__('ui.resolution_information'))
+                                    ->hidden()
                                     ->visible(fn ($record) => $record->status === \App\Enums\TaskStatusEnum::COMPLETED)
                                     ->columns(3)
                                     ->schema([
@@ -501,6 +505,90 @@ class ViewTask extends ViewRecord
                                                     ->columnSpanFull()
                                             ]),
                                     ]),
+
+                                Tabs::make(__('ui.resolution_information'))
+                                    ->columnSpanFull()
+                                    ->hiddenLabel()
+                                    ->tabs([
+                                        Tabs\Tab::make(__('ui.record_info'))
+                                            ->icon('heroicon-m-bookmark-square')
+                                            ->schema([
+                                                Infolists\Components\Fieldset::make(__('ui.record_info'))
+                                                    ->hiddenLabel()
+                                                    ->schema([
+                                                        Infolists\Components\TextEntry::make('createdBy.name')
+                                                            ->label(__('ui.created_by'))
+                                                            ->badge()
+                                                            ->color('primary')
+                                                            ->icon('heroicon-o-user'),
+                                                        Infolists\Components\TextEntry::make('created_at')
+                                                            ->label(__('ui.created_at'))
+                                                            ->dateTime()
+                                                            ->badge()
+                                                            ->color('primary')
+                                                            ->icon('heroicon-o-calendar-days'),
+                                                        Infolists\Components\TextEntry::make('updatedBy.name')
+                                                            ->visible(fn ($record) => $record->updated_by !== null)
+                                                            ->label(__('ui.last_updated_by'))
+                                                            ->badge()
+                                                            ->color('primary')
+                                                            ->icon('heroicon-o-user'),
+                                                        Infolists\Components\TextEntry::make('updated_at')
+                                                            ->visible(fn ($record) => $record->updated_by !== null)
+                                                            ->label(__('ui.last_updated_at'))
+                                                            ->dateTime()
+                                                            ->badge()
+                                                            ->color('primary')
+                                                            ->icon('heroicon-o-calendar-days'),
+                                                    ])->columns(4),
+                                            ]),
+
+                                        Tabs\Tab::make(__('ui.resolution_information'))
+                                            ->visible(fn ($record) => $record->status === \App\Enums\TaskStatusEnum::COMPLETED)
+                                            ->icon('heroicon-m-information-circle')
+                                            ->schema([
+                                                Infolists\Components\Fieldset::make(__('ui.resolution_information'))
+                                                    ->hiddenLabel()
+                                                    ->columns(3)
+                                                    ->schema([
+                                                        Infolists\Components\TextEntry::make('completedBy.name')
+                                                            ->label(__('ui.closed_by'))
+                                                            ->badge()
+                                                            ->color('success')
+                                                            ->icon('heroicon-o-user'),
+                                                        Infolists\Components\TextEntry::make('due_date')
+                                                            ->label(__('ui.due_date'))
+                                                            ->date()
+                                                            ->badge()
+                                                            ->color('success')
+                                                            ->icon('heroicon-o-calendar-days'),
+                                                        Infolists\Components\TextEntry::make('elapsed_time')
+                                                            ->label(__('ui.elapsed_time_in_days'))
+                                                            ->getStateUsing(function ($record) {
+                                                                if ($record->due_date && $record->task_date) {
+                                                                    $start = Carbon::parse($record->task_date)->startOfDay();
+                                                                    $end = Carbon::parse($record->due_date)->startOfDay();
+
+                                                                    $days = $start->diffInDays($end);
+
+                                                                    return $days == 0 ? __('ui.completed_in_same_day') : $days . ' ' . __('ui.days');
+                                                                }
+                                                                return __('ui.not_available');
+                                                            })
+                                                            ->badge()
+                                                            ->color('warning')
+                                                            ->icon('heroicon-o-clock'),
+                                                        Infolists\Components\Fieldset::make(__('ui.resolution_notes'))
+                                                            ->schema([
+                                                                Infolists\Components\TextEntry::make('resolution_notes')
+                                                                    ->hiddenLabel()
+                                                                    ->formatStateUsing(fn ($state) => nl2br(e($state)))
+                                                                    ->html()
+                                                                    ->columnSpanFull()
+                                                            ]),
+                                                    ]),
+                                            ]),
+                                    ])
                             ])->columns(3),
                     ]),
             ]);
