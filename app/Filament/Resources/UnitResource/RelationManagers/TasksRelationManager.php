@@ -78,6 +78,15 @@ class TasksRelationManager extends RelationManager
                     ->color('primary')
                     ->searchable()
                     ->sortable(),
+                Tables\Columns\TextColumn::make('employee.name')
+                    ->label(__('ui.related_person'))
+                    ->placeholder(__('ui.not_assigned'))
+                    ->alignCenter()
+                    ->icon('heroicon-o-user')
+                    ->badge()
+                    ->color('primary')
+                    ->searchable()
+                    ->sortable(),
                 Tables\Columns\TextColumn::make('task_date')
                     ->label(__('ui.fault_date'))
                     ->icon('heroicon-o-calendar-days')

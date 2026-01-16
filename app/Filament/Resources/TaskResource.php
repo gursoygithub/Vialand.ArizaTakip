@@ -411,7 +411,8 @@ class TaskResource extends Resource
                     ->sortable(),
                 Tables\Columns\TextColumn::make('employee.name')
                     ->label(__('ui.related_person'))
-                    ->placeholder('--')
+                    ->placeholder(__('ui.not_assigned'))
+                    ->alignCenter()
                     ->icon('heroicon-o-user')
                     ->badge()
                     ->color('primary')
@@ -738,7 +739,7 @@ class TaskResource extends Resource
                         })
                         ->requiresConfirmation()
                         ->color('success')
-                        ->icon('heroicon-o-check'),
+                        ->icon('heroicon-o-check-circle'),
                     Tables\Actions\ViewAction::make(),
                     Tables\Actions\EditAction::make(),
                     Tables\Actions\DeleteAction::make(),

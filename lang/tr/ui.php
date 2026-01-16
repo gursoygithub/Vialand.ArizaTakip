@@ -501,4 +501,7 @@ return [
     'related_person_info' => 'İlgili Kişi Bilgileri',
     'elapsed_time' => 'Geçen Süre',
     'not_assigned' => 'Atanmamış',
+    'completed_in_same_day' => 'Aynı Günde Tamamlandı',
+    'elapsed_time_in_days' => 'Geçen Süre',
+    'days' => 'Gün',
 ];
