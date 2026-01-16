@@ -44,6 +44,9 @@ class TaskExporter extends Exporter
                 ->label(__('ui.sub_area')),
             ExportColumn::make('unit.name')
                 ->label(__('ui.unit')),
+            // related_person
+            ExportColumn::make('employee.name')
+                ->label(__('ui.related_person')),
             ExportColumn::make('task_date')
                 ->label(__('ui.task_date'))
                 ->formatStateUsing(fn ($state) => DateHelper::formatForExport($state, 'd F Y')),
