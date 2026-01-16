@@ -64,6 +64,14 @@
                                 </p>
 
                                 <p style="margin: 5px 0;">
+                                    <strong style="display: inline-block; width: 150px; color: #555;">{{ __('ui.related_person') }}:</strong>
+                                    <span style="font-weight: bold; padding: 3px 10px; border-radius: 4px; background-color: #d1ecf1; color: #0c5460; font-size: 15px;">
+                                        {{ $assigned_to?->name }}
+                                    </span>
+                                </p>
+
+
+                                <p style="margin: 5px 0;">
                                     <strong style="display: inline-block; width: 150px; color: #555;">{{ __('ui.task_date') }}:</strong>
                                     <span style="font-weight: bold;">{{ $task->task_date->format('d.m.Y') }}</span>
                                 </p>
@@ -86,6 +94,10 @@
                                 <p style="margin: 5px 0;">
                                     <strong style="display: inline-block; width: 150px; color: #555;">{{ __('ui.due_date') }}:</strong>
                                     <span style="font-weight: bold;">{{ $task->due_date->format('d.m.Y') }}</span>
+                                </p>
+                                <p style="margin: 5px 0;">
+                                    <strong style="display: inline-block; width: 150px; color: #555;">{{ __('ui.elapsed_time') }}:</strong>
+                                    <span style="font-weight: bold; padding: 3px 10px; border-radius: 4px; background-color: #fff3cd; color: #856404; font-size: 15px;">{{ $task->task_date->diffForHumans($task->due_date, true, false, 2) }}</span>
                                 </p>
                                 <p style="margin: 5px 0;">
                                     <strong style="display: block; margin-bottom: 5px; color: #555;">{{ __('ui.resolution_notes') }}:</strong>

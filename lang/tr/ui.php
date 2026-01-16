@@ -498,4 +498,7 @@ return [
     'task_assigned_successfully' => 'Görev başarıyla atandı',
     'priority_and_assigned_to' => 'Öncelik ve Atanan Kişi',
     'not_yet' => 'Henüz Yok',
+    'related_person_info' => 'İlgili Kişi Bilgileri',
+    'elapsed_time' => 'Geçen Süre',
+    'not_assigned' => 'Atanmamış',
 ];

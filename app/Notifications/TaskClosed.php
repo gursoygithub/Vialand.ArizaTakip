@@ -42,6 +42,7 @@ class TaskClosed extends Notification
                 'task' => $this->task,
                 'user' => $notifiable, // ✔ maili alan kişi
                 'closed_by' => $this->task->completedBy, // ✔ kapatan kişi
+                'assigned_to' => $this->task->employee, // ✔ ilgili kişi
             ]);
     }
 

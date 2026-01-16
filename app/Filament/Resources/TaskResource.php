@@ -243,6 +243,23 @@ class TaskResource extends Resource
                                             return [];
                                         }
 
+                                        // if unit_id is 5 then return employees like "Bakım%"
+                                        // 5: Ünite Bakımı
+                                        if ($unitId == 5) {
+                                            return Employee::query()
+                                                ->where('status', ActiveStatusEnum::ACTIVE)
+                                                ->where('profession', 'LIKE', 'Bakım%')
+                                                ->pluck('name', 'id');
+                                        }
+
+                                        // if unit_id is 6 then return all employees
+                                        // 6: Temapark Görsel
+                                        if ($unitId == 6) {
+                                            return Employee::query()
+                                                ->where('status', ActiveStatusEnum::ACTIVE)
+                                                ->pluck('name', 'id');
+                                        }
+
                                         $unitName = Unit::query()
                                             ->where('id', $unitId)
                                             ->value('name');
@@ -392,6 +409,14 @@ class TaskResource extends Resource
                     ->color('primary')
                     ->searchable()
                     ->sortable(),
+                Tables\Columns\TextColumn::make('employee.name')
+                    ->label(__('ui.related_person'))
+                    ->placeholder('--')
+                    ->icon('heroicon-o-user')
+                    ->badge()
+                    ->color('primary')
+                    ->searchable()
+                    ->sortable(),
                 Tables\Columns\TextColumn::make('task_date')
                     ->label(__('ui.fault_date'))
                     ->icon('heroicon-o-calendar-days')
@@ -506,9 +531,71 @@ class TaskResource extends Resource
                         //->hidden(fn ($record) => $record->trashed())
                         ->visible(fn ($record) => $record->status->isNot(TaskStatusEnum::COMPLETED) && (auth()->user()->hasRole('super_admin') || auth()->user()->can('can_close_task')) && $record->task_date <= today())
                         ->form([
-                            Fieldset::make(__('ui.resolution_information'))
+                            Fieldset::make(__('ui.related_person_info'))
                                 ->columns(1)
                                 ->schema([
+                                    Forms\Components\Select::make('unit_id')
+                                        ->label(__('ui.unit'))
+                                        ->options(Unit::query()->pluck('name', 'id'))
+                                        ->live()
+                                        ->afterStateUpdated(fn (callable $set) => $set('employee_id', null))
+                                        ->preload()
+                                        ->searchable()
+                                        ->required()
+                                        ->default(fn ($record) => $record->unit_id)
+                                        //->disabled(fn ($record) => filled($record->unit_id))
+                                        ->validationMessages([
+                                            'required' => __('ui.required'),
+                                        ]),
+                                    Forms\Components\Select::make('employee_id')
+                                        //->hidden()
+                                        ->label(__('ui.related_person'))
+                                        ->options(function (callable $get) {
+
+                                            $unitId = $get('unit_id');
+
+                                            if (!$unitId) {
+                                                return [];
+                                            }
+
+                                            // if unit_id is 5 then return employees like "Bakım%"
+                                            // 5: Ünite Bakımı
+                                            if ($unitId == 5) {
+                                                return Employee::query()
+                                                    ->where('status', ActiveStatusEnum::ACTIVE)
+                                                    ->where('profession', 'LIKE', 'Bakım%')
+                                                    ->pluck('name', 'id');
+                                            }
+
+                                            // if unit_id is 6 then return all employees
+                                            // 6: Temapark Görsel
+                                            if ($unitId == 6) {
+                                                return Employee::query()
+                                                    ->where('status', ActiveStatusEnum::ACTIVE)
+                                                    ->pluck('name', 'id');
+                                            }
+
+                                            $unitName = Unit::query()
+                                                ->where('id', $unitId)
+                                                ->value('name');
+
+                                            if (!$unitName) {
+                                                return [];
+                                            }
+
+                                            return Employee::query()
+                                                ->where('status', ActiveStatusEnum::ACTIVE)
+                                                ->where('profession', 'LIKE', $unitName . '%')
+                                                ->pluck('name', 'id');
+                                        })
+                                        ->preload()
+                                        ->searchable()
+                                        ->default(fn ($record) => $record->employee_id)
+                                        //->disabled(fn ($record) => filled($record->employee_id))
+                                        //->required()
+                                        ->validationMessages([
+                                            'required' => __('ui.required'),
+                                        ]),
 //                                    Forms\Components\Select::make('employee_id')
 //                                        ->label(__('ui.assigned_to'))
 //                                        ->options(
@@ -518,51 +605,43 @@ class TaskResource extends Resource
 //                                        )
 //                                        ->preload()
 //                                        ->searchable(),
-//                                    Forms\Components\Select::make('employee_id')
-//                                        ->label(__('ui.subcontractor_employee'))
-//                                        ->options(
-//                                            \App\Models\SubcontractorEmployee::all()
-//                                                ->where('active', ActiveStatusEnum::ACTIVE)
-//                                                ->pluck('name', 'id')
-//                                        )
+
+//                                    Forms\Components\Select::make('person_type')
+//                                        ->label(__('ui.person_type'))
+//                                        ->options([
+//                                            'employee' => __('ui.employee'),
+//                                            'subcontractor' => __('ui.subcontractor'),
+//                                        ])
+//                                        ->required()
+//                                        ->live()
+//                                        ->afterStateUpdated(fn (callable $set) => $set('assigned_person_id', null))
+//                                        ->validationMessages([
+//                                            'required' => __('ui.required'),
+//                                        ]),
+//                                    Forms\Components\Select::make('assigned_person_id')
+//                                        ->label(__('ui.assigned_to'))
+//                                        ->options(function (callable $get) {
+//                                            $personType = $get('person_type');
+//
+//                                            if ($personType === 'employee') {
+//                                                return \App\Models\Employee::all()
+//                                                    ->where('status', ActiveStatusEnum::ACTIVE)
+//                                                    ->pluck('name', 'id');
+//                                            } elseif ($personType === 'subcontractor') {
+//                                                return \App\Models\SubcontractorEmployee::all()
+//                                                    ->where('active', ActiveStatusEnum::ACTIVE)
+//                                                    ->pluck('name', 'id');
+//                                            }
+//
+//                                            return [];
+//                                        })
 //                                        ->preload()
-//                                        ->searchable(),
-                                    Forms\Components\Select::make('person_type')
-                                        ->label(__('ui.person_type'))
-                                        ->options([
-                                            'employee' => __('ui.employee'),
-                                            'subcontractor' => __('ui.subcontractor'),
-                                        ])
-                                        ->required()
-                                        ->live()
-                                        ->afterStateUpdated(fn (callable $set) => $set('assigned_person_id', null))
-                                        ->validationMessages([
-                                            'required' => __('ui.required'),
-                                        ]),
-                                    Forms\Components\Select::make('assigned_person_id')
-                                        ->label(__('ui.assigned_to'))
-                                        ->options(function (callable $get) {
-                                            $personType = $get('person_type');
-
-                                            if ($personType === 'employee') {
-                                                return \App\Models\Employee::all()
-                                                    ->where('status', ActiveStatusEnum::ACTIVE)
-                                                    ->pluck('name', 'id');
-                                            } elseif ($personType === 'subcontractor') {
-                                                return \App\Models\SubcontractorEmployee::all()
-                                                    ->where('active', ActiveStatusEnum::ACTIVE)
-                                                    ->pluck('name', 'id');
-                                            }
-
-                                            return [];
-                                        })
-                                        ->preload()
-                                        ->searchable()
-                                        ->required()
-                                        ->visible(fn (callable $get) => filled($get('person_type')))
-                                        ->validationMessages([
-                                            'required' => __('ui.required'),
-                                        ]),
+//                                        ->searchable()
+//                                        ->required()
+//                                        ->visible(fn (callable $get) => filled($get('person_type')))
+//                                        ->validationMessages([
+//                                            'required' => __('ui.required'),
+//                                        ]),
                                 ]),
                             Forms\Components\DatePicker::make('due_date')
                                 ->label(__('ui.due_date'))
@@ -583,19 +662,51 @@ class TaskResource extends Resource
                                     'required' => __('ui.required'),
                                 ])->columnSpanFull(),
                         ])
-                        ->action(function (array $data, Task $record) {
-                            DB::transaction(function () use ($data, $record) {
-//                                $record->update([
+//                        ->action(function (array $data, Task $record) {
+//                            DB::transaction(function () use ($data, $record) {
+////                                $record->update([
+////                                    'status' => TaskStatusEnum::COMPLETED,
+////                                    'due_date' => $data['due_date'],
+////                                    'resolution_notes' => $data['resolution_notes'],
+////                                    'completed_by' => Auth::id(),
+////                                    'updated_by' => Auth::id(),
+////                                    'updated_at' => now(),
+////                                ]);
+//
+//                                $personType = $data['person_type'];
+//                                $assignedPersonId = $data['assigned_person_id'];
+//                                $updateData = [
 //                                    'status' => TaskStatusEnum::COMPLETED,
 //                                    'due_date' => $data['due_date'],
 //                                    'resolution_notes' => $data['resolution_notes'],
 //                                    'completed_by' => Auth::id(),
 //                                    'updated_by' => Auth::id(),
 //                                    'updated_at' => now(),
-//                                ]);
-
-                                $personType = $data['person_type'];
-                                $assignedPersonId = $data['assigned_person_id'];
+//                                ];
+//
+//                                if ($personType === 'employee') {
+//                                    $updateData['employee_id'] = $assignedPersonId;
+//                                    $updateData['subcontractor_employee_id'] = null;
+//                                } elseif ($personType === 'subcontractor') {
+//                                    $updateData['subcontractor_employee_id'] = $assignedPersonId;
+//                                    $updateData['employee_id'] = null;
+//                                }
+//
+//                                $record->update($updateData);
+//                            });
+//
+//                            $record->refresh();
+//
+//                            //$record->notify(new TaskClosed($record));
+//                            $record->createdBy->notify(new TaskClosed($record));
+//
+//                            Notification::make()
+//                                ->title(__('ui.task_closed_successfully'))
+//                                ->success()
+//                                ->send();
+//                        })
+                        ->action(function (array $data, Task $record) {
+                            DB::transaction(function () use ($data, $record) {
                                 $updateData = [
                                     'status' => TaskStatusEnum::COMPLETED,
                                     'due_date' => $data['due_date'],
@@ -605,12 +716,12 @@ class TaskResource extends Resource
                                     'updated_at' => now(),
                                 ];
 
-                                if ($personType === 'employee') {
-                                    $updateData['employee_id'] = $assignedPersonId;
-                                    $updateData['subcontractor_employee_id'] = null;
-                                } elseif ($personType === 'subcontractor') {
-                                    $updateData['subcontractor_employee_id'] = $assignedPersonId;
-                                    $updateData['employee_id'] = null;
+                                // Eğer yeni unit_id ve employee_id verilmişse güncelle
+                                if (isset($data['unit_id']) && !$record->unit_id) {
+                                    $updateData['unit_id'] = $data['unit_id'];
+                                }
+                                if (isset($data['employee_id']) && !$record->employee_id) {
+                                    $updateData['employee_id'] = $data['employee_id'];
                                 }
 
                                 $record->update($updateData);
@@ -618,7 +729,6 @@ class TaskResource extends Resource
 
                             $record->refresh();
 
-                            //$record->notify(new TaskClosed($record));
                             $record->createdBy->notify(new TaskClosed($record));
 
                             Notification::make()
