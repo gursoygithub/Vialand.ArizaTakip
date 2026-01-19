@@ -19,7 +19,7 @@ return new class extends Migration
             $table->string('email');
             $table->string('phone')->nullable();
             //$table->tinyInteger('status')->default(1);
-            $table->tinyInteger('status')->default(\App\Enums\ManagerStatusEnum::ACTIVE);
+            $table->tinyInteger('status')->default(\App\Enums\UserStatusEnum::ACTIVE);
             $table->boolean('is_manager')->default(false);
 
             $table->string('title')->nullable(); // unvan

@@ -1,3 +1,3 @@
 <x-filament-panels::page>
-    {{-- Authentication Page Content --}}
+
 </x-filament-panels::page>

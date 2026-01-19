@@ -31,6 +31,6 @@ class AuthController extends Controller
         $request->session()->regenerate();
 
         //return redirect()->intended(route('filament.admin.pages.dashboard'));
-        return redirect()->intended(route('filament.pages.auth'));
+        return redirect()->intended(route('filament.dashboard.pages.dashboard'));
     }
 }

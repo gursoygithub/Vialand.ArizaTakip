@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Enums\ManagerStatusEnum;
+use App\Enums\UserStatusEnum;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use App\Models\User;
@@ -27,7 +28,7 @@ class InitSeeder extends Seeder
                 'username' => $adminUsername,
                 'email' => env('APP_ADMIN_EMAIL', 'sa@app.com'),
                 'password' => bcrypt($adminPassword),
-                'status' => ManagerStatusEnum::ACTIVE,
+                'status' => UserStatusEnum::ACTIVE,
                 'created_by' => 1,
             ]);
         }

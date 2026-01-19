@@ -12,6 +12,9 @@ use App\Models\Report;
 use App\Models\User;
 use Filament\Forms;
 use Filament\Forms\Components\Fieldset;
+use Filament\Forms\Components\Section;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
@@ -40,14 +43,14 @@ class UserResource extends Resource
         return __('ui.user_management');
     }
 
-    public static function getNavigationBadge(): ?string
-    {
-        if (auth()->user()->hasRole('super_admin') || auth()->user()->can('view_all_users')) {
-            return static::getModel()::where('id', '>', 1)->count();
-        } else {
-            return static::getModel()::where('created_by', auth()->id())->where('id', '>', 1)->count();
-        }
-    }
+//    public static function getNavigationBadge(): ?string
+//    {
+//        if (auth()->user()->hasRole('super_admin') || auth()->user()->can('view_all_users')) {
+//            return static::getModel()::where('id', '>', 1)->count();
+//        } else {
+//            return static::getModel()::where('created_by', auth()->id())->where('id', '>', 1)->count();
+//        }
+//    }
 
     public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
     {
@@ -71,165 +74,224 @@ class UserResource extends Resource
 
         return $form
             ->schema([
-                \Filament\Forms\Components\Card::make()
+                Section::make(__('ui.personal_information'))
+                    ->description(__('ui.personal_details'))
+                    ->icon('heroicon-o-user')
+                    ->columns(2)
+                    ->compact()
                     ->schema([
-                        Fieldset::make(__('ui.user_info'))
-                            ->columns(1)
-                            ->disabledOn('edit')
-                            ->schema([
-                                Forms\Components\Select::make('employee_id')
-                                    ->label(__('ui.user'))
-                                    ->searchable()
-                                    ->preload()
-                                    ->options(function () {
-                                        return DB::connection('sqlsrv2')
-                                            ->table('dbo._TGRY_PERSONEL')
-                                            ->where('AKTIF_MI', 1)
-                                            ->where('VERITABANI_ADI', 'VIALAND_EGLENCE')
-                                            ->orWhere('VERITABANI_ADI', 'GURSOY_PROJE')
-                                            ->orWhere('VERITABANI_ADI', 'MEGA_AVM')
-                                            ->whereNotNull('E_POSTA')
-                                            ->selectRaw("UNIQUE_ID as id, CONCAT(ADI, ' ', SOYADI) as name")
-                                            ->orderBy('name')
-                                            ->pluck('name', 'id')
-                                            ->toArray();
-                                    })
-                                    ->required()
-                                    ->unique(
-                                        'users',
-                                        'employee_id',
-                                        ignoreRecord: true,
-                                        modifyRuleUsing: function ($rule) {
-                                            return $rule->whereNull('deleted_at');
-                                        }
-                                    )
-                                    ->validationMessages([
-                                        'required' => __('ui.required'),
-                                        'unique' => __('ui.unique'),
-                                        ]),
-                                Forms\Components\TextInput::make('email')
-                                    ->visibleOn('view')
-                                    ->label(__('ui.email'))
-                                    ->placeholder(__('ui.email'))
-                                    ->email()
-                                    ->maxLength(50)
-                                    ->rule('email')
-                                    ->validationMessages([
-                                        'email' => __('ui.email_invalid'),
-                                        'required' => __('ui.required'),
-                                    ])
-                                    ->required(),
-                                Forms\Components\TextInput::make('phone')
-                                    ->visibleOn('view')
-                                    ->label(__('ui.phone'))
-                                    ->placeholder(__('ui.phone_placeholder'))
-                                    ->numeric()
-                                    ->minLength(10)
-                                    ->maxLength(10)
-                                    ->rule('digits:10')
-                                    ->mask('99999999999')
-                                    ->validationMessages([
-                                        'digits' => __('ui.phone_digits'),
-                                        'numeric' => __('ui.phone_numeric'),
-                                        'required' => __('ui.required'),
-                                        'min_digits' => __('ui.phone_min_digits'),
-                                        'max_digits' => __('ui.phone_max_digits'),
-                                    ]),
-                            ]),
-                        Forms\Components\Fieldset::make(__('ui.signer_info'))
-                            ->hidden()
-                            ->schema([
-                                Forms\Components\TextInput::make('phone')
-                                    ->label(__('ui.phone'))
-                                    ->placeholder(__('ui.phone_placeholder'))
-                                    ->numeric()
-                                    ->minLength(10)
-                                    ->maxLength(10)
-                                    ->rule('digits:10')
-                                    ->mask('99999999999')
-                                    ->validationMessages([
-                                        'digits' => __('ui.phone_digits'),
-                                        'numeric' => __('ui.phone_numeric'),
-                                        'required' => __('ui.required'),
-                                        'min_digits' => __('ui.phone_min_digits'),
-                                        'max_digits' => __('ui.phone_max_digits'),
-                                    ]),
-                            ])->columns(3),
-                        Forms\Components\Fieldset::make(__('ui.role_and_permissions'))
-                            ->visible(fn ($record) => $record?->id !== auth()->id())
-                            ->schema([
-                                Forms\Components\Select::make('roles')
-                                    ->label(__('ui.roles'))
-                                    ->relationship('roles', 'name')
-                                    ->multiple()
-                                    ->preload()
-                                    ->searchable()
-                                    ->validationMessages([
-                                        'required' => __('ui.required'),
-                                    ])
-                                    ->required(),
-                                Forms\Components\Select::make('status')
-                                    ->hiddenOn('create')
-                                    ->label(__('ui.status'))
-                                    ->options(ManagerStatusEnum::class)
-                                    ->required()
-                                    ->default(1),
-                            ])->columns(2),
-                        Forms\Components\Fieldset::make(__('ui.password'))
-                            ->hidden()
-                            //->hiddenOn(['edit', 'view'])
-                            ->schema([
-                                Forms\Components\TextInput::make('password')
-                                    ->label(__('ui.password'))
-                                    ->placeholder(__('ui.password'))
-                                    ->password()
-                                    ->minLength(8)
-                                    ->maxLength(255)
-                                    ->rule('confirmed')
-                                    ->dehydrated(fn ($state) => filled($state))
-                                    ->validationMessages([
-                                        'required' => __('ui.required'),
-                                        'confirmed' => __('ui.password_confirmed'),
-                                        'min' => __('ui.password_min_length'),
-                                        'max' => __('ui.password_max_length'),
-                                    ])
-                                    ->required(),
-                                Forms\Components\TextInput::make('password_confirmation')
-                                    ->label(__('ui.password_confirmation'))
-                                    ->placeholder(__('ui.password_confirmation'))
-                                    ->password()
-                                    ->maxLength(255)
-                                    ->dehydrated(false), // asla DB'ye gitmesin
-                            ])->columns(2),
+                        TextInput::make('name')
+                            ->label(__('ui.name'))
+                            ->required()
+                            ->maxLength(255)
+                            ->autocomplete('name')
+                            ->prefixIcon('heroicon-o-user')
+                            ->disabledOn('edit'),
 
-                        Forms\Components\Section::make()
-                            ->visible(fn ($record) => $record->is(auth()->user()) || $record->roles->contains('name', 'super_admin'))
-                            ->visibleOn(['edit'])
-                            ->schema([
-                                Forms\Components\Fieldset::make(__('ui.new_password'))
-                                    ->schema([
-                                        Forms\Components\TextInput::make('new_password')
-                                            ->hiddenLabel()
-                                            ->placeholder(__('ui.new_password'))
-                                            ->password()
-                                            ->minLength(8)
-                                            ->nullable(),
-                                        Forms\Components\TextInput::make('new_password_confirmation')
-                                            ->hiddenLabel()
-                                            ->placeholder(__('ui.new_password_confirmation'))
-                                            ->password()
-                                            ->same('new_password')
-                                            ->minLength(8)
-                                            ->validationMessages([
-                                                'new_password_confirmation' => __('ui.password_confirmation'),
-                                                'required_with' => __('ui.password_confirmation_required'),
-                                                'same' => __('ui.password_same'),
-                                            ])
-                                            ->requiredWith('new_password'),
-                                    ]),
-                            ])->columns(2),
+                        TextInput::make('title')
+                            ->label(__('ui.title'))
+                            ->maxLength(255)
+                            ->autocomplete('organization-title')
+                            ->prefixIcon('heroicon-o-briefcase')
+                            ->disabledOn('edit'),
+
+                        TextInput::make('email')
+                            ->label(__('ui.email'))
+                            ->email()
+                            ->required()
+                            ->maxLength(255)
+                            ->autocomplete('email')
+                            ->prefixIcon('heroicon-o-envelope')
+                            ->disabledOn('edit'),
+
+                        TextInput::make('phone')
+                            ->label(__('ui.phone'))
+                            ->tel()
+                            ->maxLength(20)
+                            ->autocomplete('tel')
+                            ->prefixIcon('heroicon-o-phone')
+                            ->disabledOn('edit'),
                     ]),
+
+                Section::make(__('ui.account_settings'))
+                    ->description(__('ui.configure_user_account_access'))
+                    ->icon('heroicon-o-cog-6-tooth')
+                    ->columns(2)
+                    ->compact()
+                    ->schema([
+                        Select::make('roles')
+                            ->label(__('ui.roles'))
+                            ->relationship('roles', 'name')
+                            ->multiple()
+                            ->preload()
+                            ->required()
+                            ->prefixIcon('heroicon-o-shield-check'),
+                    ]),
+
             ]);
+
+
+
+//            ->schema([
+//                \Filament\Forms\Components\Card::make()
+//                    ->schema([
+//                        Fieldset::make(__('ui.user_info'))
+//                            ->columns(1)
+//                            ->disabledOn('edit')
+//                            ->schema([
+//                                Forms\Components\Select::make('employee_id')
+//                                    ->label(__('ui.user'))
+//                                    ->searchable()
+//                                    ->preload()
+//                                    ->options(function () {
+//                                        return DB::connection('sqlsrv2')
+//                                            ->table('dbo._TGRY_PERSONEL')
+//                                            ->where('AKTIF_MI', 1)
+//                                            ->where('VERITABANI_ADI', 'VIALAND_EGLENCE')
+//                                            ->orWhere('VERITABANI_ADI', 'GURSOY_PROJE')
+//                                            ->orWhere('VERITABANI_ADI', 'MEGA_AVM')
+//                                            ->whereNotNull('E_POSTA')
+//                                            ->selectRaw("UNIQUE_ID as id, CONCAT(ADI, ' ', SOYADI) as name")
+//                                            ->orderBy('name')
+//                                            ->pluck('name', 'id')
+//                                            ->toArray();
+//                                    })
+//                                    ->required()
+//                                    ->unique(
+//                                        'users',
+//                                        'employee_id',
+//                                        ignoreRecord: true,
+//                                        modifyRuleUsing: function ($rule) {
+//                                            return $rule->whereNull('deleted_at');
+//                                        }
+//                                    )
+//                                    ->validationMessages([
+//                                        'required' => __('ui.required'),
+//                                        'unique' => __('ui.unique'),
+//                                        ]),
+//                                Forms\Components\TextInput::make('email')
+//                                    ->visibleOn('view')
+//                                    ->label(__('ui.email'))
+//                                    ->placeholder(__('ui.email'))
+//                                    ->email()
+//                                    ->maxLength(50)
+//                                    ->rule('email')
+//                                    ->validationMessages([
+//                                        'email' => __('ui.email_invalid'),
+//                                        'required' => __('ui.required'),
+//                                    ])
+//                                    ->required(),
+//                                Forms\Components\TextInput::make('phone')
+//                                    ->visibleOn('view')
+//                                    ->label(__('ui.phone'))
+//                                    ->placeholder(__('ui.phone_placeholder'))
+//                                    ->numeric()
+//                                    ->minLength(10)
+//                                    ->maxLength(10)
+//                                    ->rule('digits:10')
+//                                    ->mask('99999999999')
+//                                    ->validationMessages([
+//                                        'digits' => __('ui.phone_digits'),
+//                                        'numeric' => __('ui.phone_numeric'),
+//                                        'required' => __('ui.required'),
+//                                        'min_digits' => __('ui.phone_min_digits'),
+//                                        'max_digits' => __('ui.phone_max_digits'),
+//                                    ]),
+//                            ]),
+//                        Forms\Components\Fieldset::make(__('ui.signer_info'))
+//                            ->hidden()
+//                            ->schema([
+//                                Forms\Components\TextInput::make('phone')
+//                                    ->label(__('ui.phone'))
+//                                    ->placeholder(__('ui.phone_placeholder'))
+//                                    ->numeric()
+//                                    ->minLength(10)
+//                                    ->maxLength(10)
+//                                    ->rule('digits:10')
+//                                    ->mask('99999999999')
+//                                    ->validationMessages([
+//                                        'digits' => __('ui.phone_digits'),
+//                                        'numeric' => __('ui.phone_numeric'),
+//                                        'required' => __('ui.required'),
+//                                        'min_digits' => __('ui.phone_min_digits'),
+//                                        'max_digits' => __('ui.phone_max_digits'),
+//                                    ]),
+//                            ])->columns(3),
+//                        Forms\Components\Fieldset::make(__('ui.role_and_permissions'))
+//                            ->visible(fn ($record) => $record?->id !== auth()->id())
+//                            ->schema([
+//                                Forms\Components\Select::make('roles')
+//                                    ->label(__('ui.roles'))
+//                                    ->relationship('roles', 'name')
+//                                    ->multiple()
+//                                    ->preload()
+//                                    ->searchable()
+//                                    ->validationMessages([
+//                                        'required' => __('ui.required'),
+//                                    ])
+//                                    ->required(),
+//                                Forms\Components\Select::make('status')
+//                                    ->hiddenOn('create')
+//                                    ->label(__('ui.status'))
+//                                    ->options(ManagerStatusEnum::class)
+//                                    ->required()
+//                                    ->default(1),
+//                            ])->columns(2),
+//                        Forms\Components\Fieldset::make(__('ui.password'))
+//                            ->hidden()
+//                            //->hiddenOn(['edit', 'view'])
+//                            ->schema([
+//                                Forms\Components\TextInput::make('password')
+//                                    ->label(__('ui.password'))
+//                                    ->placeholder(__('ui.password'))
+//                                    ->password()
+//                                    ->minLength(8)
+//                                    ->maxLength(255)
+//                                    ->rule('confirmed')
+//                                    ->dehydrated(fn ($state) => filled($state))
+//                                    ->validationMessages([
+//                                        'required' => __('ui.required'),
+//                                        'confirmed' => __('ui.password_confirmed'),
+//                                        'min' => __('ui.password_min_length'),
+//                                        'max' => __('ui.password_max_length'),
+//                                    ])
+//                                    ->required(),
+//                                Forms\Components\TextInput::make('password_confirmation')
+//                                    ->label(__('ui.password_confirmation'))
+//                                    ->placeholder(__('ui.password_confirmation'))
+//                                    ->password()
+//                                    ->maxLength(255)
+//                                    ->dehydrated(false), // asla DB'ye gitmesin
+//                            ])->columns(2),
+//
+//                        Forms\Components\Section::make()
+//                            ->visible(fn ($record) => $record->is(auth()->user()) || $record->roles->contains('name', 'super_admin'))
+//                            ->visibleOn(['edit'])
+//                            ->schema([
+//                                Forms\Components\Fieldset::make(__('ui.new_password'))
+//                                    ->schema([
+//                                        Forms\Components\TextInput::make('new_password')
+//                                            ->hiddenLabel()
+//                                            ->placeholder(__('ui.new_password'))
+//                                            ->password()
+//                                            ->minLength(8)
+//                                            ->nullable(),
+//                                        Forms\Components\TextInput::make('new_password_confirmation')
+//                                            ->hiddenLabel()
+//                                            ->placeholder(__('ui.new_password_confirmation'))
+//                                            ->password()
+//                                            ->same('new_password')
+//                                            ->minLength(8)
+//                                            ->validationMessages([
+//                                                'new_password_confirmation' => __('ui.password_confirmation'),
+//                                                'required_with' => __('ui.password_confirmation_required'),
+//                                                'same' => __('ui.password_same'),
+//                                            ])
+//                                            ->requiredWith('new_password'),
+//                                    ]),
+//                            ])->columns(2),
+//                    ]),
+//            ]);
     }
 
     public static function table(Table $table): Table
@@ -366,5 +428,10 @@ class UserResource extends Resource
         }
 
         return true;
+    }
+
+    public static function canCreate(): bool
+    {
+        return false;
     }
 }

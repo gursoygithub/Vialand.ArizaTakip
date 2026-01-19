@@ -23,18 +23,18 @@ Route::get('/reservation-form/create', [ReservationController::class, 'create'])
 //    return 'Upload tamam!';
 //});
 
-//Route::prefix('auth')
-//    ->controller(AuthController::class)
-//    ->middleware('guest')
-//    ->group(function () {
-//        Route::get('login', 'showLoginForm')->name('auth.login');
-//        Route::post('login', 'login')->name('auth.login.submit');
-//    });
-
-Route::controller(AuthController::class)
+Route::prefix('auth')
+    ->controller(AuthController::class)
     ->middleware('guest')
     ->group(function () {
         Route::get('/', 'showLoginForm')->name('login');
         Route::post('/', 'login')->name('login.submit');
     });
+
+//Route::controller(AuthController::class)
+//    ->middleware('guest')
+//    ->group(function () {
+//        Route::get('/', 'showLoginForm')->name('login');
+//        Route::post('/', 'login')->name('login.submit');
+//    });
 

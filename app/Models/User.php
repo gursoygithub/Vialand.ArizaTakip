@@ -5,6 +5,7 @@ namespace App\Models;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Enums\BooleanStatusEnum;
 use App\Enums\ManagerStatusEnum;
+use App\Enums\UserStatusEnum;
 use App\Enums\UserTypeEnum;
 use App\Mail\SendPasswordToUser;
 use App\Notifications\UserCreated;
@@ -84,7 +85,7 @@ class User extends Authenticatable implements FilamentUser
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
-            'status' => ManagerStatusEnum::class,
+            'status' => UserStatusEnum::class,
             'is_manager' => BooleanStatusEnum::class,
             'ldap_groups' => 'array',
             'last_ldap_sync' => 'datetime',
@@ -93,7 +94,7 @@ class User extends Authenticatable implements FilamentUser
 
     public function canAccessPanel(Panel $panel): bool
     {
-        return $this->status->is(ManagerStatusEnum::ACTIVE);
+        return $this->status->is(UserStatusEnum::ACTIVE);
     }
 
     // created_by relation
@@ -134,13 +135,15 @@ class User extends Authenticatable implements FilamentUser
 
     public static function query()
     {
-        $hasPermission = auth()->user()->hasRole('super_admin') || auth()->user()->can('view_all_users');
-
-        if ($hasPermission) {
-            return parent::query();
-        } else {
-            return parent::query()->where('created_by', auth()->id());
-        }
+        // dont return sa user
+        return parent::query()->where('username', '!=', env('APP_ADMIN_USERNAME', 'sa'));
+//        $hasPermission = auth()->user()->hasRole('super_admin') || auth()->user()->can('view_all_users');
+//
+//        if ($hasPermission) {
+//            return parent::query();
+//        } else {
+//            return parent::query()->where('created_by', auth()->id());
+//        }
     }
 
     protected static $logName = 'users';
