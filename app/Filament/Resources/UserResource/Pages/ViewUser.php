@@ -87,13 +87,13 @@ class ViewUser extends ViewRecord
                             ->dateTime('d/m/Y H:i')
                             ->since(),
 
-                        TextEntry::make('updated_at')
-                            ->label(__('ui.last_login'))
-                            ->badge()
-                            ->color('success')
-                            ->icon('heroicon-o-arrow-left-end-on-rectangle')
-                            ->dateTime('d/m/Y H:i')
-                            ->since(),
+//                        TextEntry::make('updated_at')
+//                            ->label(__('ui.last_login'))
+//                            ->badge()
+//                            ->color('success')
+//                            ->icon('heroicon-o-arrow-left-end-on-rectangle')
+//                            ->dateTime('d/m/Y H:i')
+//                            ->since(),
                     ]),
 
 

@@ -526,5 +526,5 @@ return [
     'last_login' => 'Son Giriş',
     'personal_details' => 'Kişisel Bilgi Detayları',
     'account_settings' => 'Hesap Ayarları',
-    'configure_user_account_access' => 'Kullanıcı Hesap Erişimini Yapılandır'
+    'configure_user_account_access' => 'Kullanıcı Hesap Erişimini Yapılandır',
 ];
