@@ -5,88 +5,56 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 # System dependencies
 RUN apt-get update && \
-    apt-get install -y software-properties-common curl wget gnupg ca-certificates apt-transport-https unzip git lsb-release
+    apt-get install -y software-properties-common curl wget gnupg ca-certificates apt-transport-https unzip git lsb-release libldap2-dev
 
-# Add Microsoft SQL Server package repository (değişen yöntem)
+# Microsoft SQL Server Repo
 RUN set -eux; \
     mkdir -p /etc/apt/keyrings; \
     wget -O - https://packages.microsoft.com/keys/microsoft.asc > /etc/apt/keyrings/microsoft.asc && \
     chmod go+r /etc/apt/keyrings/microsoft.asc && \
     echo "deb [signed-by=/etc/apt/keyrings/microsoft.asc] https://packages.microsoft.com/debian/12/prod bookworm main" > /etc/apt/sources.list.d/mssql-release.list
 
-# Add PHP repository
-RUN add-apt-repository -y ppa:ondrej/php
+# PHP Repo
+RUN add-apt-repository -y ppa:ondrej/php && apt-get update
 
-# Update package lists
-RUN apt-get update
+# ODBC ve MSSQL Araçları
+RUN ACCEPT_EULA=Y apt-get install -y unixodbc unixodbc-dev msodbcsql18 mssql-tools18
 
-# Install ODBC and SQL Server tools
-RUN ACCEPT_EULA=Y apt-get install -y \
-    unixodbc \
-    unixodbc-dev \
-    msodbcsql18 \
-    mssql-tools18
-
-# Install PHP 8.4 and required extensions
-# Install PHP 8.4 and required extensions
+# PHP 8.4 ve Tüm Uzantılar
 RUN apt-get install -y \
-    php8.4 \
-    php8.4-cli \
-    php8.4-common \
-    php8.4-fpm \
-    php8.4-mysql \
-    php8.4-zip \
-    php8.4-gd \
-    php8.4-mbstring \
-    php8.4-curl \
-    php8.4-xml \
-    php8.4-bcmath \
-    php8.4-pdo \
-    php8.4-bz2 \
-    php8.4-dev \
-    php8.4-igbinary \
-    php8.4-intl \
-    php8.4-opcache \
-    php8.4-readline \
-    php8.4-redis \
-    php8.4-pgsql \
-    php8.4-ssh2 \
-    php8.4-soap \
-    php8.4-ldap \
-    supervisor \
-    nano \
-    nginx \
+    php8.4 php8.4-cli php8.4-common php8.4-fpm php8.4-mysql php8.4-zip \
+    php8.4-gd php8.4-mbstring php8.4-curl php8.4-xml php8.4-bcmath \
+    php8.4-pdo php8.4-bz2 php8.4-dev php8.4-igbinary php8.4-intl \
+    php8.4-opcache php8.4-readline php8.4-redis php8.4-pgsql \
+    php8.4-ssh2 php8.4-soap php8.4-ldap \
+    supervisor nano nginx
 
-# Eklentiyi aktif ettiğinden emin ol
+# Eklentileri Aktif Et
 RUN phpenmod ldap
 
-
-# Install SQL Server PHP extensions
+# SQL Server PHP Sürücüleri (PECL)
 RUN pecl channel-update pecl.php.net && \
     pecl install sqlsrv pdo_sqlsrv && \
     echo "extension=sqlsrv.so" > /etc/php/8.4/mods-available/sqlsrv.ini && \
     echo "extension=pdo_sqlsrv.so" > /etc/php/8.4/mods-available/pdo_sqlsrv.ini && \
     phpenmod sqlsrv pdo_sqlsrv
 
-# Install Composer globally
+# Composer
 RUN curl -sS https://getcomposer.org/installer | php && \
     mv composer.phar /usr/local/bin/composer
 
-# Copy Nginx and startup config
+# Dosyaları Kopyala ve Ayarla
+WORKDIR /var/www
+COPY . /var/www
 COPY ./.docker/start.sh /start.sh
 COPY ./.docker/nginx.conf /etc/nginx/nginx.conf
 COPY ./.docker/supervisord.conf /etc/supervisord.conf
 
-# Set working directory
-WORKDIR /var/www
-RUN rm -rf *
-COPY . /var/www
-RUN chown www-data:www-data * -R
+RUN chown -R www-data:www-data /var/www && chmod +x /start.sh
 
-# Install Laravel dependencies
-RUN composer install --no-interaction --prefer-dist --optimize-autoloader
+# Bağımlılıkları kur (LDAP hatası almamak için --ignore-platform-reqs ekledik)
+RUN composer install --no-interaction --prefer-dist --optimize-autoloader --ignore-platform-reqs
 
 EXPOSE 80
 
-RUN chmod +x /start.sh
 CMD ["/bin/bash", "/start.sh"]
