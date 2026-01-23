@@ -1,6 +1,6 @@
 FROM ubuntu:24.04 AS base
 LABEL Maintainer="MAHAMOUD BRAHIM ADOUM"
-LABEL Description="PHP 8.4 Laravel setup with MySQL and MSSQL"
+LABEL Description="PHP 8.4 Laravel setup with MySQL, MSSQL and LDAP"
 ENV DEBIAN_FRONTEND=noninteractive
 
 # System dependencies
@@ -28,6 +28,7 @@ RUN ACCEPT_EULA=Y apt-get install -y \
     mssql-tools18
 
 # Install PHP 8.4 and required extensions
+# Install PHP 8.4 and required extensions
 RUN apt-get install -y \
     php8.4 \
     php8.4-cli \
@@ -51,9 +52,11 @@ RUN apt-get install -y \
     php8.4-pgsql \
     php8.4-ssh2 \
     php8.4-soap \
+    php8.4-ldap \
     supervisor \
     nano \
     nginx
+
 
 # Install SQL Server PHP extensions
 RUN pecl channel-update pecl.php.net && \
@@ -69,6 +72,7 @@ RUN curl -sS https://getcomposer.org/installer | php && \
 # Copy Nginx and startup config
 COPY ./.docker/start.sh /start.sh
 COPY ./.docker/nginx.conf /etc/nginx/nginx.conf
+COPY ./.docker/supervisord.conf /etc/supervisord.conf
 
 # Set working directory
 WORKDIR /var/www
@@ -81,4 +85,5 @@ RUN composer install --no-interaction --prefer-dist --optimize-autoloader
 
 EXPOSE 80
 
-CMD ["sh", "/start.sh"]
+RUN chmod +x /start.sh
+CMD ["/bin/bash", "/start.sh"]

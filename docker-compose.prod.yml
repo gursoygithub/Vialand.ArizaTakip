@@ -7,17 +7,20 @@ services:
         WWWGROUP: '${WWWGROUP}'
     extra_hosts:
       - 'host.docker.internal:host-gateway'
+      - 'ldap.proxy:host-gateway'  # Your WSL IP
     ports:
-      - '5004:80'
-      - '${VITE_PORT:-5177}:${VITE_PORT:-5177}'
+      - '5006:80'
+      - '${VITE_PORT:-5179}:${VITE_PORT:-5179}'
     environment:
       WWWUSER: '${WWWUSER}'
       LARAVEL_SAIL: 1
       XDEBUG_MODE: '${SAIL_XDEBUG_MODE:-off}'
       XDEBUG_CONFIG: '${SAIL_XDEBUG_CONFIG:-client_host=host.docker.internal}'
       IGNITION_LOCAL_SITES_PATH: '${PWD}'
+      LDAP_DEFAULT_HOSTS: 'ldap.proxy'
+      LDAP_DEFAULT_PORT: '3389'
     volumes:
-      - '.:/var/www'
+      - '.:/var/www/html'
     networks:
       - gursoy
 
