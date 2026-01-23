@@ -527,5 +527,7 @@ return [
     'personal_details' => 'Kişisel Bilgi Detayları',
     'account_settings' => 'Hesap Ayarları',
     'configure_user_account_access' => 'Kullanıcı Hesap Erişimini Yapılandır',
-    'copied' => 'Kopyalandı'
+    'copied' => 'Kopyalandı',
+    'task_filters' => 'Görev Filtreleri',
+    'filter_tasks_for_kpi_reporting' => 'KPI raporlaması için görevleri filtreleyin',
 ];

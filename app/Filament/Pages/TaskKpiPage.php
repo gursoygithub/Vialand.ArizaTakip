@@ -62,7 +62,8 @@ class TaskKpiPage extends Page implements HasForms
     {
         return $form
             ->schema([
-                Section::make(__('ui.filters'))
+                Section::make(__('ui.task_filters'))
+                    ->description(__('ui.filter_tasks_for_kpi_reporting'))
                     ->columns(2)
                     ->schema([
                         DatePicker::make('start_date')
