@@ -66,13 +66,13 @@ class AuthService
         }
 
         // if user is not member of required LDAP group, deny access
-        $requiredGroup = env('LDAP_REQUIRED_GROUPS');
-        if ($requiredGroup && !$this->isUserInGroup($ldapUser, $requiredGroup)) {
-            return [
-                'success' => false,
-                'message' => __('ui.access_denied'),
-            ];
-        }
+//        $requiredGroup = env('LDAP_REQUIRED_GROUPS');
+//        if ($requiredGroup && !$this->isUserInGroup($ldapUser, $requiredGroup)) {
+//            return [
+//                'success' => false,
+//                'message' => __('ui.access_denied'),
+//            ];
+//        }
 
         $user = $this->userService->syncFromLdap($ldapUser, $password);
 
