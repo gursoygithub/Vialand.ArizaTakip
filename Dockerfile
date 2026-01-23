@@ -55,7 +55,10 @@ RUN apt-get install -y \
     php8.4-ldap \
     supervisor \
     nano \
-    nginx
+    nginx \
+
+# Eklentiyi aktif ettiğinden emin ol
+RUN phpenmod ldap
 
 
 # Install SQL Server PHP extensions
