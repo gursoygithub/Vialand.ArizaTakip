@@ -92,11 +92,11 @@ class UserService
      */
     protected function assignDefaultRole(User $user): void
     {
-        // assign 'manager' role to new users but if role not exists, create it first
-        if (!\Spatie\Permission\Models\Role::where('name', 'manager')->exists()) {
-            \Spatie\Permission\Models\Role::create(['name' => 'manager']);
+        // assign 'default' role to new users but if role not exists, create it first
+        if (!\Spatie\Permission\Models\Role::where('name', 'default')->exists()) {
+            \Spatie\Permission\Models\Role::create(['name' => 'default']);
         }
 
-        $user->assignRole('manager');
+        $user->assignRole('default');
     }
 }
