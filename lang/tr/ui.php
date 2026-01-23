@@ -530,4 +530,11 @@ return [
     'copied' => 'Kopyalandı',
     'task_filters' => 'Görev Filtreleri',
     'filter_tasks_for_kpi_reporting' => 'KPI raporlaması için görevleri filtreleyin',
+    'related_person_assigned_successfully' => 'İlgili kişi başarıyla atandı',
+    'assign_related_person' => 'İlgili Kişiyi Ata',
+    'new_task_assigned' => 'Yeni Görev Atandı',
+    'task_assigned_message' => 'Size yeni bir görev atandı. Görev detayları aşağıdaki gibidir:',
+    'assigned_by' => 'Atayan Kişi',
+    'view' => 'Görüntüle',
+    'task_assigned' => 'Görev Atandı',
 ];
