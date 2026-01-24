@@ -2,18 +2,13 @@
 
 namespace App\Services;
 
-use App\Models\Employee;
-use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class EmployeeService
 {
     protected $sqlsrvConnection;
-    /**
-     * Create a new class instance.
-     */
+
     public function __construct()
     {
         $this->sqlsrvConnection = DB::connection('sqlsrv2');
@@ -29,40 +24,35 @@ class EmployeeService
             foreach ($this->sqlsrvConnection
                          ->table('_TGRY_PERSONEL')
                          ->where('AKTIF_MI', 1)
-                         ->where('VERITABANI_ADI', 'VIALAND_EGLENCE') // only Vialand employees
-                         ->orderBy('ADI')
+                         ->where('VERITABANI_ADI', 'VIALAND_EGLENCE')
+                         ->whereNotNull('UNIQUE_ID')  // 👈 NULL kontrolü ekleyin
+                ->orderBy('ADI')
                          ->cursor() as $data) {
 
+                // Ekstra güvenlik kontrolü
+                if (empty(trim($data->UNIQUE_ID ?? ''))) {
+                    Log::warning('UNIQUE_ID boş olan kayıt atlandı', [
+                        'name' => trim(($data->ADI ?? '') . ' ' . ($data->SOYADI ?? ''))
+                    ]);
+                    continue;
+                }
+
                 $buffer[] = [
-                    'employee_id'    => $data->UNIQUE_ID,
-                    'name'           => trim($data->ADI . ' ' . $data->SOYADI),
+                    'employee_id'    => trim($data->UNIQUE_ID),  // 👈 Trim ekleyin
+                    'name'           => trim(($data->ADI ?? '') . ' ' . ($data->SOYADI ?? '')),
                     'tc_no'          => $data->TC_KIMLIK_NO,
                     'email'          => $data->E_POSTA,
-                    'phone'          => trim($data->GSM_NO),
+                    'phone'          => trim($data->GSM_NO ?? ''),  // 👈 Null kontrolü
                     'status'         => $data->AKTIF_MI,
                     'title'          => $data->UNVANI,
                     'profession'     => $data->MESLEGI,
                     'created_by'     => 1,
-                    'created_at'     => now(),                  // 👍 Insert için
-                    'updated_at'     => now(),                  // 👍 Update için
+                    'created_at'     => now(),
+                    'updated_at'     => now(),
                 ];
 
                 if (count($buffer) >= $batchSize) {
-                    DB::table('employees')->upsert(
-                        $buffer,
-                        ['employee_id'],  // unique key
-                        [
-                            'name',
-                            'tc_no',
-                            'email',
-                            'phone',
-                            'status',
-                            'title',
-                            'profession',
-                            'updated_at',
-                        ]
-                    );
-
+                    $this->processBatch($buffer);
                     $totalProcessed += count($buffer);
                     $buffer = [];
                 }
@@ -70,31 +60,40 @@ class EmployeeService
 
             // Son batch'i gönder
             if (!empty($buffer)) {
-                DB::table('employees')->upsert(
-                    $buffer,
-                    ['employee_id'],
-                    [
-                        'name',
-                        'tc_no',
-                        'email',
-                        'phone',
-                        'status',
-                        'title',
-                        'profession',
-                        'updated_at',
-                    ]
-                );
-
+                $this->processBatch($buffer);
                 $totalProcessed += count($buffer);
             }
+
+            Log::info("Personel senkronizasyonu tamamlandı", [
+                'total_processed' => $totalProcessed
+            ]);
 
             return $totalProcessed;
 
         } catch (\Exception $e) {
             Log::error('Personel senkronizasyon hatası: ' . $e->getMessage(), [
-                'exception' => $e
+                'exception' => $e,
+                'trace' => $e->getTraceAsString()
             ]);
             throw $e;
         }
+    }
+
+    protected function processBatch(array $buffer): void
+    {
+        DB::table('employees')->upsert(
+            $buffer,
+            ['employee_id'],  // unique key
+            [
+                'name',
+                'tc_no',
+                'email',
+                'phone',
+                'status',
+                'title',
+                'profession',
+                'updated_at',
+            ]
+        );
     }
 }

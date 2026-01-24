@@ -15,15 +15,15 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->redirectGuestsTo('/auth/login');
     })
     ->withSchedule(callback: function (\Illuminate\Console\Scheduling\Schedule $schedule): void {
-//        $schedule->command('employee:sync')
-//            ->everyFiveMinutes()
-//            ->timezone(timezone: config('app.timezone', 'UTC'))
-//            ->onSuccess(callback: function (): void {
-//                info(message: 'Personel senkronizasyon komutu başarıyla tamamlandı.');
-//            })
-//            ->onFailure(callback: function ():void {
-//                info(message: 'Personel senkronizasyon komutu başarısız oldu.');
-//            });
+        $schedule->command('employee:sync')
+            ->everyFiveMinutes()
+            ->timezone(timezone: config('app.timezone', 'UTC'))
+            ->onSuccess(callback: function (): void {
+                info(message: 'Personel senkronizasyon komutu başarıyla tamamlandı.');
+            })
+            ->onFailure(callback: function ():void {
+                info(message: 'Personel senkronizasyon komutu başarısız oldu.');
+            });
     })
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->trustProxies(at: '*');
