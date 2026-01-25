@@ -13,6 +13,7 @@ use App\Models\Employee;
 use App\Models\SubArea;
 use App\Models\Task;
 use App\Models\Unit;
+use App\Models\User;
 use App\Notifications\TaskAssigned;
 use App\Notifications\TaskClosed;
 use Filament\Forms;
@@ -28,6 +29,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class TaskResource extends Resource
 {
@@ -622,6 +624,23 @@ class TaskResource extends Resource
 
                             if ($record->employee) {
                                 $record->employee->notify(new TaskAssigned($record));
+
+                                $employeeId = $record->employee->email;
+
+                                $recipent = User::where('email', $employeeId)->first();
+
+                                if ($recipent) {
+                                    $recipent->notify(
+                                        Notification::make()
+                                            //->title(__('ui.task_assigned_notification_title', ['task_id' => $record->id]))
+                                            ->title(__('ui.task_assigned_notification_title'))
+                                            ->body(__('ui.task_assigned_notification_body', [
+                                                'task_description' => Str::limit($record->description, 50),
+                                            ]))
+                                            ->icon('heroicon-o-clipboard-check')
+                                            ->toDatabase()
+                                    );
+                                }
                             }
 
                             Notification::make()

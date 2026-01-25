@@ -537,4 +537,7 @@ return [
     'assigned_by' => 'Atayan Kişi',
     'view' => 'Görüntüle',
     'task_assigned' => 'Görev Atandı',
+    'task_assigned_notification_title' => 'Yeni Görev Atandı',
+    'task_assigned_notification_body' => 'Merhaba :technician, size yeni bir görev atandı: :task_description. Lütfen görevi zamanında tamamlayınız.',
+
 ];
