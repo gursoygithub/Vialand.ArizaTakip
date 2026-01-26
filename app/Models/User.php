@@ -11,6 +11,7 @@ use App\Mail\SendPasswordToUser;
 use App\Notifications\UserCreated;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Notifications\HasDatabaseNotifications;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Hash;
@@ -29,6 +30,7 @@ class User extends Authenticatable implements FilamentUser
     use SoftDeletes;
     use HasRoles;
     use LogsActivity;
+    use HasDatabaseNotifications;
 
     /**
      * The attributes that are mass assignable.

@@ -623,14 +623,15 @@ class TaskResource extends Resource
                             $record->refresh();
 
                             if ($record->employee) {
+
                                 $record->employee->notify(new TaskAssigned($record));
 
                                 $employeeId = $record->employee->email;
 
-                                $recipent = User::where('email', $employeeId)->first();
+                                $recipient = User::where('email', $employeeId)->first();
 
-                                if ($recipent) {
-                                    $recipent->notify(
+                                if ($recipient) {
+                                    $recipient->notify(
                                         Notification::make()
                                             //->title(__('ui.task_assigned_notification_title', ['task_id' => $record->id]))
                                             ->title(__('ui.task_assigned_notification_title'))
