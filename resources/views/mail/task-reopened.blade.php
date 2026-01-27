@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ __('ui.task_closed') }}</title>
+    <title>{{ __('ui.task_reopened') }}</title>
     <style>
         @media only screen and (max-width: 600px) {
             .container {
@@ -23,12 +23,12 @@
             <table class="container" width="600" cellpadding="0" cellspacing="0" border="0" style="background-color: #ffffff; border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); border-collapse: collapse;">
 
                 <tr>
-                    <td align="center" style="background-color: #198754; padding: 30px 20px; border-top-left-radius: 8px; border-top-right-radius: 8px;">
+                    <td align="center" style="background-color: #fd7e14; padding: 30px 20px; border-top-left-radius: 8px; border-top-right-radius: 8px;">
                         <h1 style="margin: 0; color: #ffffff; font-size: 26px;">
                             {{ __('ui.fault_tracking_panel') }}
                         </h1>
                         <p style="margin: 5px 0 0 0; color: #ffffff; font-size: 18px; opacity: 0.9;">
-                            {{ __('ui.task_closed') }}
+                            {{ __('ui.task_reopened') }}
                         </p>
                     </td>
                 </tr>
@@ -40,7 +40,7 @@
                         </p>
 
                         <p style="margin-bottom: 25px; font-size: 16px;">
-                            {{ __('ui.task_closed_message') }}
+                            {{ __('ui.task_reopened_message') }}
                         </p>
 
                         <div style="margin-bottom: 30px; border: 1px solid #dee2e6; border-radius: 6px;">
@@ -66,15 +66,15 @@
                                 <p style="margin: 5px 0;">
                                     <strong style="display: inline-block; width: 150px; color: #555;">{{ __('ui.related_person') }}:</strong>
                                     <span style="font-weight: bold; padding: 3px 10px; border-radius: 4px; background-color: #d1ecf1; color: #0c5460; font-size: 15px;">
-                                        {{ $assigned_to?->name }}
+                                        {{ $task->employee?->name }}
                                     </span>
                                 </p>
-
 
                                 <p style="margin: 5px 0;">
                                     <strong style="display: inline-block; width: 150px; color: #555;">{{ __('ui.task_date') }}:</strong>
                                     <span style="font-weight: bold;">{{ $task->task_date->format('d.m.Y') }}</span>
                                 </p>
+
                                 <p style="margin: 5px 0;">
                                     <strong style="display: block; margin-bottom: 5px; color: #555;">{{ __('ui.description') }}:</strong>
                                     <span style="display: block; padding-left: 10px; border-left: 2px solid #007bff; color: #6c757d;">{{ $task->description }}</span>
@@ -83,38 +83,23 @@
                         </div>
 
                         <div style="margin-bottom: 30px; border: 1px solid #dee2e6; border-radius: 6px;">
-                            <h3 style="margin: 0; padding: 15px; background-color: #d1ecf1; color: #0c5460; font-size: 18px; border-bottom: 1px solid #dee2e6;">
-                                {{__('ui.resolution_details')}}
+                            <h3 style="margin: 0; padding: 15px; background-color: #fff3cd; color: #856404; font-size: 18px; border-bottom: 1px solid #dee2e6;">
+                                {{__('ui.reopening_details')}}
                             </h3>
                             <div style="padding: 15px;">
                                 <p style="margin: 5px 0;">
-                                    <strong style="display: inline-block; width: 150px; color: #555;">{{ __('ui.closed_by') }}:</strong>
+                                    <strong style="display: inline-block; width: 150px; color: #555;">{{ __('ui.reopened_by') }}:</strong>
                                     <span style="font-weight: bold; padding: 3px 10px; border-radius: 4px; background-color: #d4edda; color: #155724; font-size: 14px;">
-                                        {{ $closed_by?->name }}
+                                        {{ $reopened_by?->name }}
                                     </span>
                                 </p>
                                 <p style="margin: 5px 0;">
-                                    <strong style="display: inline-block; width: 150px; color: #555;">{{ __('ui.due_date') }}:</strong>
-                                    <span style="font-weight: bold;">{{ $task->due_date->format('d.m.Y') }}</span>
+                                    <strong style="display: inline-block; width: 150px; color: #555;">{{ __('ui.reopened_date') }}:</strong>
+                                    <span style="font-weight: bold;">{{ $task->reopened_at?->format('d.m.Y H:i') ?? now()->format('d.m.Y H:i') }}</span>
                                 </p>
                                 <p style="margin: 5px 0;">
-                                    <strong style="display: inline-block; width: 150px; color: #555;">{{ __('ui.elapsed_time') }}:</strong>
-                                    <span style="font-weight: bold; padding: 3px 10px; border-radius: 4px; background-color: #fff3cd; color: #856404; font-size: 15px;">
-                                        @if ($task->due_date && $task->task_date)
-                                            @php
-                                                $start = $task->task_date->startOfDay();
-                                                $end = $task->due_date->startOfDay();
-                                                $days = $start->diffInDays($end);
-                                            @endphp
-                                            {{ $days == 0 ? __('ui.completed_in_same_day') : $days . ' ' . __('ui.days') }}
-                                        @else
-                                            {{ __('ui.not_available') }}
-                                        @endif
-                                    </span>
-                                </p>
-                                <p style="margin: 5px 0;">
-                                    <strong style="display: block; margin-bottom: 5px; color: #555;">{{ __('ui.resolution_notes') }}:</strong>
-                                    <span style="display: block; padding: 10px; background-color: #f8f9fa; border: 1px solid #ced4da; border-radius: 4px; color: #333333;">{{ $task->resolution_notes }}</span>
+                                    <strong style="display: block; margin-bottom: 5px; color: #555;">{{ __('ui.reopening_reason') }}:</strong>
+                                    <span style="display: block; padding: 10px; background-color: #f8f9fa; border: 1px solid #ced4da; border-radius: 4px; color: #333333;">{{ $task->reopen_reason ?? __('ui.not_specified') }}</span>
                                 </p>
                             </div>
                         </div>

@@ -60,4 +60,10 @@ class Employee extends Model
             ->logOnlyDirty()
             ->useLogName(static::$logName);
     }
+
+    // relationship with User model
+    public function user()
+    {
+        return $this->belongsTo(User::class, 'email', 'email');
+    }
 }

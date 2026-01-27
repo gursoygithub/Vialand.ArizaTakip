@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Notifications\TaskAssigned;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Notifications\Notifiable;
@@ -30,6 +31,9 @@ class Task extends Model Implements HasMedia
         'completed_by',
         'due_date',
         'resolution_notes',
+        'reopen_reason',
+        'reopened_by',
+        'reopened_at',
         'created_by',
         'updated_by',
         'deleted_by',
@@ -43,6 +47,7 @@ class Task extends Model Implements HasMedia
         'status' => \App\Enums\TaskStatusEnum::class,
         'priority' => \App\Enums\TaskPriorityEnum::class,
         'assigned_person_type_id' => \App\Enums\AssignedPersonTypeEnum::class,
+        'reopened_at' => 'datetime',
     ];
 
     public function employee()
@@ -113,10 +118,26 @@ class Task extends Model Implements HasMedia
     {
         static::creating(function ($task) {
             $task->created_by = auth()->id();
+
+            // send email notification to assigned employee
+            if ($task->employee_id) {
+                $employee = Employee::find($task->employee_id);
+                if ($employee) {
+                    $employee->notify(new TaskAssigned($task));
+                }
+            }
         });
 
         static::updating(function ($task) {
             $task->updated_by = auth()->id();
+
+            // send email notification to assigned employee if changed
+            if ($task->isDirty('employee_id')) {
+                $employee = Employee::find($task->employee_id);
+                if ($employee) {
+                    $employee->notify(new TaskAssigned($task));
+                }
+            }
         });
 
         static::deleting(function ($task) {
@@ -134,5 +155,11 @@ class Task extends Model Implements HasMedia
             ->logAll()
             ->logOnlyDirty()
             ->useLogName(static::$logName);
+    }
+
+    // reopenedBy
+    public function reopenedBy()
+    {
+        return $this->belongsTo(User::class, 'reopened_by');
     }
 }

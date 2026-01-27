@@ -77,8 +77,8 @@ class TaskResource extends Resource
                         Fieldset::make(__('ui.task_information'))
                             ->columns(3)
                             ->schema([
-                                Fieldset::make(__('ui.priority_level'))
-                                    ->columns(1)
+                                Fieldset::make(__('ui.priority_level_and_status'))
+                                    ->columns(2)
                                     ->schema([
                                         ToggleButtons::make('priority')
                                             ->hiddenLabel()
@@ -104,8 +104,23 @@ class TaskResource extends Resource
                                             ->required()
                                             ->validationMessages([
                                                 'required' => __('ui.required'),
+                                            ]),
+                                        Forms\Components\ToggleButtons::make('status')
+                                            ->hiddenLabel(__('ui.status'))
+                                            ->options([
+                                                TaskStatusEnum::PENDING->value => TaskStatusEnum::PENDING->getLabel(),
+                                                TaskStatusEnum::WINTER_MAINTENANCE->value => TaskStatusEnum::WINTER_MAINTENANCE->getLabel(),
                                             ])
-                                            ->columnSpanFull(),
+                                            ->icons([
+                                                TaskStatusEnum::PENDING->value => TaskStatusEnum::PENDING->getIcon(),
+                                                TaskStatusEnum::WINTER_MAINTENANCE->value => TaskStatusEnum::WINTER_MAINTENANCE->getIcon(),
+                                            ])
+                                            ->colors([
+                                                TaskStatusEnum::PENDING->value => TaskStatusEnum::PENDING->getColor(),
+                                                TaskStatusEnum::WINTER_MAINTENANCE->value => TaskStatusEnum::WINTER_MAINTENANCE->getColor(),
+                                            ])
+                                            ->default(TaskStatusEnum::PENDING->value)
+                                            ->inline(),
                                     ]),
                                 Forms\Components\Select::make('type_id')
                                     ->label(__('ui.type'))
@@ -327,6 +342,7 @@ class TaskResource extends Resource
                                     ]),
                             ]),
                         Fieldset::make(__('ui.resolution_information'))
+                            ->hidden()
                             ->visibleOn(['edit', 'view'])
                             ->columns(2)
                             ->schema([
@@ -365,12 +381,30 @@ class TaskResource extends Resource
                                     ])->columnSpanFull(),
                             ]),
                         Forms\Components\Toggle::make('is_winter_maintenance')
+                            ->hidden()
                             ->label(__('ui.winter_maintenance'))
                             ->helperText(__('ui.winter_maintenance_helper_text'))
-                            ->visibleOn('create')
+                            ->visibleOn(['view', 'edit'])
                             ->onColor('success')
                             ->offColor('danger')
                             ->columnSpan(3),
+                        Forms\Components\ToggleButtons::make('status')
+                            ->hidden()
+                            ->label(__('ui.status'))
+                            ->options([
+                                TaskStatusEnum::PENDING->value => TaskStatusEnum::PENDING->getLabel(),
+                                TaskStatusEnum::WINTER_MAINTENANCE->value => TaskStatusEnum::WINTER_MAINTENANCE->getLabel(),
+                            ])
+                            ->icons([
+                                TaskStatusEnum::PENDING->value => TaskStatusEnum::PENDING->getIcon(),
+                                TaskStatusEnum::WINTER_MAINTENANCE->value => TaskStatusEnum::WINTER_MAINTENANCE->getIcon(),
+                            ])
+                            ->colors([
+                                TaskStatusEnum::PENDING->value => TaskStatusEnum::PENDING->getColor(),
+                                TaskStatusEnum::WINTER_MAINTENANCE->value => TaskStatusEnum::WINTER_MAINTENANCE->getColor(),
+                            ])
+                            ->inline()
+                            ->visibleOn(['view', 'edit'])
                     ]),
             ]);
     }
@@ -505,6 +539,16 @@ class TaskResource extends Resource
                             ->mapWithKeys(fn ($case) => [$case->value => $case->getLabel()])
                             ->toArray()
                     ),
+                // filter by related person
+                Tables\Filters\SelectFilter::make('employee_id')
+                    ->label(__('ui.related_person'))
+                    ->options(
+                        Employee::all()
+                            ->where('status', ActiveStatusEnum::ACTIVE)
+                            ->pluck('name', 'id')
+                    )
+                    ->preload()
+                    ->searchable(),
                 // filter by unit
                 Tables\Filters\SelectFilter::make('unit_id')
                     ->label(__('ui.unit'))
@@ -532,7 +576,7 @@ class TaskResource extends Resource
             ->actions([
                 Tables\Actions\ActionGroup::make([
                     Tables\Actions\Action::make(__('ui.assign_related_person'))
-                        ->visible(fn ($record) => $record->status->isNot(TaskStatusEnum::COMPLETED) && (auth()->user()->hasRole('super_admin') || auth()->user()->can('can_assign_task')) && $record->employee_id === null)
+                        ->visible(fn ($record) => ($record->status->isNot(TaskStatusEnum::COMPLETED) && $record->employee_id === null) && (auth()->user()->hasRole('super_admin') || auth()->user()->can('can_assign_task') || $record->created_by === auth()->id()))
                         ->form([
                             Fieldset::make(__('ui.related_person_info'))
                                 ->columns(1)
@@ -624,8 +668,9 @@ class TaskResource extends Resource
 
                             if ($record->employee) {
 
-                                $record->employee->notify(new TaskAssigned($record));
+                                $record->notify(new TaskAssigned($record));
 
+                                // Notify via User model
                                 $employeeId = $record->employee->email;
 
                                 $recipient = User::where('email', $employeeId)->first();
@@ -653,8 +698,10 @@ class TaskResource extends Resource
                         ->color('warning')
                         ->icon('heroicon-o-user-circle'),
                     Tables\Actions\Action::make(__('ui.close'))
-                        //->hidden(fn ($record) => $record->trashed())
-                        ->visible(fn ($record) => $record->status->isNot(TaskStatusEnum::COMPLETED) && (auth()->user()->hasRole('super_admin') || auth()->user()->can('can_close_task')) && $record->task_date <= today() && filled($record->employee_id))
+                        ->visible(fn ($record) =>
+                            ($record->status->isNot(TaskStatusEnum::COMPLETED) && filled($record->employee_id)) &&
+                            (auth()->user()->hasRole('super_admin') || auth()->user()->can('can_close_task') || $record->employee?->email === auth()->user()->email || $record->created_by === auth()->id())
+                        )
                         ->form([
                             Fieldset::make(__('ui.related_person_info'))
                                 ->columns(1)
@@ -796,6 +843,9 @@ class TaskResource extends Resource
                                     'completed_by' => Auth::id(),
                                     'updated_by' => Auth::id(),
                                     'updated_at' => now(),
+                                    'reopen_reason' => null,
+                                    'reopened_by' => null,
+                                    'reopened_at' => null,
                                 ];
 
                                 // Eğer yeni unit_id ve employee_id verilmişse güncelle
@@ -848,8 +898,13 @@ class TaskResource extends Resource
         ];
     }
 
+    public static function canEdit(Model $record): bool
+    {
+    return $record->status->isNot(TaskStatusEnum::COMPLETED) && (auth()->user()->hasRole('super_admin') || $record->created_by == auth()->id());
+    }
+
     public static function canDelete(Model $record): bool
     {
-        return $record->status !== TaskStatusEnum::COMPLETED && (auth()->user()->hasRole('super_admin') || auth()->user()->can('delete_tasks') || $record->created_by == auth()->id());
+        return $record->status->isNot(TaskStatusEnum::COMPLETED) && (auth()->user()->hasRole('super_admin') || $record->created_by == auth()->id());
     }
 }

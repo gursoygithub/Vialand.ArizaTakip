@@ -256,6 +256,11 @@ class TasksRelationManager extends RelationManager
 
     protected function canDelete(Model $record): bool
     {
-        return $record->status !== TaskStatusEnum::COMPLETED && (auth()->user()->hasRole('super_admin') || auth()->user()->can('delete_tasks') || $record->created_by == auth()->id());
+        return $record->status->isNot(TaskStatusEnum::COMPLETED) && (auth()->user()->hasRole('super_admin') || $record->created_by == auth()->id());
+    }
+
+    protected function canEdit(Model $record): bool
+    {
+        return $record->status->isNot(TaskStatusEnum::COMPLETED) && (auth()->user()->hasRole('super_admin') || $record->created_by == auth()->id());
     }
 }
