@@ -34,7 +34,7 @@ class ViewTask extends ViewRecord
     {
         return [
             Actions\Action::make(__('ui.dispatch'))
-                //->visible(fn ($record) => ($record->status->isNot(TaskStatusEnum::COMPLETED && $record->employee_id !== auth()->id())) && (auth()->user()->can('can_assign_task') || $record->created_by === auth()->id()))
+                ->visible(fn ($record) => $record->status->isNot(TaskStatusEnum::COMPLETED) && (auth()->user()->hasRole('super_admin') || auth()->user()->can('can_assign_task') || $record->employee->email === auth()->user()->email) && filled($record->employee_id))
                 ->form([
                     Fieldset::make(__('ui.related_person_info'))
                         ->columns(1)
@@ -125,7 +125,7 @@ class ViewTask extends ViewRecord
                     $record->refresh();
 
                     if ($record->employee) {
-                        $record->employee->notify(new \App\Notifications\TaskAssigned($record));
+                        $record->notify(new \App\Notifications\TaskAssigned($record));
                     }
 
                     Notification::make()

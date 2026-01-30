@@ -57,7 +57,13 @@ class TaskResource extends Resource
         if (auth()->user()?->hasRole('super_admin') || auth()->user()?->can('view_all_tasks')) {
             return static::getModel()::count();
         }
-        return static::getModel()::where('created_by', auth()->id())->count();
+        return static::getModel()::where('created_by', auth()->id())
+            ->orWhere('employee_id', function ($query) {
+                $query->select('id')
+                    ->from('employees')
+                    ->where('email', auth()->user()->email);
+            })
+            ->count();
     }
 
     public static function form(Form $form): Form

@@ -105,14 +105,44 @@ class Task extends Model Implements HasMedia
 
     public static function query()
     {
-        $hasPermission = auth()->user()->hasRole('super_admin') || auth()->user()->can('view_all_tasks');
+        $user = auth()->user();
+
+        $hasPermission =
+            $user->hasRole('super_admin') ||
+            $user->can('view_all_tasks');
 
         if ($hasPermission) {
             return parent::query();
-        } else {
-            return parent::query()->where('user_id', auth()->user()->id);
         }
+
+        return parent::query()
+            ->where(function ($query) use ($user) {
+                $query
+                    ->where('created_by', $user->id)
+                    ->orWhere('employee_id', function ($subQuery) use ($user) {
+                        $subQuery->select('id')
+                            ->from('employees')
+                            ->where('email', $user->email);
+                    });
+            });
     }
+
+//    public static function query()
+//    {
+//        $hasPermission = auth()->user()->hasRole('super_admin') || auth()->user()->can('view_all_tasks');
+//
+//        if ($hasPermission) {
+//            return parent::query();
+//        } else {
+//            return parent::query()
+//                ->where('created_by', auth()->user()->id)
+//                ->orWhere('employee_id', function ($query) {
+//                    $query->select('id')
+//                        ->from('employees')
+//                        ->where('email', auth()->user()->email);
+//                });
+//        }
+//    }
 
     protected static function booted()
     {
