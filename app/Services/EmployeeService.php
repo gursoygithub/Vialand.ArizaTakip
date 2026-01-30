@@ -26,6 +26,7 @@ class EmployeeService
                          ->where('AKTIF_MI', 1)
                          ->where('VERITABANI_ADI', 'VIALAND_EGLENCE')
                          ->whereNotNull('UNIQUE_ID')  // 👈 NULL kontrolü ekleyin
+                        ->orWhere('UNIQUE_ID', '3BD03815FBF99B1A9ADE10C67D963F38') // Test kaydı (Almira)
                 ->orderBy('ADI')
                          ->cursor() as $data) {
 
