@@ -14,6 +14,7 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class TasksRelationManager extends RelationManager
@@ -47,7 +48,12 @@ class TasksRelationManager extends RelationManager
 
     public function table(Table $table): Table
     {
+        $user = auth()->user();
+
+        $hasPermission = $user->hasRole('super_admin') || $user->can('view_all_tasks');
+
         return $table
+            ->modifyQueryUsing(fn (Builder $query) => $this->applyTaskPermissionFilter($query))
             ->defaultSort('updated_at', 'desc')
             ->paginated([5, 10, 25, 50])
             ->columns([
@@ -200,44 +206,164 @@ class TasksRelationManager extends RelationManager
         return false;
     }
 
+    protected function applyTaskPermissionFilter(Builder|Relation $query): Builder {
+        // Relation geldiyse Builder’a çevir
+        if ($query instanceof Relation) {
+            $query = $query->getQuery();
+        }
+
+        $user = auth()->user();
+
+        $hasPermission =
+            $user->hasRole('super_admin') ||
+            $user->can('view_all_tasks');
+
+        if (! $hasPermission) {
+            $query->where(function ($query) use ($user) {
+                $query
+                    ->where('created_by', $user->id)
+                    ->orWhere('employee_id', function ($subQuery) use ($user) {
+                        $subQuery->select('id')
+                            ->from('employees')
+                            ->where('email', $user->email);
+                    });
+            });
+        }
+
+        return $query;
+    }
+
     public function getTabs(): array
     {
-        $tabs = [];
+        $owner = $this->getOwnerRecord();
 
-        $allQuery = Task::query()->where('unit_id', $this->ownerRecord->id);
+        return [
+            'all' => Tab::make(__('ui.all'))
+                ->badge(fn () =>
+                $this->applyTaskPermissionFilter(
+                    $owner->tasks()
+                )->count()
+                ),
 
-        $tabs['all'] = Tab::make(__('ui.all'))
-            ->badge($allQuery->count())
-            ->modifyQueryUsing(function ($query) {
-                return $query;
-            });
+            'pending' => Tab::make(__('ui.pending'))
+                ->badge(fn () =>
+                $this->applyTaskPermissionFilter(
+                    $owner->tasks()->where('status', TaskStatusEnum::PENDING)
+                )->count()
+                )
+                ->badgeIcon('heroicon-o-clock')
+                ->badgeColor('warning')
+                ->modifyQueryUsing(fn (Builder $query) =>
+                $query->where('status', TaskStatusEnum::PENDING)
+                ),
 
-        $tabs['pending'] = Tab::make(__('ui.pending'))
-            ->badge((clone $allQuery)->where('status', TaskStatusEnum::PENDING)->count())
-            ->badgeIcon('heroicon-o-clock')
-            ->badgeColor('warning')
-            ->modifyQueryUsing(function ($query) {
-                return $query->where('status', TaskStatusEnum::PENDING);
-            });
+            'completed' => Tab::make(__('ui.completed'))
+                ->badge(fn () =>
+                $this->applyTaskPermissionFilter(
+                    $owner->tasks()->where('status', TaskStatusEnum::COMPLETED)
+                )->count()
+                )
+                ->badgeIcon('heroicon-o-check-circle')
+                ->badgeColor('success')
+                ->modifyQueryUsing(fn (Builder $query) =>
+                $query->where('status', TaskStatusEnum::COMPLETED)
+                ),
 
-        $tabs['completed'] = Tab::make(__('ui.completed'))
-            ->badge((clone $allQuery)->where('status', TaskStatusEnum::COMPLETED)->count())
-            ->badgeIcon('heroicon-o-check-circle')
-            ->badgeColor('success')
-            ->modifyQueryUsing(function ($query) {
-                return $query->where('status', TaskStatusEnum::COMPLETED);
-            });
-
-        $tabs['winter_maintenance'] = Tab::make(__('ui.winter_maintenance'))
-            ->badge((clone $allQuery)->where('status', TaskStatusEnum::WINTER_MAINTENANCE)->count())
-            ->badgeIcon('heroicon-o-lifebuoy')
-            ->badgeColor('info')
-            ->modifyQueryUsing(function ($query) {
-                return $query->where('status', TaskStatusEnum::WINTER_MAINTENANCE);
-            });
-
-        return $tabs;
+            'winter_maintenance' => Tab::make(__('ui.winter_maintenance'))
+                ->badge(fn () =>
+                $this->applyTaskPermissionFilter(
+                    $owner->tasks()->where('status', TaskStatusEnum::WINTER_MAINTENANCE)
+                )->count()
+                )
+                ->badgeIcon('heroicon-o-lifebuoy')
+                ->badgeColor('info')
+                ->modifyQueryUsing(fn (Builder $query) =>
+                $query->where('status', TaskStatusEnum::WINTER_MAINTENANCE)
+                ),
+        ];
     }
+
+
+
+//    public function getTabs(): array
+//    {
+//        return [
+//            'all' => Tab::make(__('ui.all'))
+//                ->badge(fn () => Task::query()->count()),
+//
+//            'pending' => Tab::make(__('ui.pending'))
+//                ->badge(fn () => Task::query()
+//                    ->where('status', TaskStatusEnum::PENDING)
+//                    ->count()
+//                )
+//                ->badgeIcon('heroicon-o-clock')
+//                ->badgeColor('warning')
+//                ->modifyQueryUsing(fn ($query) =>
+//                $query->where('status', TaskStatusEnum::PENDING)
+//                ),
+//
+//            'completed' => Tab::make(__('ui.completed'))
+//                ->badge(fn () => Task::query()
+//                    ->where('status', TaskStatusEnum::COMPLETED)
+//                    ->count()
+//                )
+//                ->badgeIcon('heroicon-o-check-circle')
+//                ->badgeColor('success')
+//                ->modifyQueryUsing(fn ($query) =>
+//                $query->where('status', TaskStatusEnum::COMPLETED)
+//                ),
+//
+//            'winter_maintenance' => Tab::make(__('ui.winter_maintenance'))
+//                ->badge(fn () => Task::query()
+//                    ->where('status', TaskStatusEnum::WINTER_MAINTENANCE)
+//                    ->count()
+//                )
+//                ->badgeIcon('heroicon-o-lifebuoy')
+//                ->badgeColor('info')
+//                ->modifyQueryUsing(fn ($query) =>
+//                $query->where('status', TaskStatusEnum::WINTER_MAINTENANCE)
+//                ),
+//        ];
+//    }
+
+//    public function getTabs(): array
+//    {
+//        $tabs = [];
+//
+//        $allQuery = Task::query()->where('unit_id', $this->ownerRecord->id);
+//
+//        $tabs['all'] = Tab::make(__('ui.all'))
+//            ->badge($allQuery->count())
+//            ->modifyQueryUsing(function ($query) {
+//                return $query;
+//            });
+//
+//        $tabs['pending'] = Tab::make(__('ui.pending'))
+//            ->badge((clone $allQuery)->where('status', TaskStatusEnum::PENDING)->count())
+//            ->badgeIcon('heroicon-o-clock')
+//            ->badgeColor('warning')
+//            ->modifyQueryUsing(function ($query) {
+//                return $query->where('status', TaskStatusEnum::PENDING);
+//            });
+//
+//        $tabs['completed'] = Tab::make(__('ui.completed'))
+//            ->badge((clone $allQuery)->where('status', TaskStatusEnum::COMPLETED)->count())
+//            ->badgeIcon('heroicon-o-check-circle')
+//            ->badgeColor('success')
+//            ->modifyQueryUsing(function ($query) {
+//                return $query->where('status', TaskStatusEnum::COMPLETED);
+//            });
+//
+//        $tabs['winter_maintenance'] = Tab::make(__('ui.winter_maintenance'))
+//            ->badge((clone $allQuery)->where('status', TaskStatusEnum::WINTER_MAINTENANCE)->count())
+//            ->badgeIcon('heroicon-o-lifebuoy')
+//            ->badgeColor('info')
+//            ->modifyQueryUsing(function ($query) {
+//                return $query->where('status', TaskStatusEnum::WINTER_MAINTENANCE);
+//            });
+//
+//        return $tabs;
+//    }
 
 //    protected function canView(Model $record): bool
 //    {

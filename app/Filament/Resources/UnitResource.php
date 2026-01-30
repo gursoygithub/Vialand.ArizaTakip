@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources;
 
+use App\Enums\TaskStatusEnum;
 use App\Filament\Resources\UnitResource\Pages;
 use App\Filament\Resources\UnitResource\RelationManagers;
 use App\Models\Unit;
@@ -48,6 +49,66 @@ class UnitResource extends Resource
         return static::getModel()::where('created_by', auth()->id())->count();
     }
 
+    public static function getEloquentQuery(): Builder
+    {
+        $user = auth()->user();
+
+        $hasPermission =
+            $user->hasRole('super_admin') ||
+            $user->can('view_all_tasks');
+
+        return parent::getEloquentQuery()
+            ->withCount([
+                'tasks as pending_tasks_count' => function ($query) use ($user, $hasPermission) {
+                    $query->where('status', TaskStatusEnum::PENDING);
+
+                    if (! $hasPermission) {
+                        $query->where(function ($query) use ($user) {
+                            $query
+                                ->where('created_by', $user->id)
+                                ->orWhere('employee_id', function ($subQuery) use ($user) {
+                                    $subQuery->select('id')
+                                        ->from('employees')
+                                        ->where('email', $user->email);
+                                });
+                        });
+                    }
+                },
+
+                'tasks as completed_tasks_count' => function ($query) use ($user, $hasPermission) {
+                    $query->where('status', TaskStatusEnum::COMPLETED);
+
+                    if (! $hasPermission) {
+                        $query->where(function ($query) use ($user) {
+                            $query
+                                ->where('created_by', $user->id)
+                                ->orWhere('employee_id', function ($subQuery) use ($user) {
+                                    $subQuery->select('id')
+                                        ->from('employees')
+                                        ->where('email', $user->email);
+                                });
+                        });
+                    }
+                },
+
+                'tasks as winter_maintenance_tasks_count' => function ($query) use ($user, $hasPermission) {
+                    $query->where('status', TaskStatusEnum::WINTER_MAINTENANCE);
+
+                    if (! $hasPermission) {
+                        $query->where(function ($query) use ($user) {
+                            $query
+                                ->where('created_by', $user->id)
+                                ->orWhere('employee_id', function ($subQuery) use ($user) {
+                                    $subQuery->select('id')
+                                        ->from('employees')
+                                        ->where('email', $user->email);
+                                });
+                        });
+                    }
+                },
+            ]);
+    }
+
     public static function form(Form $form): Form
     {
         return $form
@@ -86,21 +147,39 @@ class UnitResource extends Resource
                 Tables\Columns\TextColumn::make('pending_tasks_count')
                     ->label(__('ui.pending'))
                     ->icon('heroicon-o-clock')
-                    ->getStateUsing(fn ($record) => $record->tasks()->where('status', \App\Enums\TaskStatusEnum::PENDING)->count())
                     ->badge()
                     ->color(\App\Enums\TaskStatusEnum::PENDING->getColor()),
+
                 Tables\Columns\TextColumn::make('completed_tasks_count')
                     ->label(__('ui.completed'))
                     ->icon('heroicon-o-check-circle')
-                    ->getStateUsing(fn ($record) => $record->tasks()->where('status', \App\Enums\TaskStatusEnum::COMPLETED)->count())
                     ->badge()
                     ->color(\App\Enums\TaskStatusEnum::COMPLETED->getColor()),
+
                 Tables\Columns\TextColumn::make('winter_maintenance_tasks_count')
                     ->label(__('ui.winter_maintenance'))
                     ->icon('heroicon-o-lifebuoy')
-                    ->getStateUsing(fn ($record) => $record->tasks()->where('status', \App\Enums\TaskStatusEnum::WINTER_MAINTENANCE)->count())
                     ->badge()
                     ->color(\App\Enums\TaskStatusEnum::WINTER_MAINTENANCE->getColor()),
+//                Tables\Columns\TextColumn::make('pending_tasks_count')
+//                    ->label(__('ui.pending'))
+//                    ->icon('heroicon-o-clock')
+//                    ->getStateUsing(fn ($record) => $record->tasks()
+//                        ->where('status', \App\Enums\TaskStatusEnum::PENDING)->count())
+//                    ->badge()
+//                    ->color(\App\Enums\TaskStatusEnum::PENDING->getColor()),
+//                Tables\Columns\TextColumn::make('completed_tasks_count')
+//                    ->label(__('ui.completed'))
+//                    ->icon('heroicon-o-check-circle')
+//                    ->getStateUsing(fn ($record) => $record->tasks()->where('status', \App\Enums\TaskStatusEnum::COMPLETED)->count())
+//                    ->badge()
+//                    ->color(\App\Enums\TaskStatusEnum::COMPLETED->getColor()),
+//                Tables\Columns\TextColumn::make('winter_maintenance_tasks_count')
+//                    ->label(__('ui.winter_maintenance'))
+//                    ->icon('heroicon-o-lifebuoy')
+//                    ->getStateUsing(fn ($record) => $record->tasks()->where('status', \App\Enums\TaskStatusEnum::WINTER_MAINTENANCE)->count())
+//                    ->badge()
+//                    ->color(\App\Enums\TaskStatusEnum::WINTER_MAINTENANCE->getColor()),
                 Tables\Columns\TextColumn::make('createdBy.name')
                     ->visible(fn () => auth()->user()->hasRole('super_admin') || auth()->user()->can('view_all_areas'))
                     ->label(__('ui.created_by'))
