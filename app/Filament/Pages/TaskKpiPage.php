@@ -161,29 +161,35 @@ class TaskKpiPage extends Page implements HasForms
         $statusPriority = [];
 
         foreach (TaskStatusEnum::cases() as $status) {
+            $statusCount = 0;
+
             foreach (TaskPriorityEnum::cases() as $priority) {
-
-                // Mantıksız kombinasyonlar
-                if (
-                    $status === TaskStatusEnum::WINTER_MAINTENANCE &&
-                    in_array($priority, [TaskPriorityEnum::Low, TaskPriorityEnum::Urgent])
-                ) {
-                    continue;
-                }
-
                 $count = (clone $query)
                     ->where('status', $status)
                     ->where('priority', $priority)
                     ->count();
 
-                if ($count === 0) {
-                    continue;
+                if ($count > 0) {
+                    $statusPriority[$status->name][] = [
+                        'priority' => $priority,
+                        'count'    => $count,
+                    ];
+                    $statusCount += $count;
                 }
+            }
 
-                $statusPriority[$status->name][] = [
-                    'priority' => $priority,
-                    'count'    => $count,
-                ];
+            // Eğer hiç priority bazlı veri yoksa, toplam status sayısını al
+            if ($statusCount === 0) {
+                $totalStatusCount = (clone $query)
+                    ->where('status', $status)
+                    ->count();
+
+                if ($totalStatusCount > 0) {
+                    $statusPriority[$status->name][] = [
+                        'priority' => null,
+                        'count'    => $totalStatusCount,
+                    ];
+                }
             }
         }
 
