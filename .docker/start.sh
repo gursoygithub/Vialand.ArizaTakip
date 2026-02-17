@@ -1,8 +1,8 @@
 #!/bin/bash
 
-echo "Fixing Laravel permissions..."
+echo "Preparing Laravel environment..."
 
-# Create directories
+# Create required directories
 mkdir -p /var/www/storage/framework/sessions
 mkdir -p /var/www/storage/framework/cache
 mkdir -p /var/www/storage/framework/views
@@ -11,12 +11,9 @@ mkdir -p /var/www/bootstrap/cache
 mkdir -p /var/run
 mkdir -p /var/log/supervisor
 
-# Fix ownership (now UID matches host)
-chown -R www-data:www-data /var/www/storage
-chown -R www-data:www-data /var/www/bootstrap/cache
-
-chmod -R ug+rwx /var/www/storage
-chmod -R ug+rwx /var/www/bootstrap/cache
+# HARD FIX permissions (volume mount sorununu garanti çözer)
+chmod -R 777 /var/www/storage
+chmod -R 777 /var/www/bootstrap/cache
 
 echo "Clearing Laravel cache..."
 

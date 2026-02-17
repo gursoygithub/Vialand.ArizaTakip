@@ -5,12 +5,6 @@ LABEL Description="PHP 8.4 Laravel setup with MySQL, MSSQL and LDAP"
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# -------------------------------------------------
-# UID / GID (CRITICAL FOR PERMISSIONS)
-# -------------------------------------------------
-ARG WWWUSER=1000
-ARG WWWGROUP=1000
-
 # System dependencies
 RUN apt-get update && \
     apt-get install -y software-properties-common curl wget gnupg ca-certificates \
@@ -51,18 +45,8 @@ RUN pecl channel-update pecl.php.net && \
 RUN curl -sS https://getcomposer.org/installer | php && \
     mv composer.phar /usr/local/bin/composer
 
-# -------------------------------------------------
-# FIX www-data UID/GID
-# -------------------------------------------------
-RUN groupmod -g ${WWWGROUP} www-data && \
-    usermod -u ${WWWUSER} -g ${WWWGROUP} www-data
-
-# -------------------------------------------------
-# Working Directory
-# -------------------------------------------------
 WORKDIR /var/www
 
-# Copy project
 COPY . /var/www
 COPY ./.docker/start.sh /start.sh
 COPY ./.docker/nginx.conf /etc/nginx/nginx.conf
@@ -70,7 +54,6 @@ COPY ./.docker/supervisord.conf /etc/supervisord.conf
 
 RUN chmod +x /start.sh
 
-# Install dependencies
 RUN composer install --no-interaction --prefer-dist --optimize-autoloader --ignore-platform-reqs
 
 EXPOSE 80
