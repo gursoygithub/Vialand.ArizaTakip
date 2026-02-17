@@ -1,11 +1,20 @@
-FROM ubuntu:24.04 AS base
+FROM ubuntu:24.04
+
 LABEL Maintainer="MAHAMOUD BRAHIM ADOUM"
 LABEL Description="PHP 8.4 Laravel setup with MySQL, MSSQL and LDAP"
+
 ENV DEBIAN_FRONTEND=noninteractive
+
+# -------------------------------------------------
+# UID / GID (CRITICAL FOR PERMISSIONS)
+# -------------------------------------------------
+ARG WWWUSER=1000
+ARG WWWGROUP=1000
 
 # System dependencies
 RUN apt-get update && \
-    apt-get install -y software-properties-common curl wget gnupg ca-certificates apt-transport-https unzip git lsb-release libldap2-dev
+    apt-get install -y software-properties-common curl wget gnupg ca-certificates \
+    apt-transport-https unzip git lsb-release libldap2-dev
 
 # Microsoft SQL Server Repo
 RUN set -eux; \
@@ -17,10 +26,10 @@ RUN set -eux; \
 # PHP Repo
 RUN add-apt-repository -y ppa:ondrej/php && apt-get update
 
-# ODBC ve MSSQL Araçları
+# ODBC + MSSQL
 RUN ACCEPT_EULA=Y apt-get install -y unixodbc unixodbc-dev msodbcsql18 mssql-tools18
 
-# PHP 8.4 ve Tüm Uzantılar
+# PHP 8.4
 RUN apt-get install -y \
     php8.4 php8.4-cli php8.4-common php8.4-fpm php8.4-mysql php8.4-zip \
     php8.4-gd php8.4-mbstring php8.4-curl php8.4-xml php8.4-bcmath \
@@ -29,10 +38,9 @@ RUN apt-get install -y \
     php8.4-ssh2 php8.4-soap php8.4-ldap \
     supervisor nano nginx
 
-# Eklentileri Aktif Et
 RUN phpenmod ldap
 
-# SQL Server PHP Sürücüleri (PECL)
+# SQLSRV
 RUN pecl channel-update pecl.php.net && \
     pecl install sqlsrv pdo_sqlsrv && \
     echo "extension=sqlsrv.so" > /etc/php/8.4/mods-available/sqlsrv.ini && \
@@ -43,16 +51,26 @@ RUN pecl channel-update pecl.php.net && \
 RUN curl -sS https://getcomposer.org/installer | php && \
     mv composer.phar /usr/local/bin/composer
 
-# Dosyaları Kopyala ve Ayarla
+# -------------------------------------------------
+# FIX www-data UID/GID
+# -------------------------------------------------
+RUN groupmod -g ${WWWGROUP} www-data && \
+    usermod -u ${WWWUSER} -g ${WWWGROUP} www-data
+
+# -------------------------------------------------
+# Working Directory
+# -------------------------------------------------
 WORKDIR /var/www
+
+# Copy project
 COPY . /var/www
 COPY ./.docker/start.sh /start.sh
 COPY ./.docker/nginx.conf /etc/nginx/nginx.conf
 COPY ./.docker/supervisord.conf /etc/supervisord.conf
 
-RUN chown -R www-data:www-data /var/www && chmod +x /start.sh
+RUN chmod +x /start.sh
 
-# Bağımlılıkları kur (LDAP hatası almamak için --ignore-platform-reqs ekledik)
+# Install dependencies
 RUN composer install --no-interaction --prefer-dist --optimize-autoloader --ignore-platform-reqs
 
 EXPOSE 80

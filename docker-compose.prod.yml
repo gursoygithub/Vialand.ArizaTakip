@@ -4,13 +4,17 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
+        WWWUSER: '${WWWUSER}'
         WWWGROUP: '${WWWGROUP}'
+
     extra_hosts:
       - 'host.docker.internal:host-gateway'
-      - 'ldap.proxy:host-gateway'  # Your WSL IP
+      - 'ldap.proxy:host-gateway'
+
     ports:
       - '5006:80'
       - '${VITE_PORT:-5179}:${VITE_PORT:-5179}'
+
     environment:
       WWWUSER: '${WWWUSER}'
       LARAVEL_SAIL: 1
@@ -19,9 +23,10 @@ services:
       IGNITION_LOCAL_SITES_PATH: '${PWD}'
       LDAP_DEFAULT_HOSTS: 'ldap.proxy'
       LDAP_DEFAULT_PORT: '3389'
+
     volumes:
-      # - '.:/var/www/html'
       - '.:/var/www'
+
     networks:
       - gursoy
 
