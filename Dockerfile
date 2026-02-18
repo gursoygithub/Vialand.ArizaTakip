@@ -47,6 +47,7 @@ RUN apt-get install -y \
     php8.4-intl \
     php8.4-opcache \
     php8.4-readline \
+    php8.4-ldap \
     php8.4-redis \
     php8.4-pgsql \
     php8.4-ssh2 \
