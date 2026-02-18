@@ -1,25 +1,30 @@
 #!/bin/bash
 
-echo "Preparing Laravel environment..."
-
-# Create required directories
+# Ensure necessary directories exist
 mkdir -p /var/www/storage/framework/sessions
 mkdir -p /var/www/storage/framework/cache
 mkdir -p /var/www/storage/framework/views
 mkdir -p /var/www/storage/logs
 mkdir -p /var/www/bootstrap/cache
-mkdir -p /var/run
-mkdir -p /var/log/supervisor
 
-# HARD FIX permissions (volume mount sorununu garanti çözer)
-chmod -R 777 /var/www/storage
-chmod -R 777 /var/www/bootstrap/cache
+# Set proper permissions
+chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache
+chmod -R ug+rwx /var/www/storage /var/www/bootstrap/cache
 
-echo "Clearing Laravel cache..."
+# Laravel setup
+php /var/www/artisan cache:clear
+php /var/www/artisan config:clear
+php /var/www/artisan view:clear
+php /var/www/artisan config:cache
+php /var/www/artisan storage:link
 
-php artisan optimize:clear || true
-php artisan config:cache || true
+# Optional: Run background services with supervisord if role is 'background'
+role=${CONTAINER_ROLE:-app}
 
-echo "Starting Supervisor..."
+echo "Starting services"
+service php8.4-fpm start
+nginx -g "daemon off;"
 
-exec /usr/bin/supervisord -n -c /etc/supervisord.conf
+if [ "$role" = "background" ]; then
+    supervisord -n -c /etc/supervisor/supervisord.conf
+fi
