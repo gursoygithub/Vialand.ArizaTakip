@@ -622,6 +622,31 @@ class ViewTask extends ViewRecord
                                                             ->badge()
                                                             ->color('primary')
                                                             ->icon('heroicon-o-calendar-days'),
+                                                        Infolists\Components\TextEntry::make('elapsed_time')
+                                                            ->visible(fn ($record) => $record->status->isNot(\App\Enums\TaskStatusEnum::COMPLETED))                                                            ->label(__('ui.waiting_time'))
+                                                            ->getStateUsing(function ($record) {
+                                                                // Başlangıç her zaman oluşturulma tarihi (datetime)
+                                                                $start = $record->created_at;
+
+                                                                if (!$start) return __('ui.not_available');
+
+                                                                // Bitiş: Tamamlanmışsa due_date, hala açıksa şu anki zaman
+                                                                $isCompleted = $record->status->value === \App\Enums\TaskStatusEnum::COMPLETED->value;
+                                                                $end = ($isCompleted && $record->due_date) ? $record->due_date : now();
+
+                                                                // Aradaki farkı Carbon'un diffForHumans metodu ile alalım
+                                                                // 'parts' => 2 sayesinde "10 Gün 2 Dakika" formatını yakalarız
+                                                                return $start->diffForHumans($end, [
+                                                                    'syntax' => \Carbon\CarbonInterface::DIFF_ABSOLUTE,
+                                                                    'parts' => 2,
+                                                                    'join' => ' ',
+                                                                ]);
+                                                            })
+                                                            ->badge()
+                                                            ->color(fn ($record) =>
+                                                            $record->status->value === \App\Enums\TaskStatusEnum::COMPLETED->value ? 'success' : 'warning'
+                                                            )
+                                                            ->icon('heroicon-o-clock'),
                                                     ])->columns(4),
                                             ]),
 
@@ -644,21 +669,46 @@ class ViewTask extends ViewRecord
                                                             ->badge()
                                                             ->color('success')
                                                             ->icon('heroicon-o-calendar-days'),
+//                                                        Infolists\Components\TextEntry::make('elapsed_time')
+//                                                            ->label(__('ui.elapsed_time_in_days'))
+//                                                            ->getStateUsing(function ($record) {
+//                                                                if ($record->due_date && $record->created_at) {
+//                                                                    $start = Carbon::parse($record->created_at)->startOfDay();
+//                                                                    $end = Carbon::parse($record->due_date)->startOfDay();
+//
+//                                                                    $days = $start->diffInDays($end);
+//
+//                                                                    return $days == 0 ? __('ui.completed_in_same_day') : $days . ' ' . __('ui.days');
+//                                                                }
+//                                                                return __('ui.not_available');
+//                                                            })
+//                                                            ->badge()
+//                                                            ->color('warning')
+//                                                            ->icon('heroicon-o-clock'),
                                                         Infolists\Components\TextEntry::make('elapsed_time')
-                                                            ->label(__('ui.elapsed_time_in_days'))
+                                                            ->label(__('ui.elapsed_time'))
                                                             ->getStateUsing(function ($record) {
-                                                                if ($record->due_date && $record->task_date) {
-                                                                    $start = Carbon::parse($record->task_date)->startOfDay();
-                                                                    $end = Carbon::parse($record->due_date)->startOfDay();
+                                                                // Başlangıç her zaman oluşturulma tarihi (datetime)
+                                                                $start = $record->created_at;
 
-                                                                    $days = $start->diffInDays($end);
+                                                                if (!$start) return __('ui.not_available');
 
-                                                                    return $days == 0 ? __('ui.completed_in_same_day') : $days . ' ' . __('ui.days');
-                                                                }
-                                                                return __('ui.not_available');
+                                                                // Bitiş: Tamamlanmışsa due_date, hala açıksa şu anki zaman
+                                                                $isCompleted = $record->status->value === \App\Enums\TaskStatusEnum::COMPLETED->value;
+                                                                $end = ($isCompleted && $record->due_date) ? $record->due_date : now();
+
+                                                                // Aradaki farkı Carbon'un diffForHumans metodu ile alalım
+                                                                // 'parts' => 2 sayesinde "10 Gün 2 Dakika" formatını yakalarız
+                                                                return $start->diffForHumans($end, [
+                                                                    'syntax' => \Carbon\CarbonInterface::DIFF_ABSOLUTE,
+                                                                    'parts' => 2,
+                                                                    'join' => ' ',
+                                                                ]);
                                                             })
                                                             ->badge()
-                                                            ->color('warning')
+                                                            ->color(fn ($record) =>
+                                                            $record->status->value === \App\Enums\TaskStatusEnum::COMPLETED->value ? 'success' : 'warning'
+                                                            )
                                                             ->icon('heroicon-o-clock'),
                                                         Infolists\Components\Fieldset::make(__('ui.resolution_notes'))
                                                             ->schema([

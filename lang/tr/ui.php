@@ -551,4 +551,11 @@ return [
     'not_specified' => 'Belirtilmemiş',
     'dispatch' => 'Sevk Et',
     'priority_level_and_status' => 'Öncelik Seviyesi ve Durum',
+    'employee_details' => 'Personel Detayları',
+    'employee_task' => 'Personel Görevi',
+    'employee_tasks' => 'Personel Görevleri',
+    'employee_task_details' => 'Personel Görev Detayları',
+    'employee_task_information' => 'Personel Görev Bilgileri',
+    'time_taken_to_complete' => 'Tamamlanma Süresi',
+    'waiting_time' => 'Bekleme Süresi',
 ];
