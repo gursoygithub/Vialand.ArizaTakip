@@ -66,4 +66,15 @@ class Employee extends Model
     {
         return $this->belongsTo(User::class, 'email', 'email');
     }
+
+    public function getSlaPerformanceScore()
+    {
+        $tasks = $this->tasks()->whereNotNull('due_date')->get();
+        if ($tasks->isEmpty()) return 100;
+
+        $onTimeTasks = $tasks->filter(fn($task) => $task->sla_status === 'SUCCESS')->count();
+
+        // Yüzdelik başarı oranı
+        return ($onTimeTasks / $tasks->count()) * 100;
+    }
 }

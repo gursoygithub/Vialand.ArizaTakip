@@ -192,4 +192,29 @@ class Task extends Model Implements HasMedia
     {
         return $this->belongsTo(User::class, 'reopened_by');
     }
+
+    public function getTargetDateAttribute()
+    {
+        // Bu görev için tanımlanmış SLA politikasını bul
+        $policy = SlaPolicy::where('area_id', $this->area_id)
+            ->where('priority', $this->priority)
+            ->first();
+
+        if (!$policy) return null;
+
+        // Oluşturulma tarihine SLA süresini ekle
+        return $this->created_at->addHours($policy->resolution_time_hours);
+    }
+
+    public function getSlaStatusAttribute()
+    {
+        $target = $this->target_date;
+        $completedAt = $this->due_date; // Senin senaryonda due_date = completed_at
+
+        if (!$completedAt) {
+            return now() > $target ? 'SLA_BREACHED' : 'IN_PROGRESS';
+        }
+
+        return $completedAt <= $target ? 'SUCCESS' : 'FAILED';
+    }
 }
