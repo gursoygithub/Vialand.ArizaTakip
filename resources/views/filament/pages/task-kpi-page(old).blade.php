@@ -10,7 +10,6 @@
         </form>
     </x-filament::card>
 
-    {{--
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <x-filament::card class="p-6 border-b-4 border-gray-400">
             <p class="text-xs text-gray-500 font-bold uppercase tracking-wider">{{ __('ui.total_tasks') }}</p>
@@ -41,7 +40,6 @@
             <p class="text-[10px] text-gray-400 mt-2 italic">* Arıza anından kapanışa kadar geçen süre.</p>
         </x-filament::card>
     </div>
-    --}}
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {{-- Durum / Öncelik Dağılımı - Justified Versiyon --}}

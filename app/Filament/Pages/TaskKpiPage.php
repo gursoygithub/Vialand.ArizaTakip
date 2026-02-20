@@ -6,6 +6,7 @@ use App\Enums\TaskStatusEnum;
 use App\Enums\TaskPriorityEnum;
 use App\Models\Task;
 use App\Models\User;
+use App\Models\Employee;
 use Carbon\CarbonPeriod;
 use Filament\Pages\Page;
 use Filament\Forms\Form;
@@ -22,90 +23,49 @@ class TaskKpiPage extends Page implements HasForms
     use InteractsWithForms;
 
     protected static ?string $navigationIcon = 'heroicon-o-chart-bar-square';
-
     protected static ?int $navigationSort = 100;
-
-    public static function getNavigationLabel(): string
-    {
-        return __('ui.kpi_dashboard');
-    }
-
-    public function getTitle(): string|Htmlable
-    {
-        return __('ui.task_performance_dashboard');
-    }
-
     protected static string $view = 'filament.pages.task-kpi-page';
-
-    public static function getNavigationGroup(): ?string
-    {
-        return __('ui.reports');
-    }
 
     public ?array $data = [];
 
     public function mount(): void
     {
         $this->form->fill([
-            'start_date'   => now()->startOfMonth(),
-            'end_date'     => now(),
+            'start_date'   => now()->startOfMonth()->format('Y-m-d'),
+            'end_date'     => now()->format('Y-m-d'),
             'completed_by' => null,
-            'priority'     => null,
+            'employee_id'  => null,
         ]);
     }
 
-    /* ------------------------------------------------------------------ */
-    /* FORM */
-    /* ------------------------------------------------------------------ */
+    public static function getNavigationLabel(): string { return __('ui.kpi_dashboard'); }
+    public function getTitle(): string|Htmlable { return __('ui.task_performance_dashboard'); }
+    public static function getNavigationGroup(): ?string { return __('ui.reports'); }
 
     public function form(Form $form): Form
     {
         return $form
             ->schema([
                 Section::make(__('ui.task_filters'))
-                    ->description(__('ui.filter_tasks_for_kpi_reporting'))
-                    ->columns(2)
+                    ->columns(4)
                     ->schema([
-                        DatePicker::make('start_date')
-                            ->label(__('ui.start_date'))
-                            ->maxDate(now())
-                            ->native(false)
-                            ->displayFormat('d F Y')
-                            ->reactive(),
-
-                        DatePicker::make('end_date')
-                            ->label(__('ui.end_date'))
-                            ->minDate(fn (callable $get) => $get('start_date'))
-                            ->maxDate(now())
-                            ->native(false)
-                            ->displayFormat('d F Y')
-                            ->reactive(),
-
+                        DatePicker::make('start_date')->label(__('ui.start_date'))->native(false)->reactive(),
+                        DatePicker::make('end_date')->label(__('ui.end_date'))->native(false)->reactive(),
                         Select::make('completed_by')
-                            ->hidden()
                             ->label(__('ui.closed_by'))
-                            ->options(
-                                User::query()
-                                    ->whereNot('id', 1)
-                                    ->orderBy('name')
-                                    ->pluck('name', 'id')
-                            )
+                            ->options(User::query()->whereNot('id', 1)->pluck('name', 'id'))
                             ->searchable()
-                            ->placeholder(__('ui.all')),
-
-                        Select::make('priority')
-                            ->hidden()
-                            ->label(__('ui.priority'))
-                            ->options(TaskPriorityEnum::class)
-                            ->placeholder(__('ui.all')),
+                            ->reactive(),
+                        Select::make('employee_id')
+                            ->label(__('ui.assigned_employee'))
+                            ->options(Employee::query()->pluck('name', 'id'))
+                            ->searchable()
+                            ->preload()
+                            ->reactive(),
                     ]),
             ])
             ->statePath('data');
     }
-
-    /* ------------------------------------------------------------------ */
-    /* BASE QUERY */
-    /* ------------------------------------------------------------------ */
 
     private function baseQuery()
     {
@@ -115,143 +75,90 @@ class TaskKpiPage extends Page implements HasForms
                 $this->data['end_date'],
             ]);
 
-        if ($this->data['completed_by']) {
+        if (!empty($this->data['completed_by'])) {
             $q->where('completed_by', $this->data['completed_by']);
         }
 
-        if ($this->data['priority']) {
-            $q->where('priority', $this->data['priority']);
+        if (!empty($this->data['employee_id'])) {
+            $q->where('employee_id', $this->data['employee_id']);
         }
 
         return $q;
     }
 
-    /* ------------------------------------------------------------------ */
-    /* KPI DATA */
-    /* ------------------------------------------------------------------ */
-
     public function getKpiData(): array
     {
         $query = $this->baseQuery();
 
-        /* ---------------- KPI ---------------- */
-
+        // 1. Temel Sayılar
         $total = (clone $query)->count();
+        $completed = (clone $query)->where('status', TaskStatusEnum::COMPLETED)->count();
+        $pending = (clone $query)->where('status', TaskStatusEnum::PENDING)->count();
+        $winter = (clone $query)->where('status', TaskStatusEnum::WINTER_MAINTENANCE)->count();
 
-        $pending = (clone $query)
-            ->where('status', TaskStatusEnum::PENDING)
-            ->count();
-
-        $completed = (clone $query)
+        // 2. Ortalama Kapatma Hızı
+        $avgDays = (clone $query)
             ->where('status', TaskStatusEnum::COMPLETED)
-            ->count();
+            ->whereNotNull('due_date')
+            ->whereNotNull('task_date')
+            ->selectRaw('AVG(TIMESTAMPDIFF(HOUR, task_date, due_date)) / 24 as avg_time')
+            ->value('avg_time');
 
-        $winter = (clone $query)
-            ->where('status', TaskStatusEnum::WINTER_MAINTENANCE)
-            ->count();
-
-        // ❗ Overdue = sadece pending + tarihi geçmiş
-        $overdue = (clone $query)
-            ->where('status', TaskStatusEnum::PENDING)
-            ->where('due_date', '<', now())
-            ->count();
-
-        /* -------- Status × Priority Breakdown -------- */
-
+        // 3. Status & Priority Dağılımı
         $statusPriority = [];
-
         foreach (TaskStatusEnum::cases() as $status) {
-            $statusCount = 0;
-
             foreach (TaskPriorityEnum::cases() as $priority) {
-                $count = (clone $query)
-                    ->where('status', $status)
-                    ->where('priority', $priority)
-                    ->count();
-
-                if ($count > 0) {
-                    $statusPriority[$status->name][] = [
-                        'priority' => $priority,
-                        'count'    => $count,
-                    ];
-                    $statusCount += $count;
-                }
-            }
-
-            // Eğer hiç priority bazlı veri yoksa, toplam status sayısını al
-            if ($statusCount === 0) {
-                $totalStatusCount = (clone $query)
-                    ->where('status', $status)
-                    ->count();
-
-                if ($totalStatusCount > 0) {
-                    $statusPriority[$status->name][] = [
-                        'priority' => null,
-                        'count'    => $totalStatusCount,
-                    ];
+                $cnt = (clone $query)->where('status', $status)->where('priority', $priority)->count();
+                if ($cnt > 0) {
+                    $statusPriority[$status->name][] = ['priority' => $priority, 'count' => $cnt];
                 }
             }
         }
 
-        /* -------- En çok kapatanlar -------- */
+        // 4. Günlük Trend
+        $rawDaily = (clone $query)
+            ->where('status', TaskStatusEnum::COMPLETED)
+            ->whereNotNull('due_date')
+            ->select(DB::raw('DATE(due_date) as date'), DB::raw('COUNT(*) as cnt'))
+            ->groupBy('date')
+            ->pluck('cnt', 'date')
+            ->toArray();
 
+        $daily = collect();
+        foreach (CarbonPeriod::create($this->data['start_date'], $this->data['end_date']) as $date) {
+            $key = $date->format('Y-m-d');
+            $daily->push(['date' => $key, 'count' => $rawDaily[$key] ?? 0]);
+        }
+
+        // 5. Personel Listeleri
         $byCloser = (clone $query)
             ->where('status', TaskStatusEnum::COMPLETED)
             ->select('completed_by', DB::raw('COUNT(*) as cnt'))
             ->with('completedBy:id,name')
             ->groupBy('completed_by')
-            ->orderByDesc('cnt')
-            ->limit(10)
-            ->get()
-            ->map(fn ($i) => [
-                'name'  => $i->completedBy->name ?? __('ui.unknown'),
-                'count' => $i->cnt,
-            ]);
+            ->orderByDesc('cnt')->limit(5)->get();
 
-        /* -------- Günlük trend (sadece completed) -------- */
-
-        $rawDaily = (clone $query)
-            ->where('status', TaskStatusEnum::COMPLETED)
-            ->whereNotNull('due_date')
-            ->selectRaw('DATE(due_date) as date, COUNT(*) as cnt')
-            ->groupBy('date')
-            ->pluck('cnt', 'date');
-
-        $period = CarbonPeriod::create(
-            $this->data['start_date'],
-            $this->data['end_date']
-        );
-
-        $daily = collect();
-
-        foreach ($period as $date) {
-            $key = $date->format('Y-m-d');
-
-            $daily->push([
-                'date'  => $key,
-                'count' => $rawDaily[$key] ?? 0,
-            ]);
-        }
+        $byEmployee = (clone $query)
+            ->select('employee_id', DB::raw('COUNT(*) as cnt'))
+            ->with('employee:id,name')
+            ->groupBy('employee_id')
+            ->orderByDesc('cnt')->limit(5)->get();
 
         return [
             'performance' => [
                 'total'           => $total,
-                'pending'         => $pending,
                 'completed'       => $completed,
+                'pending'         => $pending,
                 'winter'          => $winter,
-                'overdue'         => $overdue,
-                'completion_rate' => $total > 0
-                    ? round(($completed / $total) * 100, 1)
-                    : 0,
+                'avg_days'        => round($avgDays ?? 0, 1),
+                'completion_rate' => $total > 0 ? round(($completed / $total) * 100, 1) : 0,
             ],
-
             'status_priority' => $statusPriority,
-            'by_closer'       => $byCloser,
             'daily'           => $daily,
+            'by_closer'       => $byCloser->map(fn($i) => ['name' => $i->completedBy->name ?? '?', 'count' => $i->cnt]),
+            'by_employee'     => $byEmployee->map(fn($i) => ['name' => $i->employee->name ?? '?', 'count' => $i->cnt]),
         ];
     }
-
-    /* ------------------------------------------------------------------ */
 
     protected function getHeaderActions(): array
     {

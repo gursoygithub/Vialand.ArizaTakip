@@ -558,4 +558,11 @@ return [
     'employee_task_information' => 'Personel Görev Bilgileri',
     'time_taken_to_complete' => 'Tamamlanma Süresi',
     'waiting_time' => 'Bekleme Süresi',
+    'personnel' => 'Personel',
+    'personnels' => 'Personeller',
+    'personnel_management' => 'Personel Yönetimi',
+    'personnel_details' => 'Personel Detayları',
+    'personnel_information' => 'Personel Bilgileri',
+    'assigned_employee' => 'Atanan Personel',
+    'assigned_personnel' => 'Atanan Personel',
 ];
