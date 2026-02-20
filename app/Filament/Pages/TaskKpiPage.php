@@ -39,7 +39,7 @@ class TaskKpiPage extends Page implements HasForms
     }
 
     public static function getNavigationLabel(): string { return __('ui.kpi_dashboard'); }
-    public function getTitle(): string|Htmlable { return __('ui.task_performance_dashboard'); }
+    public function getTitle(): string|Htmlable { return __('ui.kpi_dashboard'); }
     public static function getNavigationGroup(): ?string { return __('ui.reports'); }
 
     public function form(Form $form): Form
