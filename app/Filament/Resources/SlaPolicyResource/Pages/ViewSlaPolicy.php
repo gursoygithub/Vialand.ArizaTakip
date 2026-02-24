@@ -4,24 +4,22 @@ namespace App\Filament\Resources\SlaPolicyResource\Pages;
 
 use App\Filament\Resources\SlaPolicyResource;
 use Filament\Actions;
-use Filament\Resources\Pages\EditRecord;
+use Filament\Resources\Pages\ViewRecord;
 
-class EditSlaPolicy extends EditRecord
+class ViewSlaPolicy extends ViewRecord
 {
     protected static string $resource = SlaPolicyResource::class;
-
-    protected function getRedirectUrl(): string
-    {
-        return $this->getResource()::getUrl('view', [
-            'record' => $this->record,
-        ]);
-    }
 
     protected function getHeaderActions(): array
     {
         return [
-            Actions\ViewAction::make()
-                ->icon('heroicon-o-eye'),
+            Actions\CreateAction::make()
+                ->label(__('ui.create_new'))
+                ->icon('heroicon-o-plus')
+                ->url($this->getResource()::getUrl('create'))
+                ->color('success'),
+            Actions\EditAction::make()
+                ->icon('heroicon-o-pencil-square'),
             Actions\DeleteAction::make()
                 ->icon('heroicon-o-trash')
                 ->requiresConfirmation(),

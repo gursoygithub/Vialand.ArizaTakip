@@ -11,25 +11,36 @@ use Spatie\MediaLibrary\InteractsWithMedia;
 
 class SlaPolicy extends Model
 {
-    use Notifiable, SoftDeletes, InteractsWithMedia, LogsActivity;
+    use Notifiable, SoftDeletes, LogsActivity;
 
     protected $fillable = [
         'area_id',
+        'sub_area_id',
+        'unit_id',
         'priority',
-        'resolution_time_hours',
+        'deadline_minutes',
         'created_by',
         'updated_by',
         'deleted_by',
     ];
 
     protected $casts = [
-        'response_time' => 'integer',
-        'resolution_time' => 'integer',
+        'priority' => \App\Enums\TaskPriorityEnum::class,
     ];
 
      public function area()
     {
         return $this->belongsTo(Area::class);
+    }
+
+    public function subArea()
+    {
+        return $this->belongsTo(SubArea::class);
+    }
+
+     public function unit()
+    {
+        return $this->belongsTo(Unit::class);
     }
 
      public function createdBy()
@@ -59,18 +70,17 @@ class SlaPolicy extends Model
 
     protected static function booted()
     {
-        static::creating(function ($task) {
-            $task->created_by = auth()->id();
-
+        static::creating(function ($slaPolicy) {
+            $slaPolicy->created_by = auth()->id();
         });
 
-        static::updating(function ($task) {
-            $task->updated_by = auth()->id();
+        static::updating(function ($slaPolicy) {
+            $slaPolicy->updated_by = auth()->id();
         });
 
-        static::deleting(function ($task) {
-            $task->deleted_by = auth()->id();
-            $task->save();
+        static::deleting(function ($slaPolicy) {
+            $slaPolicy->deleted_by = auth()->id();
+            $slaPolicy->save();
         });
     }
 }

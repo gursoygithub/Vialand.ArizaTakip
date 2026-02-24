@@ -14,11 +14,13 @@ class ViewSubArea extends ViewRecord
     {
         return [
             Actions\EditAction::make()
+                ->icon('heroicon-o-pencil-square')
                 ->mutateFormDataUsing(function (array $data): array {
                     $data['updated_by'] = auth()->user()->id;
                     return $data;
                 }),
             Actions\DeleteAction::make()
+                ->icon('heroicon-o-trash')
                 ->requiresConfirmation()
                 ->action(function ($record) {
                     $record->deleted_by = auth()->user()->id;

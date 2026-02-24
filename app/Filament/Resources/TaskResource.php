@@ -37,6 +37,8 @@ class TaskResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-wrench-screwdriver';
 
+    protected static ?int $navigationSort = -999;
+
     public static function getModelLabel(): string
     {
         return __('ui.task');

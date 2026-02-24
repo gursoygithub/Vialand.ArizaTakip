@@ -13,6 +13,7 @@ class Area extends Model
 {
     use Notifiable, SoftDeletes, LogsActivity;
     protected $fillable = [
+        'company_id',
         'name',
         'status',
         'created_by',
@@ -65,5 +66,11 @@ class Area extends Model
             ->logAll()
             ->logOnlyDirty()
             ->useLogName(static::$logName);
+    }
+
+    // relation with company
+    public function company()
+    {
+        return $this->belongsTo(Company::class);
     }
 }

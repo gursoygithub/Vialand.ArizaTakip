@@ -2,9 +2,9 @@
 
 namespace App\Filament\Resources;
 
-use App\Filament\Resources\AreaResource\Pages;
-use App\Filament\Resources\AreaResource\RelationManagers;
-use App\Models\Area;
+use App\Filament\Resources\CompanyResource\Pages;
+use App\Filament\Resources\CompanyResource\RelationManagers;
+use App\Models\Company;
 use Filament\Forms;
 use Filament\Forms\Components\Fieldset;
 use Filament\Forms\Form;
@@ -14,22 +14,23 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
-use Illuminate\Support\Facades\Auth;
 
-class AreaResource extends Resource
+class CompanyResource extends Resource
 {
-    protected static ?string $model = Area::class;
+    protected static ?string $model = Company::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-map';
+    protected static ?string $navigationIcon = 'heroicon-o-building-library';
+
+    protected static ?int $navigationSort = -99;
 
     public static function getModelLabel(): string
     {
-        return __('ui.area');
+        return __('ui.company');
     }
 
     public static function getPluralModelLabel(): string
     {
-        return __('ui.areas');
+        return __('ui.companies');
     }
 
     public static function getNavigationGroup(): ?string
@@ -39,12 +40,14 @@ class AreaResource extends Resource
 
     public static function getNavigationBadge(): ?string
     {
-        if (auth()->user()?->hasRole('super_admin') || auth()->user()?->can('view_all_areas')) {
+        if (auth()->user()?->hasRole('super_admin') || auth()->user()?->can('view_all_companies')) {
             return static::getModel()::count();
         }
 
         return static::getModel()::where('created_by', auth()->id())->count();
     }
+
+
 
     public static function form(Form $form): Form
     {
@@ -52,25 +55,17 @@ class AreaResource extends Resource
             ->schema([
                 \Filament\Forms\Components\Card::make()
                     ->schema([
-                        Fieldset::make(__('ui.area_information'))
-                            ->columns(2)
+                        Fieldset::make(__('ui.company_details'))
+                            ->columns(1)
                             ->schema([
                                 Forms\Components\TextInput::make('name')
                                     ->label(__('ui.name'))
-                                    ->placeholder(__('ui.area_placeholder'))
+                                    ->placeholder(__('ui.company_name_placeholder'))
                                     ->required()
                                     ->maxLength(255)
                                     ->validationMessages([
                                         'required' => __('ui.required'),
                                     ]),
-                                Forms\Components\Select::make('company_id')
-                                    ->label(__('ui.company'))
-                                    ->options(\App\Models\Company::pluck('name', 'id'))
-                                    ->searchable()
-                                    ->validationMessages([
-                                        'required' => __('ui.required'),
-                                    ])
-                                    ->required(),
                             ]),
                     ]),
             ]);
@@ -79,33 +74,21 @@ class AreaResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
-            ->defaultSort('updated_at', 'desc')
-            ->paginated([5, 10, 25, 50])
             ->columns([
                 Tables\Columns\TextColumn::make('name')
                     ->label(__('ui.name'))
-                    ->icon('heroicon-o-map')
+                    ->icon('heroicon-o-building-library')
                     ->badge()
                     ->searchable()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('sub_areas_count')
-                    ->label(__('ui.sub_area_count'))
+                Tables\Columns\TextColumn::make('areas_count')
+                    ->label(__('ui.area_count'))
                     ->badge()
                     ->color('primary')
-                    ->counts('subAreas')
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('company.name')
-                    ->label(__('ui.company'))
-                    ->placeholder('-')
-                    ->icon('heroicon-o-building-library')
-                    ->searchable()
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('status')
-                    ->label(__('ui.status'))
-                    ->badge()
+                    ->counts('areas')
                     ->sortable(),
                 Tables\Columns\TextColumn::make('createdBy.name')
-                    ->visible(fn () => auth()->user()->hasRole('super_admin') || auth()->user()->can('view_all_areas'))
+                    ->visible(fn () => auth()->user()->hasRole('super_admin') || auth()->user()->can('view_all_sub_areas'))
                     ->label(__('ui.created_by'))
                     ->icon('heroicon-o-user')
                     ->searchable()
@@ -136,14 +119,7 @@ class AreaResource extends Resource
                 Tables\Actions\ActionGroup::make([
                     Tables\Actions\ViewAction::make(),
                     Tables\Actions\EditAction::make(),
-                    Tables\Actions\DeleteAction::make()
-                        ->requiresConfirmation()
-                        ->action(function ($record) {
-                            $record->deleted_by = Auth::id();
-                            $record->deleted_at = now();
-                            $record->save();
-                            $record->delete();
-                        }),
+                    Tables\Actions\DeleteAction::make(),
                 ])
             ])
             ->bulkActions([
@@ -154,22 +130,22 @@ class AreaResource extends Resource
     public static function getRelations(): array
     {
         return [
-            RelationManagers\SubAreasRelationManager::class,
+            //
         ];
     }
 
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListAreas::route('/'),
-            'create' => Pages\CreateArea::route('/create'),
-            'edit' => Pages\EditArea::route('/{record}/edit'),
-            'view' => Pages\ViewArea::route('/{record}')
+            'index' => Pages\ListCompanies::route('/'),
+            'create' => Pages\CreateCompany::route('/create'),
+            'edit' => Pages\EditCompany::route('/{record}/edit'),
+            'view' => Pages\ViewCompany::route('/{record}'),
         ];
     }
 
     public static function canDelete(Model $record): bool
     {
-        return $record->subAreas()->count() === 0 && (auth()->user()?->hasRole('super_admin') || $record->created_by === auth()->id());
+        return $record->areas()->count() === 0 && (auth()->user()?->hasRole('super_admin') || $record->created_by === auth()->id());
     }
 }

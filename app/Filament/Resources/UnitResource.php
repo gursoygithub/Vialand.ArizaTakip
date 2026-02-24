@@ -23,7 +23,7 @@ class UnitResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-building-office';
 
-    protected static ?int $navigationSort = -100;
+    protected static ?int $navigationSort = -1000;
 
     public static function getModelLabel(): string
     {

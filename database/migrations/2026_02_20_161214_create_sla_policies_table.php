@@ -13,9 +13,11 @@ return new class extends Migration
     {
         Schema::create('sla_policies', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('area_id')->constrained()->onDelete('cascade');
+            $table->foreignId('area_id')->constrained('areas')->onDelete('cascade');
+            $table->foreignId('sub_area_id')->constrained('sub_areas')->onDelete('cascade');
+            $table->foreignId('unit_id')->constrained('units')->onDelete('cascade');
             $table->integer('priority'); // TaskPriorityEnum (1, 2, 3, 4)
-            $table->integer('resolution_time_hours'); // Kaç saatte bitmeli?
+            $table->integer('deadline_minutes'); // SLA deadline in minutes (e.g., 240 for 4 hours, 1440 for 1 day)
 
             $table->integer('created_by')->nullable();
             $table->integer('updated_by')->nullable();
@@ -23,6 +25,9 @@ return new class extends Migration
 
             $table->timestamps();
             $table->softDeletes();
+
+            $table->index(['area_id', 'sub_area_id', 'unit_id', 'priority'], 'sla_policy_lookup');
+            $table->unique(['area_id', 'sub_area_id', 'unit_id', 'priority', 'deleted_at'], 'unique_sla_policy');
         });
     }
 

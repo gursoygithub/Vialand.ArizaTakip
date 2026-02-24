@@ -26,6 +26,7 @@ class CustomPermissionSeeder extends Seeder
             'view_all_subcontractor_employees',
             'can_assign_task',
             'can_reopen_task',
+            'view_all_companies',
         ];
 
         foreach ($permissionName as $name) {
