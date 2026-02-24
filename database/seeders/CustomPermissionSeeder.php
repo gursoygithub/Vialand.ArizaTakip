@@ -27,6 +27,7 @@ class CustomPermissionSeeder extends Seeder
             'can_assign_task',
             'can_reopen_task',
             'view_all_companies',
+            'view_all_sla_policies',
         ];
 
         foreach ($permissionName as $name) {
