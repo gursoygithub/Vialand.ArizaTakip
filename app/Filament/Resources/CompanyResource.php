@@ -88,7 +88,7 @@ class CompanyResource extends Resource
                     ->counts('areas')
                     ->sortable(),
                 Tables\Columns\TextColumn::make('createdBy.name')
-                    ->visible(fn () => auth()->user()->hasRole('super_admin') || auth()->user()->can('view_all_sub_areas'))
+                    ->visible(fn () => auth()->user()->hasRole('super_admin') || auth()->user()->can('view_all_companies'))
                     ->label(__('ui.created_by'))
                     ->icon('heroicon-o-user')
                     ->searchable()

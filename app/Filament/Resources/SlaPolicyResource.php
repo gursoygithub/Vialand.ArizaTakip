@@ -256,7 +256,7 @@ class SlaPolicyResource extends Resource
                     ->alignCenter()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('createdBy.name')
-                    ->visible(fn () => auth()->user()->hasRole('super_admin') || auth()->user()->can('view_all_tasks'))
+                    ->visible(fn () => auth()->user()->hasRole('super_admin') || auth()->user()->can('view_all_sla_policies'))
                     ->label(__('ui.created_by'))
                     ->icon('heroicon-o-user')
                     ->searchable()

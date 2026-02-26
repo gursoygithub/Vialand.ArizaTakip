@@ -30,6 +30,7 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Spatie\MediaLibrary\ResponsiveImages\TinyPlaceholderGenerator\Blurred;
 
 class TaskResource extends Resource
 {
@@ -130,180 +131,274 @@ class TaskResource extends Resource
                                             ->default(TaskStatusEnum::PENDING->value)
                                             ->inline(),
                                     ]),
-                                Forms\Components\Select::make('type_id')
-                                    ->label(__('ui.type'))
-                                    ->options(
-                                        collect(TaskTypeEnum::cases())
-                                            ->mapWithKeys(fn ($case) => [$case->value => $case->getLabel()])
-                                            ->toArray()
-                                    )
-                                    ->required()
-                                    ->validationMessages([
-                                        'required' => __('ui.required'),
-                                    ]),
-                                Forms\Components\Select::make('area_id')
-                                    ->label(__('ui.area'))
-                                    ->options(
-                                        Area::all()
-                                            ->where('status', ActiveStatusEnum::ACTIVE)
-                                            ->pluck('name', 'id')
-                                    )
-                                    ->preload()
-                                    ->searchable()
-                                    ->required()
-                                    ->live()
-                                    ->afterStateUpdated(fn (callable $set) => $set('sub_area_id', null))
-                                    //->disableOptionsWhenSelectedInSiblingRepeaterItems()
-                                    ->validationMessages([
-                                        'required' => __('ui.required'),
-                                    ])
-                                    ->when(auth()->user()->hasRole('super_admin') || auth()->user()->can('create_custom_area', Area::class), fn ($select) => $select->createOptionForm(function ($form) {
-                                        $form
-                                            ->schema([
-                                                \Filament\Forms\Components\Card::make()
+                                Fieldset::make(__('ui.fault_location_and_date_information'))
+                                    ->columns(2)
+                                    ->schema([
+                                        Forms\Components\Select::make('type_id')
+                                            ->label(__('ui.type'))
+                                            ->options(
+                                                collect(TaskTypeEnum::cases())
+                                                    ->mapWithKeys(fn ($case) => [$case->value => $case->getLabel()])
+                                                    ->toArray()
+                                            )
+                                            ->required()
+                                            ->validationMessages([
+                                                'required' => __('ui.required'),
+                                            ]),
+                                        Forms\Components\Select::make('area_id')
+                                            ->label(__('ui.area'))
+                                            ->prefixIcon('heroicon-o-map')
+                                            ->options(Area::with('company')
+                                                ->where('status', ActiveStatusEnum::ACTIVE)
+                                                ->get()->mapWithKeys(function ($area) {
+                                                $companyName = $area->company?->name ? " ({$area->company->name})" : '';
+                                                return [$area->id => $area->name . $companyName];
+                                                })->toArray()
+                                            )
+                                            ->preload()
+                                            ->searchable()
+                                            ->required()
+                                            ->live()
+                                            ->afterStateUpdated(function (callable $set) {
+                                                $set('sub_area_id', null);
+                                                $set('group_id', null);
+                                                $set('employee_id', null);
+                                            })
+                                            //->disableOptionsWhenSelectedInSiblingRepeaterItems()
+                                            ->validationMessages([
+                                                'required' => __('ui.required'),
+                                            ])
+                                            ->when(auth()->user()->hasRole('super_admin') || auth()->user()->can('create_custom_area', Area::class), fn ($select) => $select->createOptionForm(function ($form) {
+                                                $form
                                                     ->schema([
-                                                        Fieldset::make(__('ui.area_information'))
-                                                            ->columns(1)
+                                                        \Filament\Forms\Components\Card::make()
                                                             ->schema([
-                                                                Forms\Components\TextInput::make('name')
-                                                                    ->label(__('ui.name'))
-                                                                    ->placeholder(__('ui.area_placeholder'))
-                                                                    ->required()
-                                                                    ->maxLength(255),
-                                                            ]),
-                                                    ]),
-                                            ]);
-                                        return $form->model(\App\Models\Area::class);
-                                    })->createOptionUsing(function ($data) {
-                                        $location = \App\Models\Area::create([
-                                            'name' => $data['name'],
-                                            'status' => ActiveStatusEnum::ACTIVE,
-                                            'created_by' => auth()->id(),
-                                        ]);
-                                        return $location->id;
-                                    })),
-                                Forms\Components\Select::make('sub_area_id')
-                                    ->label(__('ui.sub_area'))
-                                    ->options(function (callable $get) {
-                                        $areaId = $get('area_id');
-                                        if (!$areaId) {
-                                            return [];
-                                        }
-
-                                        return SubArea::all()
-                                            ->where('area_id', $areaId)
-                                            ->pluck('name', 'id');
-                                    })
-                                    ->preload()
-                                    ->searchable()
-                                    ->required()
-                                    ->validationMessages([
-                                        'required' => __('ui.required'),
-                                    ])
-                                    ->when(auth()->user()->hasRole('super_admin') || auth()->user()->can('create_custom_sub_area', SubArea::class), fn ($select) => $select->createOptionForm(function ($form) {
-                                        $form
-                                            ->schema([
-                                                \Filament\Forms\Components\Card::make()
-                                                    ->schema([
-                                                        Fieldset::make(__('ui.sub_area_information'))
-                                                            ->columns(2)
-                                                            ->schema([
-                                                                Forms\Components\TextInput::make('name')
-                                                                    ->label(__('ui.name'))
-                                                                    ->placeholder(__('ui.sub_area_placeholder'))
-                                                                    ->required()
-                                                                    ->validationMessages([
-                                                                        'required' => __('ui.required'),
-                                                                    ]),
-                                                                Forms\Components\Select::make('area_id')
-                                                                    ->label(__('ui.area'))
-                                                                    ->relationship('area', 'name')
-                                                                    ->preload()
-                                                                    ->searchable()
-                                                                    ->required()
-                                                                    ->validationMessages([
-                                                                        'required' => __('ui.required'),
+                                                                Fieldset::make(__('ui.area_information'))
+                                                                    ->columns(1)
+                                                                    ->schema([
+                                                                        Forms\Components\TextInput::make('name')
+                                                                            ->label(__('ui.name'))
+                                                                            ->placeholder(__('ui.area_placeholder'))
+                                                                            ->required()
+                                                                            ->maxLength(255),
+                                                                        Forms\Components\Select::make('company_id')
+                                                                            ->label(__('ui.company'))
+                                                                            ->options(\App\Models\Company::pluck('name', 'id'))
+                                                                            ->searchable()
+                                                                            ->validationMessages([
+                                                                                'required' => __('ui.required'),
+                                                                            ])
+                                                                            ->required(),
                                                                     ]),
                                                             ]),
-                                                    ]),
-                                            ]);
-                                        return $form->model(\App\Models\SubArea::class);
-                                    })->createOptionUsing(function (callable $get, $data) {
-                                        $area = SubArea::create([
-                                            'area_id' => $data['area_id'],
-                                            'name' => $data['name'],
-                                            'created_by' => auth()->id(),
-                                        ]);
-                                        return $area->id;
-                                    })),
-                                Forms\Components\DatePicker::make('task_date')
-                                    ->label(__('ui.fault_date'))
-                                    ->required()
-                                    ->maxDate(today())
-                                    ->live()
-                                    ->afterStateUpdated(fn (callable $set) => $set('due_date', null))
-                                    ->validationMessages([
-                                        'required' => __('ui.required'),
-                                        'max' => __('ui.fault_date_cannot_be_in_future'),
-                                        'maxDate' => __('ui.fault_date_cannot_be_in_future'),
+                                                    ]);
+                                                return $form->model(\App\Models\Area::class);
+                                            })->createOptionUsing(function ($data) {
+                                                $location = \App\Models\Area::create([
+                                                    'company_id' => $data['company_id'],
+                                                    'name' => $data['name'],
+                                                    'status' => ActiveStatusEnum::ACTIVE,
+                                                    'created_by' => auth()->id(),
+                                                ]);
+                                                return $location->id;
+                                            })),
+                                        Forms\Components\Select::make('sub_area_id')
+                                            ->label(__('ui.sub_area'))
+                                            ->prefixIcon('heroicon-o-map-pin')
+                                            ->options(function (callable $get) {
+                                                $areaId = $get('area_id');
+                                                if (!$areaId) {
+                                                    return [];
+                                                }
+
+                                                return SubArea::all()
+                                                    ->where('area_id', $areaId)
+                                                    ->pluck('name', 'id');
+                                            })
+                                            ->preload()
+                                            ->searchable()
+                                            ->required()
+                                            ->validationMessages([
+                                                'required' => __('ui.required'),
+                                            ])
+                                            ->when(auth()->user()->hasRole('super_admin') || auth()->user()->can('create_custom_sub_area', SubArea::class), fn ($select) => $select->createOptionForm(function ($form) {
+                                                $form
+                                                    ->schema([
+                                                        \Filament\Forms\Components\Card::make()
+                                                            ->schema([
+                                                                Fieldset::make(__('ui.sub_area_information'))
+                                                                    ->columns(2)
+                                                                    ->schema([
+                                                                        Forms\Components\TextInput::make('name')
+                                                                            ->label(__('ui.name'))
+                                                                            ->placeholder(__('ui.sub_area_placeholder'))
+                                                                            ->required()
+                                                                            ->validationMessages([
+                                                                                'required' => __('ui.required'),
+                                                                            ]),
+                                                                        Forms\Components\Select::make('area_id')
+                                                                            ->label(__('ui.area'))
+                                                                            ->relationship('area', 'name')
+                                                                            ->preload()
+                                                                            ->searchable()
+                                                                            ->required()
+                                                                            ->validationMessages([
+                                                                                'required' => __('ui.required'),
+                                                                            ]),
+                                                                    ]),
+                                                            ]),
+                                                    ]);
+                                                return $form->model(\App\Models\SubArea::class);
+                                            })->createOptionUsing(function (callable $get, $data) {
+                                                $area = SubArea::create([
+                                                    'area_id' => $data['area_id'],
+                                                    'name' => $data['name'],
+                                                    'created_by' => auth()->id(),
+                                                ]);
+                                                return $area->id;
+                                            })),
+                                        Forms\Components\DatePicker::make('task_date')
+                                            ->label(__('ui.fault_date'))
+                                            ->prefixIcon('heroicon-o-calendar-days')
+                                            ->required()
+                                            ->maxDate(today())
+                                            ->live()
+                                            ->afterStateUpdated(fn (callable $set) => $set('due_date', null))
+                                            ->validationMessages([
+                                                'required' => __('ui.required'),
+                                                'max' => __('ui.fault_date_cannot_be_in_future'),
+                                                'maxDate' => __('ui.fault_date_cannot_be_in_future'),
+                                            ]),
+                                        Forms\Components\Select::make('unit_id')
+                                            ->hidden()
+                                            ->label(__('ui.unit'))
+                                            ->options(Unit::query()->pluck('name', 'id'))
+                                            ->live()
+                                            ->afterStateUpdated(fn (callable $set) => $set('employee_id', null))
+                                            ->preload()
+                                            ->searchable()
+                                            ->required()
+                                            ->validationMessages([
+                                                'required' => __('ui.required'),
+                                            ]),
+                                        Forms\Components\Select::make('employee_id')
+                                            ->hidden()
+                                            ->label(__('ui.related_person'))
+                                            ->options(function (callable $get) {
+
+                                                $unitId = $get('unit_id');
+
+                                                if (!$unitId) {
+                                                    return [];
+                                                }
+
+                                                // if unit_id is 5 then return employees like "Bakım%"
+                                                // 5: Ünite Bakımı
+                                                if ($unitId == 5) {
+                                                    return Employee::query()
+                                                        ->where('status', ActiveStatusEnum::ACTIVE)
+                                                        ->where('profession', 'LIKE', 'Bakım%')
+                                                        ->pluck('name', 'id');
+                                                }
+
+                                                // if unit_id is 6 then return all employees
+                                                // 6: Temapark Görsel
+                                                if ($unitId == 6) {
+                                                    return Employee::query()
+                                                        ->where('status', ActiveStatusEnum::ACTIVE)
+                                                        ->pluck('name', 'id');
+                                                }
+
+                                                $unitName = Unit::query()
+                                                    ->where('id', $unitId)
+                                                    ->value('name');
+
+                                                if (!$unitName) {
+                                                    return [];
+                                                }
+
+                                                return Employee::query()
+                                                    ->where('status', ActiveStatusEnum::ACTIVE)
+                                                    ->where('profession', 'LIKE', $unitName . '%')
+                                                    ->pluck('name', 'id');
+                                            })
+                                            ->preload()
+                                            ->searchable()
+                                            //->required()
+                                            ->validationMessages([
+                                                'required' => __('ui.required'),
+                                            ]),
                                     ]),
-                                Forms\Components\Select::make('unit_id')
-                                    ->label(__('ui.unit'))
-                                    ->options(Unit::query()->pluck('name', 'id'))
-                                    ->live()
-                                    ->afterStateUpdated(fn (callable $set) => $set('employee_id', null))
-                                    ->preload()
-                                    ->searchable()
-                                    ->required()
-                                    ->validationMessages([
-                                        'required' => __('ui.required'),
-                                    ]),
-                                Forms\Components\Select::make('employee_id')
-                                    //->hidden()
-                                    ->label(__('ui.related_person'))
-                                    ->options(function (callable $get) {
+                                Fieldset::make(__('ui.related_person_assignment'))
+                                    ->columns(3)
+                                    ->schema([
+                                        Forms\Components\Select::make('unit_id')
+                                            ->label(__('ui.unit'))
+                                            ->prefixIcon('heroicon-o-building-office')
+                                            ->options(Unit::query()->pluck('name', 'id'))
+                                            ->live()
+                                            ->afterStateUpdated(function (callable $set) {
+                                                $set('group_id', null);
+                                                $set('employee_id', null);
+                                            })
+                                            ->preload()
+                                            ->searchable()
+                                            ->required()
+                                            ->validationMessages([
+                                                'required' => __('ui.required'),
+                                            ]),
+                                        Forms\Components\Select::make('group_id')
+                                            ->label(__('ui.group'))
+                                            ->prefixIcon('heroicon-o-user-group')
+                                            ->hintIcon('heroicon-o-exclamation-circle')
+                                            ->hintIconTooltip(__('ui.group_manager_mail_notification_hint'))
+                                            ->options(function (callable $get) {
+                                                $unitId = $get('unit_id');
+                                                $areaId = $get('area_id');
 
-                                        $unitId = $get('unit_id');
+                                                if (!$unitId && !$areaId) {
+                                                    return [];
+                                                }
 
-                                        if (!$unitId) {
-                                            return [];
-                                        }
+                                                return \App\Models\Group::query()
+                                                    ->where('status', ActiveStatusEnum::ACTIVE)
+                                                    ->where('unit_id', $unitId)
+                                                    ->where('area_id', $areaId)
+                                                    ->pluck('name', 'id');
+                                            })
+                                            ->preload()
+                                            ->searchable()
+                                            ->live()
+                                            ->afterStateUpdated(fn (callable $set) => $set('employee_id', null))
+                                            ->validationMessages([
+                                                'required' => __('ui.required'),
+                                            ]),
+                                        Forms\Components\Select::make('employee_id')
+                                            ->label(__('ui.related_person'))
+                                            ->prefixIcon('heroicon-o-user')
+                                            ->hintIcon('heroicon-o-exclamation-circle')
+                                            ->hintIconTooltip(__('ui.related_person_mail_notification_hint'))
+                                            ->options(function (callable $get) {
+                                                $groupId = $get('group_id');
+                                                if (!$groupId) {
+                                                    return [];
+                                                }
 
-                                        // if unit_id is 5 then return employees like "Bakım%"
-                                        // 5: Ünite Bakımı
-                                        if ($unitId == 5) {
-                                            return Employee::query()
-                                                ->where('status', ActiveStatusEnum::ACTIVE)
-                                                ->where('profession', 'LIKE', 'Bakım%')
-                                                ->pluck('name', 'id');
-                                        }
-
-                                        // if unit_id is 6 then return all employees
-                                        // 6: Temapark Görsel
-                                        if ($unitId == 6) {
-                                            return Employee::query()
-                                                ->where('status', ActiveStatusEnum::ACTIVE)
-                                                ->pluck('name', 'id');
-                                        }
-
-                                        $unitName = Unit::query()
-                                            ->where('id', $unitId)
-                                            ->value('name');
-
-                                        if (!$unitName) {
-                                            return [];
-                                        }
-
-                                        return Employee::query()
-                                            ->where('status', ActiveStatusEnum::ACTIVE)
-                                            ->where('profession', 'LIKE', $unitName . '%')
-                                            ->pluck('name', 'id');
-                                    })
-                                    ->preload()
-                                    ->searchable()
-                                    //->required()
-                                    ->validationMessages([
-                                        'required' => __('ui.required'),
+                                                return Employee::query()
+                                                    ->where('status', ActiveStatusEnum::ACTIVE)
+                                                    ->whereHas('groupMemberships', function (Builder $query) use ($groupId) {
+                                                        $query->where('group_id', $groupId)
+                                                            ->whereNull('deleted_at');
+                                                    })
+                                                    ->pluck('name', 'id');
+                                            })
+                                            ->preload()
+                                            ->searchable()
+                                            //->requiredWith('group_id')
+                                            ->validationMessages([
+                                                'required' => __('ui.required'),
+                                                //'required_with' => __('ui.related_person_required_when_group_selected'),
+                                            ]),
                                     ]),
                                 Fieldset::make(__('ui.descriptions'))
                                     ->columns(2)

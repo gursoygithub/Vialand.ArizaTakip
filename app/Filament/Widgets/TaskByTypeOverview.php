@@ -19,9 +19,27 @@ class TaskByTypeOverview extends BaseWidget
     {
         $baseQuery = \App\Models\Task::query();
 
-        if (!auth()->user()->hasRole('super_admin') && !auth()->user()->can('view_all_tasks')) {
-            $baseQuery->where('created_by', auth()->id());
+        $user = auth()->user();
+
+        $hasPermission =
+            $user->hasRole('super_admin') ||
+            $user->can('view_all_tasks');
+
+        if (!$hasPermission) {
+            $baseQuery->where(function ($query) use ($user) {
+                $query
+                    ->where('created_by', $user->id)
+                    ->orWhere('employee_id', function ($subQuery) use ($user) {
+                        $subQuery->select('id')
+                            ->from('employees')
+                            ->where('email', $user->email);
+                    });
+            });
         }
+
+//        if (!auth()->user()->hasRole('super_admin') && !auth()->user()->can('view_all_tasks')) {
+//            $baseQuery->where('created_by', auth()->id());
+//        }
 
         $units = class_exists(\App\Models\Unit::class)
             ? \App\Models\Unit::all()

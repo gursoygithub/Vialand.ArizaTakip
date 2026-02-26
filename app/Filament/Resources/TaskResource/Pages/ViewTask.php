@@ -33,93 +33,58 @@ class ViewTask extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
+//            Actions\CreateAction::make()
+//                ->label(__('ui.create_task'))
+//                ->icon('heroicon-o-plus')
+//                ->url($this->getResource()::getUrl('create'))
+//                ->color('success'),
             Actions\Action::make(__('ui.dispatch'))
                 ->visible(fn ($record) => $record->status->isNot(TaskStatusEnum::COMPLETED) && (auth()->user()->hasRole('super_admin') || auth()->user()->can('can_assign_task') || $record->employee?->email === auth()->user()->email) && filled($record->employee_id))
                 ->form([
                     Fieldset::make(__('ui.related_person_info'))
                         ->columns(1)
                         ->schema([
-                            Forms\Components\Select::make('unit_id')
-                                ->label(__('ui.unit'))
-                                ->options(Unit::query()->pluck('name', 'id'))
-                                ->live()
-                                ->afterStateUpdated(fn (callable $set) => $set('employee_id', null))
-                                ->preload()
-                                ->searchable()
-                                ->required()
-                                ->default(fn ($record) => $record->unit_id)
-                                ->disabled(fn ($record) => filled($record->unit_id))
-                                ->validationMessages([
-                                    'required' => __('ui.required'),
-                                ]),
+                            Forms\Components\TextInput::make('group.name')
+                                ->label(__('ui.group'))
+                                ->default(fn ($record) => $record->group?->name)
+                                ->disabled(),
                             Forms\Components\Select::make('employee_id')
                                 //->hidden()
                                 ->label(__('ui.related_person'))
                                 ->options(function (callable $get) {
 
-                                    $unitId = $get('unit_id');
+                                    $groupName = $get('group.name');
 
-                                    if (!$unitId) {
-                                        return [];
-                                    }
-
-                                    // if unit_id is 5 then return employees like "Bakım%"
-                                    // 5: Ünite Bakımı
-                                    if ($unitId == 5) {
-                                        return Employee::query()
-                                            ->where('status', ActiveStatusEnum::ACTIVE)
-                                            ->where('profession', 'LIKE', 'Bakım%')
-                                            ->pluck('name', 'id');
-                                    }
-
-                                    // if unit_id is 6 then return all employees
-                                    // 6: Temapark Görsel
-                                    if ($unitId == 6) {
-                                        return Employee::query()
-                                            ->where('status', ActiveStatusEnum::ACTIVE)
-                                            ->pluck('name', 'id');
-                                    }
-
-                                    $unitName = Unit::query()
-                                        ->where('id', $unitId)
-                                        ->value('name');
-
-                                    if (!$unitName) {
+                                    if (!$groupName) {
                                         return [];
                                     }
 
                                     return Employee::query()
                                         ->where('status', ActiveStatusEnum::ACTIVE)
-                                        ->where('profession', 'LIKE', $unitName . '%')
+                                        ->whereHas('groupMemberships', function ($query) use ($groupName) {
+                                            $query->whereHas('group', function ($q) use ($groupName) {
+                                                $q->where('name', $groupName);
+                                            })->whereNull('deleted_at');
+                                        })
                                         ->pluck('name', 'id');
                                 })
                                 ->preload()
                                 ->searchable()
                                 ->default(fn ($record) => $record->employee_id)
                                 //->disabled(fn ($record) => filled($record->employee_id))
-                                //->required()
+                                ->required()
                                 ->validationMessages([
                                     'required' => __('ui.required'),
-                                ]),
+                                    ])
                         ]),
                 ])
                 ->action(function (array $data, Task $record) {
                     DB::transaction(function () use ($data, $record) {
-                        $updateData = [
+                        $record->update([
                             'employee_id' => $data['employee_id'],
                             'updated_by' => Auth::id(),
                             'updated_at' => now(),
-                        ];
-
-                        // Eğer yeni unit_id ve employee_id verilmişse güncelle
-                        if (isset($data['unit_id']) && !$record->unit_id) {
-                            $updateData['unit_id'] = $data['unit_id'];
-                        }
-                        if (isset($data['employee_id']) && !$record->employee_id) {
-                            $updateData['employee_id'] = $data['employee_id'];
-                        }
-
-                        $record->update($updateData);
+                        ]);
                     });
 
                     $record->refresh();
@@ -132,75 +97,153 @@ class ViewTask extends ViewRecord
                         ->title(__('ui.related_person_assigned_successfully'))
                         ->success()
                         ->send();
+
+                    // redirect to index page after dispatching if the user is not super_admin and doesn't have can_assign_task permission
+                    if (!auth()->user()->hasRole('super_admin') && !auth()->user()->can('can_assign_task')) {
+                        return redirect($this->getResource()::getUrl('index'));
+                    }
                 })
                 ->requiresConfirmation()
                 ->color('warning')
                 ->icon('heroicon-o-arrow-uturn-right'),
+//            Actions\Action::make(__('ui.dispatch'))
+//                ->visible(fn ($record) => $record->status->isNot(TaskStatusEnum::COMPLETED) && (auth()->user()->hasRole('super_admin') || auth()->user()->can('can_assign_task') || $record->employee?->email === auth()->user()->email) && filled($record->employee_id))
+//                ->form([
+//                    Fieldset::make(__('ui.related_person_info'))
+//                        ->columns(1)
+//                        ->schema([
+//                            Forms\Components\Select::make('unit_id')
+//                                ->label(__('ui.unit'))
+//                                ->options(Unit::query()->pluck('name', 'id'))
+//                                ->live()
+//                                ->afterStateUpdated(fn (callable $set) => $set('employee_id', null))
+//                                ->preload()
+//                                ->searchable()
+//                                ->required()
+//                                ->default(fn ($record) => $record->unit_id)
+//                                ->disabled(fn ($record) => filled($record->unit_id))
+//                                ->validationMessages([
+//                                    'required' => __('ui.required'),
+//                                ]),
+//                            Forms\Components\Select::make('employee_id')
+//                                //->hidden()
+//                                ->label(__('ui.related_person'))
+//                                ->options(function (callable $get) {
+//
+//                                    $unitId = $get('unit_id');
+//
+//                                    if (!$unitId) {
+//                                        return [];
+//                                    }
+//
+//                                    // if unit_id is 5 then return employees like "Bakım%"
+//                                    // 5: Ünite Bakımı
+//                                    if ($unitId == 5) {
+//                                        return Employee::query()
+//                                            ->where('status', ActiveStatusEnum::ACTIVE)
+//                                            ->where('profession', 'LIKE', 'Bakım%')
+//                                            ->pluck('name', 'id');
+//                                    }
+//
+//                                    // if unit_id is 6 then return all employees
+//                                    // 6: Temapark Görsel
+//                                    if ($unitId == 6) {
+//                                        return Employee::query()
+//                                            ->where('status', ActiveStatusEnum::ACTIVE)
+//                                            ->pluck('name', 'id');
+//                                    }
+//
+//                                    $unitName = Unit::query()
+//                                        ->where('id', $unitId)
+//                                        ->value('name');
+//
+//                                    if (!$unitName) {
+//                                        return [];
+//                                    }
+//
+//                                    return Employee::query()
+//                                        ->where('status', ActiveStatusEnum::ACTIVE)
+//                                        ->where('profession', 'LIKE', $unitName . '%')
+//                                        ->pluck('name', 'id');
+//                                })
+//                                ->preload()
+//                                ->searchable()
+//                                ->default(fn ($record) => $record->employee_id)
+//                                //->disabled(fn ($record) => filled($record->employee_id))
+//                                //->required()
+//                                ->validationMessages([
+//                                    'required' => __('ui.required'),
+//                                ]),
+//                        ]),
+//                ])
+//                ->action(function (array $data, Task $record) {
+//                    DB::transaction(function () use ($data, $record) {
+//                        $updateData = [
+//                            'employee_id' => $data['employee_id'],
+//                            'updated_by' => Auth::id(),
+//                            'updated_at' => now(),
+//                        ];
+//
+//                        // Eğer yeni unit_id ve employee_id verilmişse güncelle
+//                        if (isset($data['unit_id']) && !$record->unit_id) {
+//                            $updateData['unit_id'] = $data['unit_id'];
+//                        }
+//                        if (isset($data['employee_id']) && !$record->employee_id) {
+//                            $updateData['employee_id'] = $data['employee_id'];
+//                        }
+//
+//                        $record->update($updateData);
+//                    });
+//
+//                    $record->refresh();
+//
+//                    if ($record->employee) {
+//                        $record->notify(new \App\Notifications\TaskAssigned($record));
+//                    }
+//
+//                    Notification::make()
+//                        ->title(__('ui.related_person_assigned_successfully'))
+//                        ->success()
+//                        ->send();
+//                })
+//                ->requiresConfirmation()
+//                ->color('warning')
+//                ->icon('heroicon-o-arrow-uturn-right'),
             Actions\Action::make(__('ui.assign_related_person'))
                 ->visible(fn ($record) => ($record->status->isNot(TaskStatusEnum::COMPLETED) && $record->employee_id === null) && (auth()->user()->hasRole('super_admin') || auth()->user()->can('can_assign_task') || $record->created_by === auth()->id()))
                 ->form([
                     Fieldset::make(__('ui.related_person_info'))
                         ->columns(1)
                         ->schema([
-                            Forms\Components\Select::make('unit_id')
-                                ->label(__('ui.unit'))
-                                ->options(Unit::query()->pluck('name', 'id'))
-                                ->live()
-                                ->afterStateUpdated(fn (callable $set) => $set('employee_id', null))
-                                ->preload()
-                                ->searchable()
-                                ->required()
-                                ->default(fn ($record) => $record->unit_id)
-                                ->disabled(fn ($record) => filled($record->unit_id))
-                                ->validationMessages([
-                                    'required' => __('ui.required'),
-                                ]),
+                            Forms\Components\TextInput::make('group.name')
+                                ->label(__('ui.group'))
+                                ->default(fn ($record) => $record->group?->name)
+                                ->disabled(),
                             Forms\Components\Select::make('employee_id')
                                 //->hidden()
                                 ->label(__('ui.related_person'))
                                 ->options(function (callable $get) {
 
-                                    $unitId = $get('unit_id');
+                                    $groupName = $get('group.name');
 
-                                    if (!$unitId) {
-                                        return [];
-                                    }
-
-                                    // if unit_id is 5 then return employees like "Bakım%"
-                                    // 5: Ünite Bakımı
-                                    if ($unitId == 5) {
-                                        return Employee::query()
-                                            ->where('status', ActiveStatusEnum::ACTIVE)
-                                            ->where('profession', 'LIKE', 'Bakım%')
-                                            ->pluck('name', 'id');
-                                    }
-
-                                    // if unit_id is 6 then return all employees
-                                    // 6: Temapark Görsel
-                                    if ($unitId == 6) {
-                                        return Employee::query()
-                                            ->where('status', ActiveStatusEnum::ACTIVE)
-                                            ->pluck('name', 'id');
-                                    }
-
-                                    $unitName = Unit::query()
-                                        ->where('id', $unitId)
-                                        ->value('name');
-
-                                    if (!$unitName) {
+                                    if (!$groupName) {
                                         return [];
                                     }
 
                                     return Employee::query()
                                         ->where('status', ActiveStatusEnum::ACTIVE)
-                                        ->where('profession', 'LIKE', $unitName . '%')
+                                        ->whereHas('groupMemberships', function ($query) use ($groupName) {
+                                            $query->whereHas('group', function ($q) use ($groupName) {
+                                                $q->where('name', $groupName);
+                                            })->whereNull('deleted_at');
+                                        })
                                         ->pluck('name', 'id');
                                 })
                                 ->preload()
                                 ->searchable()
                                 ->default(fn ($record) => $record->employee_id)
                                 //->disabled(fn ($record) => filled($record->employee_id))
-                                //->required()
+                                ->required()
                                 ->validationMessages([
                                     'required' => __('ui.required'),
                                 ]),
@@ -208,21 +251,11 @@ class ViewTask extends ViewRecord
                 ])
                 ->action(function (array $data, Task $record) {
                     DB::transaction(function () use ($data, $record) {
-                        $updateData = [
+                        $record->update([
                             'employee_id' => $data['employee_id'],
                             'updated_by' => Auth::id(),
                             'updated_at' => now(),
-                        ];
-
-                        // Eğer yeni unit_id ve employee_id verilmişse güncelle
-                        if (isset($data['unit_id']) && !$record->unit_id) {
-                            $updateData['unit_id'] = $data['unit_id'];
-                        }
-                        if (isset($data['employee_id']) && !$record->employee_id) {
-                            $updateData['employee_id'] = $data['employee_id'];
-                        }
-
-                        $record->update($updateData);
+                        ]);
                     });
 
                     $record->refresh();
@@ -238,7 +271,111 @@ class ViewTask extends ViewRecord
                 })
                 ->requiresConfirmation()
                 ->color('warning')
-                ->icon('heroicon-o-user-circle'),
+                ->icon('heroicon-o-user-group'),
+//            Actions\Action::make(__('ui.assign_related_person'))
+//                ->hidden()
+//                ->visible(fn ($record) => ($record->status->isNot(TaskStatusEnum::COMPLETED) && $record->employee_id === null) && (auth()->user()->hasRole('super_admin') || auth()->user()->can('can_assign_task') || $record->created_by === auth()->id()))
+//                ->form([
+//                    Fieldset::make(__('ui.related_person_info'))
+//                        ->columns(1)
+//                        ->schema([
+//                            Forms\Components\Select::make('unit_id')
+//                                ->label(__('ui.unit'))
+//                                ->options(Unit::query()->pluck('name', 'id'))
+//                                ->live()
+//                                ->afterStateUpdated(fn (callable $set) => $set('employee_id', null))
+//                                ->preload()
+//                                ->searchable()
+//                                ->required()
+//                                ->default(fn ($record) => $record->unit_id)
+//                                ->disabled(fn ($record) => filled($record->unit_id))
+//                                ->validationMessages([
+//                                    'required' => __('ui.required'),
+//                                ]),
+//                            Forms\Components\Select::make('employee_id')
+//                                //->hidden()
+//                                ->label(__('ui.related_person'))
+//                                ->options(function (callable $get) {
+//
+//                                    $unitId = $get('unit_id');
+//
+//                                    if (!$unitId) {
+//                                        return [];
+//                                    }
+//
+//                                    // if unit_id is 5 then return employees like "Bakım%"
+//                                    // 5: Ünite Bakımı
+//                                    if ($unitId == 5) {
+//                                        return Employee::query()
+//                                            ->where('status', ActiveStatusEnum::ACTIVE)
+//                                            ->where('profession', 'LIKE', 'Bakım%')
+//                                            ->pluck('name', 'id');
+//                                    }
+//
+//                                    // if unit_id is 6 then return all employees
+//                                    // 6: Temapark Görsel
+//                                    if ($unitId == 6) {
+//                                        return Employee::query()
+//                                            ->where('status', ActiveStatusEnum::ACTIVE)
+//                                            ->pluck('name', 'id');
+//                                    }
+//
+//                                    $unitName = Unit::query()
+//                                        ->where('id', $unitId)
+//                                        ->value('name');
+//
+//                                    if (!$unitName) {
+//                                        return [];
+//                                    }
+//
+//                                    return Employee::query()
+//                                        ->where('status', ActiveStatusEnum::ACTIVE)
+//                                        ->where('profession', 'LIKE', $unitName . '%')
+//                                        ->pluck('name', 'id');
+//                                })
+//                                ->preload()
+//                                ->searchable()
+//                                ->default(fn ($record) => $record->employee_id)
+//                                //->disabled(fn ($record) => filled($record->employee_id))
+//                                //->required()
+//                                ->validationMessages([
+//                                    'required' => __('ui.required'),
+//                                ]),
+//                        ]),
+//                ])
+//                ->action(function (array $data, Task $record) {
+//                    DB::transaction(function () use ($data, $record) {
+//                        $updateData = [
+//                            'employee_id' => $data['employee_id'],
+//                            'updated_by' => Auth::id(),
+//                            'updated_at' => now(),
+//                        ];
+//
+//                        // Eğer yeni unit_id ve employee_id verilmişse güncelle
+//                        if (isset($data['unit_id']) && !$record->unit_id) {
+//                            $updateData['unit_id'] = $data['unit_id'];
+//                        }
+//                        if (isset($data['employee_id']) && !$record->employee_id) {
+//                            $updateData['employee_id'] = $data['employee_id'];
+//                        }
+//
+//                        $record->update($updateData);
+//                    });
+//
+//                    $record->refresh();
+//
+//                    if ($record->employee) {
+//                        $record->notify(new \App\Notifications\TaskAssigned($record));
+//                    }
+//
+//                    Notification::make()
+//                        ->title(__('ui.related_person_assigned_successfully'))
+//                        ->success()
+//                        ->send();
+//                })
+//                ->requiresConfirmation()
+//                ->color('warning')
+//                ->icon('heroicon-o-user-circle'),
             Actions\EditAction::make()
                 //->visible(fn ($record) => $record->status->isNot(TaskStatusEnum::COMPLETED) && (auth()->user()->hasRole('super_admin') || $record->created_by == auth()->id()))
                 ->icon('heroicon-o-pencil')
@@ -253,94 +390,32 @@ class ViewTask extends ViewRecord
                     (auth()->user()->hasRole('super_admin') || auth()->user()->can('can_close_task') || $record->employee?->email === auth()->user()->email || $record->created_by === auth()->id())
                 )
                 ->form([
-                    Fieldset::make(__('ui.related_person_info'))
+                    Fieldset::make(__('ui.closure_info'))
                         ->columns(1)
                         ->schema([
-                            Forms\Components\Select::make('unit_id')
-                                ->label(__('ui.unit'))
-                                ->options(Unit::query()->pluck('name', 'id'))
-                                ->live()
-                                ->afterStateUpdated(fn (callable $set) => $set('employee_id', null))
-                                ->preload()
-                                ->searchable()
+                            Forms\Components\DatePicker::make('due_date')
+                                ->label(__('ui.due_date'))
+                                ->minDate(fn ($record) => $record->task_date)
+                                ->maxDate(now())
+                                ->afterOrEqual('task_date')
                                 ->required()
-                                ->default(fn ($record) => $record->unit_id)
-                                //->disabled(fn ($record) => filled($record->unit_id))
                                 ->validationMessages([
                                     'required' => __('ui.required'),
+                                    'after_or_equal' => __('ui.due_date_after_or_equal_task_date'),
                                 ]),
-                            Forms\Components\Select::make('employee_id')
-                                //->hidden()
-                                ->label(__('ui.related_person'))
-                                ->options(function (callable $get) {
-
-                                    $unitId = $get('unit_id');
-
-                                    if (!$unitId) {
-                                        return [];
-                                    }
-
-                                    // if unit_id is 5 then return employees like "Bakım%"
-                                    // 5: Ünite Bakımı
-                                    if ($unitId == 5) {
-                                        return Employee::query()
-                                            ->where('status', ActiveStatusEnum::ACTIVE)
-                                            ->where('profession', 'LIKE', 'Bakım%')
-                                            ->pluck('name', 'id');
-                                    }
-
-                                    // if unit_id is 6 then return all employees
-                                    // 6: Temapark Görsel
-                                    if ($unitId == 6) {
-                                        return Employee::query()
-                                            ->where('status', ActiveStatusEnum::ACTIVE)
-                                            ->pluck('name', 'id');
-                                    }
-
-                                    $unitName = Unit::query()
-                                        ->where('id', $unitId)
-                                        ->value('name');
-
-                                    if (!$unitName) {
-                                        return [];
-                                    }
-
-                                    return Employee::query()
-                                        ->where('status', ActiveStatusEnum::ACTIVE)
-                                        ->where('profession', 'LIKE', $unitName . '%')
-                                        ->pluck('name', 'id');
-                                })
-                                ->preload()
-                                ->searchable()
-                                ->default(fn ($record) => $record->employee_id)
-                                //->disabled(fn ($record) => filled($record->employee_id))
-                                //->required()
+                            Forms\Components\Textarea::make('resolution_notes')
+                                ->label(__('ui.resolution_notes'))
+                                ->placeholder(__('ui.resolution_placeholder'))
+                                ->requiredWith('due_date')
+                                ->columnSpanFull()
                                 ->validationMessages([
                                     'required' => __('ui.required'),
-                                ]),
+                                ])->columnSpanFull(),
                         ]),
-                    Forms\Components\DatePicker::make('due_date')
-                        ->label(__('ui.due_date'))
-                        ->minDate(fn ($record) => $record->task_date)
-                        ->maxDate(now())
-                        ->afterOrEqual('task_date')
-                        ->required()
-                        ->validationMessages([
-                            'required' => __('ui.required'),
-                            'after_or_equal' => __('ui.due_date_after_or_equal_task_date'),
-                        ]),
-                    Forms\Components\Textarea::make('resolution_notes')
-                        ->label(__('ui.resolution_notes'))
-                        ->placeholder(__('ui.resolution_placeholder'))
-                        ->requiredWith('due_date')
-                        ->columnSpanFull()
-                        ->validationMessages([
-                            'required' => __('ui.required'),
-                        ])->columnSpanFull(),
                 ])
                 ->action(function (array $data, Task $record) {
                     DB::transaction(function () use ($data, $record) {
-                        $updateData = [
+                        $record->update([
                             'status' => TaskStatusEnum::COMPLETED,
                             'due_date' => $data['due_date'],
                             'resolution_notes' => $data['resolution_notes'],
@@ -350,17 +425,7 @@ class ViewTask extends ViewRecord
                             'reopen_reason' => null,
                             'reopened_by' => null,
                             'reopened_at' => null,
-                        ];
-
-                        // Eğer yeni unit_id ve employee_id verilmişse güncelle
-                        if (isset($data['unit_id']) && !$record->unit_id) {
-                            $updateData['unit_id'] = $data['unit_id'];
-                        }
-                        if (isset($data['employee_id']) && !$record->employee_id) {
-                            $updateData['employee_id'] = $data['employee_id'];
-                        }
-
-                        $record->update($updateData);
+                        ]);
                     });
 
                     $record->refresh();
@@ -375,6 +440,135 @@ class ViewTask extends ViewRecord
                 ->requiresConfirmation()
                 ->color('success')
                 ->icon('heroicon-o-check-circle'),
+//            Actions\Action::make(__('ui.close'))
+//                ->hidden(fn ($record) => $record->trashed())
+//                ->visible(fn ($record) =>
+//                    ($record->status->isNot(TaskStatusEnum::COMPLETED) && filled($record->employee_id)) &&
+//                    (auth()->user()->hasRole('super_admin') || auth()->user()->can('can_close_task') || $record->employee?->email === auth()->user()->email || $record->created_by === auth()->id())
+//                )
+//                ->form([
+//                    Fieldset::make(__('ui.related_person_info'))
+//                        ->columns(1)
+//                        ->schema([
+//                            Forms\Components\Select::make('unit_id')
+//                                ->label(__('ui.unit'))
+//                                ->options(Unit::query()->pluck('name', 'id'))
+//                                ->live()
+//                                ->afterStateUpdated(fn (callable $set) => $set('employee_id', null))
+//                                ->preload()
+//                                ->searchable()
+//                                ->required()
+//                                ->default(fn ($record) => $record->unit_id)
+//                                //->disabled(fn ($record) => filled($record->unit_id))
+//                                ->validationMessages([
+//                                    'required' => __('ui.required'),
+//                                ]),
+//                            Forms\Components\Select::make('employee_id')
+//                                //->hidden()
+//                                ->label(__('ui.related_person'))
+//                                ->options(function (callable $get) {
+//
+//                                    $unitId = $get('unit_id');
+//
+//                                    if (!$unitId) {
+//                                        return [];
+//                                    }
+//
+//                                    // if unit_id is 5 then return employees like "Bakım%"
+//                                    // 5: Ünite Bakımı
+//                                    if ($unitId == 5) {
+//                                        return Employee::query()
+//                                            ->where('status', ActiveStatusEnum::ACTIVE)
+//                                            ->where('profession', 'LIKE', 'Bakım%')
+//                                            ->pluck('name', 'id');
+//                                    }
+//
+//                                    // if unit_id is 6 then return all employees
+//                                    // 6: Temapark Görsel
+//                                    if ($unitId == 6) {
+//                                        return Employee::query()
+//                                            ->where('status', ActiveStatusEnum::ACTIVE)
+//                                            ->pluck('name', 'id');
+//                                    }
+//
+//                                    $unitName = Unit::query()
+//                                        ->where('id', $unitId)
+//                                        ->value('name');
+//
+//                                    if (!$unitName) {
+//                                        return [];
+//                                    }
+//
+//                                    return Employee::query()
+//                                        ->where('status', ActiveStatusEnum::ACTIVE)
+//                                        ->where('profession', 'LIKE', $unitName . '%')
+//                                        ->pluck('name', 'id');
+//                                })
+//                                ->preload()
+//                                ->searchable()
+//                                ->default(fn ($record) => $record->employee_id)
+//                                //->disabled(fn ($record) => filled($record->employee_id))
+//                                //->required()
+//                                ->validationMessages([
+//                                    'required' => __('ui.required'),
+//                                ]),
+//                        ]),
+//                    Forms\Components\DatePicker::make('due_date')
+//                        ->label(__('ui.due_date'))
+//                        ->minDate(fn ($record) => $record->task_date)
+//                        ->maxDate(now())
+//                        ->afterOrEqual('task_date')
+//                        ->required()
+//                        ->validationMessages([
+//                            'required' => __('ui.required'),
+//                            'after_or_equal' => __('ui.due_date_after_or_equal_task_date'),
+//                        ]),
+//                    Forms\Components\Textarea::make('resolution_notes')
+//                        ->label(__('ui.resolution_notes'))
+//                        ->placeholder(__('ui.resolution_placeholder'))
+//                        ->requiredWith('due_date')
+//                        ->columnSpanFull()
+//                        ->validationMessages([
+//                            'required' => __('ui.required'),
+//                        ])->columnSpanFull(),
+//                ])
+//                ->action(function (array $data, Task $record) {
+//                    DB::transaction(function () use ($data, $record) {
+//                        $updateData = [
+//                            'status' => TaskStatusEnum::COMPLETED,
+//                            'due_date' => $data['due_date'],
+//                            'resolution_notes' => $data['resolution_notes'],
+//                            'completed_by' => Auth::id(),
+//                            'updated_by' => Auth::id(),
+//                            'updated_at' => now(),
+//                            'reopen_reason' => null,
+//                            'reopened_by' => null,
+//                            'reopened_at' => null,
+//                        ];
+//
+//                        // Eğer yeni unit_id ve employee_id verilmişse güncelle
+//                        if (isset($data['unit_id']) && !$record->unit_id) {
+//                            $updateData['unit_id'] = $data['unit_id'];
+//                        }
+//                        if (isset($data['employee_id']) && !$record->employee_id) {
+//                            $updateData['employee_id'] = $data['employee_id'];
+//                        }
+//
+//                        $record->update($updateData);
+//                    });
+//
+//                    $record->refresh();
+//
+//                    $record->createdBy->notify(new TaskClosed($record));
+//
+//                    Notification::make()
+//                        ->title(__('ui.task_closed_successfully'))
+//                        ->success()
+//                        ->send();
+//                })
+//                ->requiresConfirmation()
+//                ->color('success')
+//                ->icon('heroicon-o-check-circle'),
             Actions\Action::make('ui.reopen')
                 ->label(__('ui.reopen'))
                 ->visible(fn ($record) => $record->status->is(TaskStatusEnum::COMPLETED) && (auth()->user()->hasRole('super_admin') || auth()->user()->can('can_reopen_task') || $record->created_by === auth()->id()))
@@ -440,20 +634,29 @@ class ViewTask extends ViewRecord
                                             ->html(),
                                     ]),
                                 Infolists\Components\Fieldset::make(__('ui.priority_and_assigned_to'))
-                                    ->columns(3)
+                                    ->columns(4)
                                     ->schema([
                                         Infolists\Components\TextEntry::make('priority')
                                             ->label(__('ui.priority'))
                                             ->badge(),
-                                        Infolists\Components\TextEntry::make('status')
-                                            ->label(__('ui.status'))
-                                            ->badge(),
+                                        Infolists\Components\TextEntry::make('unit.name')
+                                            ->label(__('ui.unit'))
+                                            ->badge()
+                                            ->icon('heroicon-o-building-office'),
+                                        Infolists\Components\TextEntry::make('group.name')
+                                            ->label(__('ui.group'))
+                                            ->badge()
+                                            ->icon('heroicon-o-user-group'),
                                         Infolists\Components\TextEntry::make('employee.name')
+                                            ->visible(fn ($record) => $record->employee_id !== null)
                                             ->label(__('ui.related_person'))
                                             ->placeholder(__('ui.not_assigned_yet'))
                                             ->badge()
                                             ->color('primary')
                                             ->icon('heroicon-o-user'),
+                                        Infolists\Components\TextEntry::make('status')
+                                            ->label(__('ui.status'))
+                                            ->badge(),
                                         Infolists\Components\TextEntry::make('subcontractor')
                                             ->hidden()
                                             ->visible(fn ($record) => $record->assigned_person_type_id === AssignedPersonTypeEnum::SUBCONTRACTOR && $record->subcontractorEmployee?->subcontractor)
@@ -463,24 +666,27 @@ class ViewTask extends ViewRecord
                                             ->color('primary')
                                             ->icon('heroicon-o-building-office-2')
                                     ]),
-                                Infolists\Components\TextEntry::make('type_id')
-                                    ->label(__('ui.type')),
-                                Infolists\Components\TextEntry::make('area.name')
-                                    ->label(__('ui.area'))
-                                    ->icon('heroicon-o-map'),
-                                Infolists\Components\TextEntry::make('subArea.name')
-                                    ->label(__('ui.sub_area'))
-                                    ->icon('heroicon-o-map-pin'),
-                                Infolists\Components\TextEntry::make('unit.name')
-                                    ->label(__('ui.unit'))
-                                    ->badge()
-                                    ->icon('heroicon-o-building-office'),
-                                Infolists\Components\TextEntry::make('task_date')
-                                    ->label(__('ui.fault_date'))
-                                    ->icon('heroicon-o-calendar-days')
-                                    ->date()
-                                    ->badge()
-                                    ->color('primary'),
+                                Infolists\Components\Fieldset::make(__('ui.fault_location_and_date_information'))
+                                    ->columns(3)
+                                    ->schema([
+                                        Infolists\Components\TextEntry::make('type_id')
+                                            ->label(__('ui.type')),
+                                        Infolists\Components\TextEntry::make('area.company.name')
+                                            ->label(__('ui.company'))
+                                            ->icon('heroicon-o-building-library'),
+                                        Infolists\Components\TextEntry::make('area.name')
+                                            ->label(__('ui.area'))
+                                            ->icon('heroicon-o-map'),
+                                        Infolists\Components\TextEntry::make('subArea.name')
+                                            ->label(__('ui.sub_area'))
+                                            ->icon('heroicon-o-map-pin'),
+                                        Infolists\Components\TextEntry::make('task_date')
+                                            ->label(__('ui.fault_date'))
+                                            ->icon('heroicon-o-calendar-days')
+                                            ->date()
+                                            ->badge()
+                                            ->color('primary'),
+                                    ]),
                                 Infolists\Components\Fieldset::make(__('ui.descriptions'))
                                     ->columns(2)
                                     ->schema([

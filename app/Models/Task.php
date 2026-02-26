@@ -19,6 +19,7 @@ class Task extends Model Implements HasMedia
         'description',
         'user_id',
         'area_id',
+        'group_id',
         'sub_area_id',
         'unit_id',
         'unit_description',
@@ -63,7 +64,11 @@ class Task extends Model Implements HasMedia
 
     public function area()
     {
-        return $this->belongsTo(Area::class, 'area_id');
+        return $this->belongsTo(Area::class, 'area_id')
+            ->with([
+                'company',
+                'subAreas',
+            ]);
     }
 
     public function subArea()
@@ -216,5 +221,18 @@ class Task extends Model Implements HasMedia
         }
 
         return $completedAt <= $target ? 'SUCCESS' : 'FAILED';
+    }
+
+    // relation with group
+    public function group()
+    {
+        return $this->belongsTo(Group::class, 'group_id')
+            ->with([
+                'company',
+                'area',
+                'unit',
+                'manager',
+                'members',
+            ]);
     }
 }

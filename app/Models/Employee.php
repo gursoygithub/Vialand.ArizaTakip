@@ -77,4 +77,18 @@ class Employee extends Model
         // Yüzdelik başarı oranı
         return ($onTimeTasks / $tasks->count()) * 100;
     }
+
+    // relationship with Group model as manager
+    public function managedGroups()
+    {
+        return $this->hasMany(Group::class, 'employee_id')
+            ->with('manager');
+    }
+
+    // relationship with GroupMember model as member
+    public function groupMemberships()
+    {
+        return $this->hasMany(GroupMember::class, 'employee_id')
+            ->with('group');
+    }
 }

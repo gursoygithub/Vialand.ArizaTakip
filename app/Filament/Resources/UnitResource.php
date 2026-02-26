@@ -181,7 +181,7 @@ class UnitResource extends Resource
 //                    ->badge()
 //                    ->color(\App\Enums\TaskStatusEnum::WINTER_MAINTENANCE->getColor()),
                 Tables\Columns\TextColumn::make('createdBy.name')
-                    ->visible(fn () => auth()->user()->hasRole('super_admin') || auth()->user()->can('view_all_areas'))
+                    ->visible(fn () => auth()->user()->hasRole('super_admin') || auth()->user()->can('view_all_units'))
                     ->label(__('ui.created_by'))
                     ->icon('heroicon-o-user')
                     ->searchable()

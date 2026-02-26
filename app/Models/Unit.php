@@ -11,7 +11,7 @@ use Spatie\Activitylog\Traits\LogsActivity;
 
 class Unit extends Model
 {
-    use Notifiable, SoftDeletes, HasFactory, LogsActivity;
+    use Notifiable, SoftDeletes, LogsActivity;
 
     protected $fillable = [
         'name',
@@ -50,6 +50,16 @@ class Unit extends Model
     public function tasks()
     {
         return $this->hasMany(Task::class, 'unit_id');
+    }
+
+    // relation with group
+    public function groups()
+    {
+        return $this->hasMany(Group::class, 'unit_id')
+            ->with([
+                'company',
+                'area',
+            ]);
     }
 
     protected static function booted()
