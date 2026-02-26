@@ -19,6 +19,7 @@ class SlaPolicy extends Model
         'unit_id',
         'priority',
         'deadline_minutes',
+        'success_threshold',
         'created_by',
         'updated_by',
         'deleted_by',

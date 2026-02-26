@@ -218,6 +218,21 @@ class SlaPolicyResource extends Resource
                                             ->validationMessages([
                                                 'required' => __('ui.required'),
                                             ]),
+                                            Forms\Components\TextInput::make('success_threshold')
+                                                ->label(__('ui.success_threshold_percentage'))
+                                                ->placeholder(__('ui.success_threshold_percentage_placeholder'))
+                                                ->numeric()
+                                                ->prefix('%')
+                                                ->minValue(1)
+                                                ->maxValue(100)
+                                                ->default(80)
+                                                ->required()
+                                                ->validationMessages([
+                                                    'required' => __('ui.required'),
+                                                    'min_value' => __('ui.success_threshold_min_value'),
+                                                    'max_value' => __('ui.success_threshold_max_value')
+                                                    ]
+                                                ),
                                         ]),
                             ]),
                     ]),
@@ -254,6 +269,13 @@ class SlaPolicyResource extends Resource
                     ->icon('heroicon-o-clock')
                     ->badge()
                     ->alignCenter()
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('success_threshold')
+                    ->label(__('ui.success_threshold_percentage'))
+                    ->icon('heroicon-o-shield-check')
+                    ->badge()
+                    ->alignCenter()
+                    ->formatStateUsing(fn ($state) => "% " . $state)
                     ->sortable(),
                 Tables\Columns\TextColumn::make('createdBy.name')
                     ->visible(fn () => auth()->user()->hasRole('super_admin') || auth()->user()->can('view_all_sla_policies'))

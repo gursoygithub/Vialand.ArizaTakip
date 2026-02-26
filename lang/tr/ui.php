@@ -642,4 +642,11 @@ return [
     'related_person_mail_notification_hint' => 'Atanan ilgili kişiye e-posta bildirimi gönderilecektir.',
     'related_person_assignment' => 'İlgili Kişi Ataması',
     'closure_info' => 'Kapatma Bilgileri',
+    'success_threshold' => 'Başarı Eşiği',
+    'warning_threshold' => 'Uyarı Eşiği',
+    'danger_threshold' => 'Tehlike Eşiği',
+    'success_threshold_percentage' => 'Başarı Eşiği Yüzdesi',
+    'success_threshold_percentage_placeholder' => 'Başarı eşiği yüzdesini giriniz (örneğin: 80)',
+    'success_threshold_min_value' => 'Başarı Eşiği Minimum Değeri',
+    'success_threshold_max_value' => 'Başarı Eşiği Maksimum Değeri',
 ];
