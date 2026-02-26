@@ -10,10 +10,12 @@ use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
 use Spatie\MediaLibrary\HasMedia;
 use Spatie\MediaLibrary\InteractsWithMedia;
+use Illuminate\Support\Facades\Cache;
 
 class Task extends Model Implements HasMedia
 {
     use Notifiable, SoftDeletes, InteractsWithMedia, LogsActivity;
+
     protected $fillable = [
         'title',
         'description',
@@ -39,6 +41,7 @@ class Task extends Model Implements HasMedia
         'updated_by',
         'deleted_by',
         'updated_at',
+        'sla_outcome', // PERFORMANS İÇİN EKLENDİ
     ];
 
     protected $casts = [
@@ -51,10 +54,9 @@ class Task extends Model Implements HasMedia
         'reopened_at' => 'datetime',
     ];
 
-    public function employee()
-    {
-        return $this->belongsTo(Employee::class);
-    }
+    // --- MEVCUT İLİŞKİLER (DOKUNULMADI) ---
+
+    public function employee() { return $this->belongsTo(Employee::class); }
 
     public function subcontractorEmployee()
     {
@@ -65,40 +67,27 @@ class Task extends Model Implements HasMedia
     public function area()
     {
         return $this->belongsTo(Area::class, 'area_id')
-            ->with([
-                'company',
-                'subAreas',
-            ]);
+            ->with(['company', 'subAreas']);
     }
 
-    public function subArea()
-    {
-        return $this->belongsTo(SubArea::class, 'sub_area_id');
-    }
+    public function subArea() { return $this->belongsTo(SubArea::class, 'sub_area_id'); }
 
-    public function unit()
-    {
-        return $this->belongsTo(Unit::class, 'unit_id');
-    }
+    public function unit() { return $this->belongsTo(Unit::class, 'unit_id'); }
 
-    public function createdBy()
-    {
-        return $this->belongsTo(User::class, 'created_by');
-    }
+    public function createdBy() { return $this->belongsTo(User::class, 'created_by'); }
 
-    public function updatedBy()
-    {
-        return $this->belongsTo(User::class, 'updated_by');
-    }
+    public function updatedBy() { return $this->belongsTo(User::class, 'updated_by'); }
 
-    public function deletedBy()
-    {
-        return $this->belongsTo(User::class, 'deleted_by');
-    }
+    public function deletedBy() { return $this->belongsTo(User::class, 'deleted_by'); }
 
-    public function completedBy()
+    public function completedBy() { return $this->belongsTo(User::class, 'completed_by'); }
+
+    public function reopenedBy() { return $this->belongsTo(User::class, 'reopened_by'); }
+
+    public function group()
     {
-        return $this->belongsTo(User::class, 'completed_by');
+        return $this->belongsTo(Group::class, 'group_id')
+            ->with(['company', 'area', 'unit', 'manager', 'members']);
     }
 
     public function registerMediaCollections(): void
@@ -108,13 +97,13 @@ class Task extends Model Implements HasMedia
             ->singleFile();
     }
 
+    // --- MEVCUT YETKİ SORGUSU (DOKUNULMADI) ---
+
     public static function query()
     {
         $user = auth()->user();
 
-        $hasPermission =
-            $user->hasRole('super_admin') ||
-            $user->can('view_all_tasks');
+        $hasPermission = $user?->hasRole('super_admin') || $user?->can('view_all_tasks');
 
         if ($hasPermission) {
             return parent::query();
@@ -123,61 +112,116 @@ class Task extends Model Implements HasMedia
         return parent::query()
             ->where(function ($query) use ($user) {
                 $query
-                    ->where('created_by', $user->id)
+                    ->where('created_by', $user?->id)
                     ->orWhere('employee_id', function ($subQuery) use ($user) {
                         $subQuery->select('id')
                             ->from('employees')
-                            ->where('email', $user->email);
+                            ->where('email', $user?->email);
                     });
             });
     }
 
-//    public static function query()
-//    {
-//        $hasPermission = auth()->user()->hasRole('super_admin') || auth()->user()->can('view_all_tasks');
-//
-//        if ($hasPermission) {
-//            return parent::query();
-//        } else {
-//            return parent::query()
-//                ->where('created_by', auth()->user()->id)
-//                ->orWhere('employee_id', function ($query) {
-//                    $query->select('id')
-//                        ->from('employees')
-//                        ->where('email', auth()->user()->email);
-//                });
-//        }
-//    }
+    // --- SLA OPTİMİZASYONLARI (NİHAİ GÜNCEL HALİ) ---
+    public function getTargetDateAttribute()
+    {
+        return Cache::remember("task_target_{$this->id}", 3600, function() {
+            $policy = SlaPolicy::where('area_id', $this->area_id)
+                ->where('sub_area_id', $this->sub_area_id)
+                ->where('unit_id', $this->unit_id)
+                ->where('priority', $this->priority)
+                ->first();
+
+            if (!$policy) {
+                $policy = SlaPolicy::where('area_id', $this->area_id)
+                    ->where('priority', $this->priority)
+                    ->whereNull('sub_area_id')
+                    ->first();
+            }
+
+            if (!$policy || !$policy->deadline_minutes) return null;
+            return $this->created_at->addMinutes($policy->deadline_minutes);
+        });
+    }
+
+    public function getSlaStatusAttribute()
+    {
+        if (!empty($this->sla_outcome)) return $this->sla_outcome;
+
+        $target = $this->target_date;
+        $completedAt = $this->due_date;
+
+        if (!$completedAt) return now() > $target ? 'SLA_BREACHED' : 'IN_PROGRESS';
+        return $completedAt <= $target ? 'SUCCESS' : 'FAILED';
+    }
 
     protected static function booted()
     {
         static::creating(function ($task) {
             $task->created_by = auth()->id();
-
-            // send email notification to assigned employee
             if ($task->employee_id) {
                 $employee = Employee::find($task->employee_id);
-                if ($employee) {
-                    $employee->notify(new TaskAssigned($task));
+                if ($employee) $employee->notify(new TaskAssigned($task));
+            }
+        });
+
+        static::saving(function ($task) {
+            if ($task->due_date) {
+                // 1. Spesifik eşleşmeyi ara (Bölge + Lokasyon + Birim + Öncelik)
+                $policy = \App\Models\SlaPolicy::where([
+                    'area_id'     => $task->area_id,
+                    'sub_area_id' => $task->sub_area_id,
+                    'unit_id'     => $task->unit_id,
+                    'priority'    => $task->priority,
+                ])->first();
+
+                // 2. Fallback: Lokasyon bağımsız ara (Bölge + Birim + Öncelik)
+                if (!$policy) {
+                    $policy = \App\Models\SlaPolicy::where([
+                        'area_id'  => $task->area_id,
+                        'unit_id'  => $task->unit_id,
+                        'priority' => $task->priority,
+                    ])->first();
+                }
+
+                if ($policy && $policy->deadline_minutes) {
+                    // Target Date: Görev oluşturma tarihi üzerine politika süresini ekle
+                    $startTime = $task->created_at ?? now();
+                    $targetDate = $startTime->copy()->addMinutes($policy->deadline_minutes);
+
+                    // Kapanış tarihi hedef tarihten önceyse SUCCESS, değilse FAILED
+                    $task->sla_outcome = $task->due_date <= $targetDate ? 'SUCCESS' : 'FAILED';
+                } else {
+                    // ÖNEMLİ DEĞİŞİKLİK: Politika yoksa FAILED yapma, NULL bırak.
+                    // Bu sayede eski veriler performansı düşürmez.
+                    $task->sla_outcome = null;
+                }
+            }
+        });
+
+        static::saved(function ($task) {
+            \Illuminate\Support\Facades\Cache::forget('dashboard_stats_overview');
+
+            if ($task->employee_id) {
+                \Illuminate\Support\Facades\Cache::forget("emp_perf_{$task->employee_id}");
+
+                // Personel puanını sadece bu görev mühürlendiyse (SUCCESS/FAILED) veya
+                // personelin genel durumunu her halükarda tazelemek için çağır
+                if ($task->employee) {
+                    $task->employee->refreshPerformanceMetrics();
                 }
             }
         });
 
         static::updating(function ($task) {
             $task->updated_by = auth()->id();
-
-            // send email notification to assigned employee if changed
             if ($task->isDirty('employee_id')) {
                 $employee = Employee::find($task->employee_id);
-                if ($employee) {
-                    $employee->notify(new TaskAssigned($task));
-                }
+                if ($employee) $employee->notify(new TaskAssigned($task));
             }
         });
 
         static::deleting(function ($task) {
             $task->deleted_by = auth()->id();
-            $task->deleted_at = now();
             $task->save();
         });
     }
@@ -190,49 +234,5 @@ class Task extends Model Implements HasMedia
             ->logAll()
             ->logOnlyDirty()
             ->useLogName(static::$logName);
-    }
-
-    // reopenedBy
-    public function reopenedBy()
-    {
-        return $this->belongsTo(User::class, 'reopened_by');
-    }
-
-    public function getTargetDateAttribute()
-    {
-        // Bu görev için tanımlanmış SLA politikasını bul
-        $policy = SlaPolicy::where('area_id', $this->area_id)
-            ->where('priority', $this->priority)
-            ->first();
-
-        if (!$policy) return null;
-
-        // Oluşturulma tarihine SLA süresini ekle
-        return $this->created_at->addHours($policy->resolution_time_hours);
-    }
-
-    public function getSlaStatusAttribute()
-    {
-        $target = $this->target_date;
-        $completedAt = $this->due_date; // Senin senaryonda due_date = completed_at
-
-        if (!$completedAt) {
-            return now() > $target ? 'SLA_BREACHED' : 'IN_PROGRESS';
-        }
-
-        return $completedAt <= $target ? 'SUCCESS' : 'FAILED';
-    }
-
-    // relation with group
-    public function group()
-    {
-        return $this->belongsTo(Group::class, 'group_id')
-            ->with([
-                'company',
-                'area',
-                'unit',
-                'manager',
-                'members',
-            ]);
     }
 }

@@ -71,10 +71,17 @@ class MembersRelationManager extends RelationManager
                         'group_members',
                         'employee_id',
                         ignoreRecord: true,
-                        modifyRuleUsing: function (Builder $query) {
-                            $query->whereNull('deleted_at');
+                        modifyRuleUsing: function ($rule) {
+                            // Sadece ŞU ANKİ grup içinde Mahamoud var mı diye bak.
+                            // Diğer gruplarda olması sorun değil.
+                            return $rule->where('group_id', $this->ownerRecord->id)
+                                ->whereNull('deleted_at');
                         }
                     )
+                    ->required()
+                    ->validationMessages([
+                        'unique' => __('ui.employee_already_in_this_group'), // "Bu çalışan zaten bu grupta"
+                    ])
                     ->searchable()
                     ->required()
                     ->validationMessages([

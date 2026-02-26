@@ -5,12 +5,14 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\EmployeeResource\Pages;
 use App\Filament\Resources\EmployeeResource\RelationManagers;
 use App\Models\Employee;
+use App\Models\SlaPolicy;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class EmployeeResource extends Resource
@@ -56,6 +58,31 @@ class EmployeeResource extends Resource
                     ->label(__('ui.email'))
                     ->searchable()
                     ->sortable(),
+
+                // Personelin reel başarısı
+                Tables\Columns\TextColumn::make('performance_score')
+                    ->label('SLA Başarısı')
+                    ->suffix('%')
+                    ->badge()
+                    ->sortable() // En başarılıları sıralamak için
+                    ->color(fn ($record) => $record->performance_score >= $record->current_threshold ? 'success' : 'danger'),
+
+                // Birimlerin (SlaPolicy) başarı eşiklerinin ortalaması
+                Tables\Columns\TextColumn::make('current_threshold')
+                    ->label(__('ui.sla_target_threshold'))
+                    ->formatStateUsing(fn($state) => "%" . round($state, 1))
+                    ->description('Yönetici Hedefi')
+                    ->sortable(),
+
+                // Eşiği aşıp aşmadığını gösteren ikon
+                Tables\Columns\IconColumn::make('is_competent')
+                    ->label('Yeterlilik')
+                    ->state(fn($record) => $record->performance_score >= $record->current_threshold)
+                    ->boolean()
+                    ->trueIcon('heroicon-o-check-badge')
+                    ->falseIcon('heroicon-o-exclamation-triangle')
+                    ->trueColor('success')
+                    ->falseColor('danger'),
             ])
             ->filters([
                 //
@@ -64,9 +91,7 @@ class EmployeeResource extends Resource
                 Tables\Actions\ViewAction::make(),
             ])
             ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
-                ]),
+                //
             ]);
     }
 
@@ -85,5 +110,15 @@ class EmployeeResource extends Resource
             'edit' => Pages\EditEmployee::route('/{record}/edit'),
             'view' => Pages\ViewEmployee::route('/{record}'),
         ];
+    }
+
+    public static function canDelete(Model $record): bool
+    {
+        return false;
+    }
+
+    public static function canEdit(Model $record): bool
+    {
+        return false;
     }
 }

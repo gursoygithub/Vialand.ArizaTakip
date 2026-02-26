@@ -649,4 +649,6 @@ return [
     'success_threshold_percentage_placeholder' => 'Başarı eşiği yüzdesini giriniz (örneğin: 80)',
     'success_threshold_min_value' => 'Başarı Eşiği Minimum Değeri',
     'success_threshold_max_value' => 'Başarı Eşiği Maksimum Değeri',
+    'sla_target_threshold' => 'SLA Hedef Oranı',
+    'performance_report' => 'Performans Raporu',
 ];

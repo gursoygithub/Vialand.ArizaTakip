@@ -394,6 +394,7 @@ class ViewTask extends ViewRecord
                         ->columns(1)
                         ->schema([
                             Forms\Components\DatePicker::make('due_date')
+                                ->hidden()
                                 ->label(__('ui.due_date'))
                                 ->minDate(fn ($record) => $record->task_date)
                                 ->maxDate(now())
@@ -417,7 +418,8 @@ class ViewTask extends ViewRecord
                     DB::transaction(function () use ($data, $record) {
                         $record->update([
                             'status' => TaskStatusEnum::COMPLETED,
-                            'due_date' => $data['due_date'],
+                            'due_date' => now(),
+                            //'due_date' => $data['due_date'],
                             'resolution_notes' => $data['resolution_notes'],
                             'completed_by' => Auth::id(),
                             'updated_by' => Auth::id(),
