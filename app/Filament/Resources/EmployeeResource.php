@@ -59,6 +59,46 @@ class EmployeeResource extends Resource
                     ->searchable()
                     ->sortable(),
 
+                // Toplam Görev Sayısı
+                Tables\Columns\TextColumn::make('tasks_count')
+                    ->label('Toplam Görev')
+                    ->counts('tasks') // Doğrudan ilişkiyi sayar
+                    ->badge()
+                    ->sortable(),
+
+                // Bekleyen (Pending) İşler
+                Tables\Columns\TextColumn::make('pending_tasks_count')
+                    ->label(__('ui.pending'))
+                    ->counts([
+                        'tasks as pending_tasks_count' => fn (Builder $query) => $query->where('status', \App\Enums\TaskStatusEnum::PENDING)
+                    ])
+                    ->badge()
+                    ->color('warning')
+                    ->icon('heroicon-o-clock')
+                    ->sortable(),
+
+                // Tamamlanan (Completed) İşler
+                Tables\Columns\TextColumn::make('completed_tasks_count')
+                    ->label(__('ui.completed'))
+                    ->counts([
+                        'tasks as completed_tasks_count' => fn (Builder $query) => $query->where('status', \App\Enums\TaskStatusEnum::COMPLETED)
+                    ])
+                    ->badge()
+                    ->color('success')
+                    ->icon('heroicon-o-check-circle')
+                    ->sortable(),
+
+                // Kış Bakım (Winter Maintenance) İşler
+                Tables\Columns\TextColumn::make('winter_tasks_count')
+                    ->label(__('ui.winter_maintenance'))
+                    ->counts([
+                        'tasks as winter_tasks_count' => fn (Builder $query) => $query->where('status', \App\Enums\TaskStatusEnum::WINTER_MAINTENANCE)
+                    ])
+                    ->badge()
+                    ->color('info')
+                    ->icon('heroicon-o-lifebuoy')
+                    ->sortable(),
+
                 // Personelin reel başarısı
                 Tables\Columns\TextColumn::make('performance_score')
                     ->label('SLA Başarısı')
