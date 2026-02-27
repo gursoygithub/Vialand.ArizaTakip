@@ -651,4 +651,7 @@ return [
     'success_threshold_max_value' => 'Başarı Eşiği Maksimum Değeri',
     'sla_target_threshold' => 'SLA Hedef Oranı',
     'performance_report' => 'Performans Raporu',
+    'task_performance_this_month' => 'Bu Ayın Görev Performansı',
+    'on_time' => 'Zamanında',
+    'delayed' => 'Gecikmiş',
 ];

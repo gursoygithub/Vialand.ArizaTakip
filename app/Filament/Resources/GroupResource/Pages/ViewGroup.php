@@ -13,6 +13,11 @@ class ViewGroup extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
+            Actions\CreateAction::make()
+                ->label(__('ui.create_new'))
+                ->icon('heroicon-o-plus')
+                ->url($this->getResource()::getUrl('create'))
+                ->color('success'),
             Actions\EditAction::make()
                 ->icon('heroicon-o-pencil-square'),
             Actions\DeleteAction::make()

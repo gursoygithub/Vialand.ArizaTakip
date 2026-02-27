@@ -7,29 +7,48 @@ use Filament\Widgets\ChartWidget;
 use Flowframe\Trend\Trend;
 use Flowframe\Trend\TrendValue;
 use Illuminate\Support\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 
 class TaskPerformanceChart extends ChartWidget
 {
-    protected static ?string $heading = 'Bu Ayın SLA Performansı';
-    protected static string $color = 'success';
+    public function getHeading(): ?string
+    {
+        return __('ui.task_performance_this_month');
+    }
 
-    // Grafiğin dikeyde devleşmesini önler, ekranı dengeler
+    protected static string $color = 'success';
     protected static ?string $maxHeight = '250px';
     protected int | string | array $columnSpan = 'full';
 
     protected function getData(): array
     {
+        $user = auth()->user();
+        // Referans koddaki yetki mantığı: Admin mi yoksa tüm işleri görme yetkisi var mı?
+        $hasPermission = $user->hasRole('super_admin') || $user->can('view_all_tasks');
+
         $monthStart = now()->startOfMonth();
         $today = now();
 
-        // Zamanında Bitirilenler (SUCCESS)
-        $successData = Trend::query(Task::where('sla_outcome', 'SUCCESS'))
+        // Ortak sorgu yapısını yetkiye göre hazırlıyoruz
+        $baseQuery = Task::query()
+            ->when(!$hasPermission, function (Builder $query) use ($user) {
+                // Sadece kendi açtığı veya kendi üzerine atanan işler
+                $query->where(function ($q) use ($user) {
+                    $q->where('created_by', $user->id)
+                        ->orWhere('employee_id', function ($sub) use ($user) {
+                            $sub->select('id')->from('employees')->where('email', $user->email);
+                        });
+                });
+            });
+
+        // Zamanında Bitirilenler (SUCCESS) - Klonlayarak ana sorguyu bozmuyoruz
+        $successData = Trend::query((clone $baseQuery)->where('sla_outcome', 'SUCCESS'))
             ->between(start: $monthStart, end: $today)
             ->perDay()
             ->count();
 
         // Gecikmeli Kapatılanlar (FAILED)
-        $failedData = Trend::query(Task::where('sla_outcome', 'FAILED'))
+        $failedData = Trend::query((clone $baseQuery)->where('sla_outcome', 'FAILED'))
             ->between(start: $monthStart, end: $today)
             ->perDay()
             ->count();
@@ -37,7 +56,7 @@ class TaskPerformanceChart extends ChartWidget
         return [
             'datasets' => [
                 [
-                    'label' => 'Zamanında',
+                    'label' => __('ui.on_time'),
                     'data' => $successData->map(fn (TrendValue $value) => $value->aggregate),
                     'borderColor' => '#10b981',
                     'backgroundColor' => 'rgba(16, 185, 129, 0.1)',
@@ -45,7 +64,7 @@ class TaskPerformanceChart extends ChartWidget
                     'tension' => 0.4,
                 ],
                 [
-                    'label' => 'Gecikmeli',
+                    'label' => __('ui.delayed'),
                     'data' => $failedData->map(fn (TrendValue $value) => $value->aggregate),
                     'borderColor' => '#ef4444',
                     'backgroundColor' => 'rgba(239, 68, 68, 0.1)',
@@ -53,7 +72,6 @@ class TaskPerformanceChart extends ChartWidget
                     'tension' => 0.4,
                 ],
             ],
-            // Tarihleri Türkçe "Gün Ay" (Örn: 27 Şub) formatına çevirdik
             'labels' => $successData->map(fn (TrendValue $value) =>
             Carbon::parse($value->date)->translatedFormat('d M')
             ),
@@ -64,21 +82,21 @@ class TaskPerformanceChart extends ChartWidget
     {
         return [
             'plugins' => [
-                'legend' => [
-                    'display' => false, // Gereksiz yer kaplamasın
-                ],
+                'legend' => ['display' => false],
             ],
             'scales' => [
                 'y' => [
                     'beginAtZero' => true,
-                    'ticks' => ['precision' => 0], // Sadece tam sayılar (0, 1, 2 görev gibi)
+                    'ticks' => ['precision' => 0],
                 ],
             ],
         ];
     }
 
-    protected function getType(): string
+    protected function getType(): string { return 'line'; }
+
+    public static function canView(): bool
     {
-        return 'line';
+        return auth()->user()->hasRole('super_admin') || auth()->user()->can('widget_TaskPerformanceChart');
     }
 }

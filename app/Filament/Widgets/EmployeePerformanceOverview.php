@@ -84,4 +84,9 @@ class EmployeePerformanceOverview extends BaseWidget
             ];
         });
     }
+
+    public static function canView(): bool
+    {
+        return auth()->user()->hasRole('super_admin') || auth()->user()->can('widget_EmployeePerformanceOverview');
+    }
 }
