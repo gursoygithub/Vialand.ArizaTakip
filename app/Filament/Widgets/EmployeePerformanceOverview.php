@@ -32,7 +32,7 @@ class EmployeePerformanceOverview extends BaseWidget
                 ->icon('heroicon-m-bolt'),
 
             Stat::make('Kritik İşler (Geciken)', $data['criticalCount'])
-                ->description('SLA Süresi Dolan Canlı İşler')
+                ->description('SLA Süresi Dolan İşler')
                 ->color($data['criticalCount'] > 0 ? 'danger' : 'gray')
                 ->icon('heroicon-m-fire'),
         ];
