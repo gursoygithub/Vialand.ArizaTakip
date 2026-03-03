@@ -235,4 +235,32 @@ class Task extends Model Implements HasMedia
             ->logOnlyDirty()
             ->useLogName(static::$logName);
     }
+
+    // --- SLA İLE İLGİLİ EK METOTLAR ---
+    public function getSlaLimitMinutes(): int
+    {
+        // Mevcut politikayı bulur, yoksa 0 döner
+        $policy = \App\Models\SlaPolicy::where('unit_id', $this->unit_id)
+            ->where('area_id', $this->area_id)
+            ->where('priority', $this->priority)
+            ->first();
+
+        return $policy ? (int) $policy->deadline_minutes : 0;
+    }
+
+    public function calculateSlaStatus(): string
+    {
+        // Eğer görev tamamlanmışsa mühürlenmiş veriyi döner
+        if ($this->status === \App\Enums\TaskStatusEnum::COMPLETED) {
+            return $this->sla_outcome === 'SUCCESS' ? 'SUCCESS' : 'FAILED';
+        }
+
+        // Görev açıksa canlı hesaplama yapar
+        $limit = $this->getSlaLimitMinutes();
+        if ($limit === 0) return 'NO_POLICY';
+
+        $elapsed = (int) $this->created_at->diffInMinutes(now());
+
+        return $elapsed > $limit ? 'FAILED' : 'SUCCESS';
+    }
 }
