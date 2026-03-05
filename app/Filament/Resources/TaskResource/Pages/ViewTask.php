@@ -177,7 +177,6 @@ class ViewTask extends ViewRecord
                     return $data;
                 }),
             Actions\Action::make(__('ui.close'))
-                ->hidden(fn ($record) => $record->trashed())
                 ->visible(fn ($record) =>
                     ($record->status->isNot(TaskStatusEnum::COMPLETED) && filled($record->employee_id)) &&
                     (auth()->user()->hasRole('super_admin') || auth()->user()->can('can_close_task') || $record->employee?->email === auth()->user()->email || $record->created_by === auth()->id())

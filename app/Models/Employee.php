@@ -34,7 +34,10 @@ class Employee extends Model
 
     public function user()
     {
-        return $this->belongsTo(User::class, 'email', 'email');
+        return $this->belongsTo(User::class, 'email', 'email')
+            ->where('status', ActiveStatusEnum::ACTIVE)
+            ->whereNotNull('username')
+            ->whereNull('deleted_at');
     }
 
     // İlişkilerdeki ->with() kısımlarını temizledik.
@@ -107,5 +110,17 @@ class Employee extends Model
     public function getSlaPerformanceScoreAttribute()
     {
         return round($this->performance_score ?? 0, 1);
+    }
+
+    public function accessibleAreaIds()
+    {
+        return $this->groupMemberships()
+            ->whereNull('deleted_at')
+            ->with('group')
+            ->get()
+            ->pluck('group.area_id')
+            ->filter()
+            ->unique()
+            ->values();
     }
 }
