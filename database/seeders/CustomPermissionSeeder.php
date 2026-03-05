@@ -28,6 +28,8 @@ class CustomPermissionSeeder extends Seeder
             'can_reopen_task',
             'view_all_companies',
             'view_all_sla_policies',
+            'view_kpi_dashboard',
+            'manage_settings',
         ];
 
         foreach ($permissionName as $name) {

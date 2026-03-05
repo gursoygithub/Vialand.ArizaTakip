@@ -652,6 +652,8 @@ return [
     'sla_target_threshold' => 'SLA Hedef Oranı',
     'performance_report' => 'Performans Raporu',
     'task_performance_this_month' => 'Bu Ayın Görev Performansı',
+    'resolved_task_performance_for_current_month' => 'Aylık Çözülen Görev Performansı',
+    'task_performance_description' => 'Sadece Çözülen Görevler Hesaba Katılır',
     'on_time' => 'Zamanında',
     'delayed' => 'Gecikmiş',
     'hour' => 'Saat',
@@ -665,4 +667,7 @@ return [
     'sla_limit' => 'SLA Çözüm Limiti',
     'sla_status' => 'SLA Durumu',
     'breached' => 'İhlal Edildi',
+    'daily_task_performance' => 'Günlük Görev Performansı',
+    'daily_task_performance_description' => 'Sadece Çözülen Görevleri Kapsar',
+    'task_performance' => 'Görev Performansı',
 ];

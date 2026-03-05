@@ -16,6 +16,7 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
 use Illuminate\Contracts\Support\Htmlable;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 class TaskKpiPage extends Page implements HasForms
@@ -169,5 +170,11 @@ class TaskKpiPage extends Page implements HasForms
                 ->action(fn () => $this->mount())
                 ->color('gray'),
         ];
+    }
+
+    public static function canAccess(): bool
+    {
+        $user = Auth::user();
+        return $user->hasRole('super_admin') || $user->can('view_kpi_dashboard');
     }
 }

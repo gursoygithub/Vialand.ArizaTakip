@@ -6,6 +6,7 @@ use App\Models\Task;
 use Filament\Widgets\ChartWidget;
 use Flowframe\Trend\Trend;
 use Flowframe\Trend\TrendValue;
+use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Support\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -13,12 +14,19 @@ class TaskPerformanceChart extends ChartWidget
 {
     public function getHeading(): ?string
     {
-        return __('ui.task_performance_this_month');
+        return __('ui.resolved_task_performance_for_current_month');
     }
+
+//    public function getDescription(): string|Htmlable|null
+//    {
+//        return __('ui.performance_chart_description');
+//    }
 
     protected static string $color = 'success';
     protected static ?string $maxHeight = '250px';
     protected int | string | array $columnSpan = 'full';
+
+    protected static ?int $sort = 888; // Dashboard'da sıralama için
 
     protected function getData(): array
     {

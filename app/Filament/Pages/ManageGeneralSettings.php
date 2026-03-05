@@ -38,4 +38,11 @@ class ManageGeneralSettings extends SettingsPage
                     ])
             ]);
     }
+
+    public static function canAccess(): bool
+    {
+            return auth()->user()->can('manage_settings');
+//        $user = auth()->user();
+//        return $user && ($user->hasRole('super_admin') || $user->can('manage_settings'));
+    }
 }
