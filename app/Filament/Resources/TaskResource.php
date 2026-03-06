@@ -154,7 +154,7 @@ class TaskResource extends Resource
                                             ->options(
                                                 Area::with('company')
                                                     ->where('status', \App\Enums\ActiveStatusEnum::ACTIVE)
-                                                    ->accessibleByUser(auth()->user())
+                                                    //->accessibleByUser(auth()->user())
                                                     ->get()
                                                     ->mapWithKeys(fn ($area) => [
                                                         $area->id => $area->name .
