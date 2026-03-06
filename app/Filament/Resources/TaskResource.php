@@ -10,6 +10,7 @@ use App\Filament\Resources\TaskResource\Pages;
 use App\Filament\Resources\TaskResource\RelationManagers;
 use App\Models\Area;
 use App\Models\Employee;
+use App\Models\SlaPolicy;
 use App\Models\SubArea;
 use App\Models\Task;
 use App\Models\Unit;
@@ -20,6 +21,7 @@ use Filament\Forms;
 use Filament\Forms\Components\Fieldset;
 use Filament\Forms\Components\ToggleButtons;
 use Filament\Forms\Form;
+use Filament\Forms\Get;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
@@ -87,6 +89,7 @@ class TaskResource extends Resource
                             ->columns(3)
                             ->schema([
                                 Fieldset::make(__('ui.priority_level_and_status'))
+                                    ->hidden()
                                     ->columns(2)
                                     ->schema([
                                         ToggleButtons::make('priority')
@@ -159,13 +162,6 @@ class TaskResource extends Resource
                                                     ])
                                                     ->toArray()
                                             )
-//                                            ->options(Area::with('company')
-//                                                ->where('status', ActiveStatusEnum::ACTIVE)
-//                                                ->get()->mapWithKeys(function ($area) {
-//                                                $companyName = $area->company?->name ? " ({$area->company->name})" : '';
-//                                                return [$area->id => $area->name . $companyName];
-//                                                })->toArray()
-//                                            )
                                             ->preload()
                                             ->searchable()
                                             ->required()
@@ -174,6 +170,7 @@ class TaskResource extends Resource
                                                 $set('sub_area_id', null);
                                                 $set('group_id', null);
                                                 $set('employee_id', null);
+                                                $set('priority', null);
                                             })
                                             //->disableOptionsWhenSelectedInSiblingRepeaterItems()
                                             ->validationMessages([
@@ -279,6 +276,68 @@ class TaskResource extends Resource
                                                 'required' => __('ui.required'),
                                                 'max' => __('ui.fault_date_cannot_be_in_future'),
                                                 'maxDate' => __('ui.fault_date_cannot_be_in_future'),
+                                            ]),
+                                        Fieldset::make(__('ui.status_and_priority'))
+                                            ->columns(2)
+                                            ->schema([
+                                                ToggleButtons::make('status')
+                                                    ->label(__('ui.status'))
+                                                    ->options([
+                                                        TaskStatusEnum::PENDING->value => TaskStatusEnum::PENDING->getLabel(),
+                                                        TaskStatusEnum::WINTER_MAINTENANCE->value => TaskStatusEnum::WINTER_MAINTENANCE->getLabel(),
+                                                    ])
+                                                    ->icons([
+                                                        TaskStatusEnum::PENDING->value => TaskStatusEnum::PENDING->getIcon(),
+                                                        TaskStatusEnum::WINTER_MAINTENANCE->value => TaskStatusEnum::WINTER_MAINTENANCE->getIcon(),
+                                                    ])
+                                                    ->colors([
+                                                        TaskStatusEnum::PENDING->value => TaskStatusEnum::PENDING->getColor(),
+                                                        TaskStatusEnum::WINTER_MAINTENANCE->value => TaskStatusEnum::WINTER_MAINTENANCE->getColor(),
+                                                    ])
+                                                    ->default(TaskStatusEnum::PENDING->value)
+                                                    ->inline(),
+
+                                                ToggleButtons::make('priority')
+                                                    ->label(__('ui.priority'))
+                                                    ->options(function (Get $get) {
+
+                                                        $areaId = $get('area_id');
+
+                                                        if (!$areaId) {
+                                                            return [];
+                                                        }
+
+                                                        $priorities = SlaPolicy::where('area_id', $areaId)
+                                                            ->pluck('priority')
+                                                            ->unique()
+                                                            ->sortBy(fn ($priority) => $priority->value);
+
+                                                        return $priorities->mapWithKeys(fn ($priority) => [
+                                                            $priority->value => $priority->getLabel()
+                                                        ])->toArray();
+                                                    })
+                                                    ->icons(fn (Get $get) =>
+                                                    SlaPolicy::where('area_id', $get('area_id'))
+                                                        ->pluck('priority')
+                                                        ->unique()
+                                                        ->sortBy(fn ($priority) => $priority->value)
+                                                        ->mapWithKeys(fn ($priority) => [
+                                                            $priority->value => $priority->getIcon()
+                                                        ])
+                                                        ->toArray()
+                                                    )
+                                                    ->colors(fn (Get $get) =>
+                                                    SlaPolicy::where('area_id', $get('area_id'))
+                                                        ->pluck('priority')
+                                                        ->unique()
+                                                        ->sortBy(fn ($priority) => $priority->value)
+                                                        ->mapWithKeys(fn ($priority) => [
+                                                            $priority->value => $priority->getColor()
+                                                        ])
+                                                        ->toArray()
+                                                    )
+                                                    ->inline()
+                                                    ->required(),
                                             ]),
                                         Forms\Components\Select::make('unit_id')
                                             ->hidden()
@@ -750,9 +809,9 @@ class TaskResource extends Resource
                                 ->send();
 
                             // redirect to index page after dispatching if the user is not super_admin and doesn't have can_assign_task permission
-                            if (!auth()->user()->hasRole('super_admin') && !auth()->user()->can('can_assign_task')) {
-                                return redirect($this->getResource()::getUrl('index'));
-                            }
+//                            if (!auth()->user()->hasRole('super_admin') && !auth()->user()->can('can_assign_task')) {
+//                                return redirect($this->getResource()::getUrl('index'));
+//                            }
                         })
                         ->requiresConfirmation()
                         ->color('warning')
