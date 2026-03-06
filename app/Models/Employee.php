@@ -115,12 +115,13 @@ class Employee extends Model
     public function accessibleAreaIds()
     {
         return $this->groupMemberships()
-            ->whereNull('deleted_at')
-            ->with('group')
+            ->whereNull('deleted_at') // Sadece silinmemiş kayıtlar
+            ->whereHas('group')       // Sadece geçerli bir grubu olanlar
+            ->with('group')           // Eager load ile performansı artır
             ->get()
-            ->pluck('group.area_id')
-            ->filter()
-            ->unique()
-            ->values();
+            ->map(fn($membership) => $membership->group?->area_id) // Gruba git ve area_id al
+            ->filter()                // Null olanları (boş area_id) temizle
+            ->unique()                // Tekrar edenleri kaldır
+            ->values();               // Diziyi yeniden indeksle
     }
 }
