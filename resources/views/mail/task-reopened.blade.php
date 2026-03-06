@@ -34,6 +34,7 @@
                         </p>
                     </td>
                 </tr>
+
                 <tr>
                     <td class="content-padding" style="padding: 40px;">
                         <p style="margin-top: 0; margin-bottom: 20px; font-size: 18px; color: #333;">
@@ -59,18 +60,14 @@
                                         <td style="padding-bottom: 10px; color: #333; font-weight: 600;">{{ $task->unit?->name ?? '-' }}</td>
                                     </tr>
                                     <tr>
-                                        <td style="padding-bottom: 12px; font-size: 14px; color: #888;">{{ __('ui.fault_date') }}</td>
-                                        <td style="padding-bottom: 12px; font-size: 14px; color: #333;">
-                                            <strong>{{ $task->task_date?->format('d.m.Y') ?? '-' }}</strong>
-                                        </td>
+                                        <td style="padding-bottom: 12px; color: #888;">{{ __('ui.fault_date') }}</td>
+                                        <td style="padding-bottom: 12px; color: #333; font-weight: 600;">{{ $task->task_date?->format('d.m.Y') ?? '-' }}</td>
                                     </tr>
                                     <tr>
-                                        <td style="padding-bottom: 10px; color: #888;">{{ __('ui.type') }} / {{ __('ui.priority') }}</td>
+                                        <td style="padding-bottom: 10px; color: #888;">{{ __('ui.task_type') }} / {{ __('ui.priority') }}</td>
                                         <td style="padding-bottom: 10px;">
-                                            <span style="display: inline-block; padding: 2px 8px; border-radius: 4px; background-color: #e7f3ff; color: #007bff; font-size: 11px; font-weight: bold; border: 1px solid #cce5ff; margin-right: 5px;">
-                                                {{ $task->type_id->getLabel() }}
-                                            </span>
                                             @php
+                                                // SLA ve Stil Hesaplamaları
                                                 $priorityStyles = match($task->priority) {
                                                     \App\Enums\TaskPriorityEnum::Low => ['bg' => '#d4edda', 'text' => '#155724'],
                                                     \App\Enums\TaskPriorityEnum::Medium => ['bg' => '#e7f3ff', 'text' => '#007bff'],
@@ -78,16 +75,37 @@
                                                     \App\Enums\TaskPriorityEnum::Urgent => ['bg' => '#f8d7da', 'text' => '#721c24'],
                                                     default => ['bg' => '#f1f3f5', 'text' => '#6c757d'],
                                                 };
+
+                                                $policy = \App\Models\SlaPolicy::where('area_id', $task->area_id)
+                                                    ->where('unit_id', $task->unit_id)
+                                                    ->where('priority', $task->priority)
+                                                    ->where('sub_area_id', $task->sub_area_id)
+                                                    ->first() ?? \App\Models\SlaPolicy::where('area_id', $task->area_id)
+                                                    ->where('unit_id', $task->unit_id)
+                                                    ->where('priority', $task->priority)
+                                                    ->whereNull('sub_area_id')
+                                                    ->first();
+
+                                                $slaText = ($policy && $policy->deadline_minutes)
+                                                    ? ($policy->deadline_minutes >= 60 ? round($policy->deadline_minutes / 60, 1) . ' Saat' : $policy->deadline_minutes . ' Dakika')
+                                                    : '-';
                                             @endphp
-                                            <span style="display: inline-block; padding: 2px 8px; border-radius: 4px; background-color: {{ $priorityStyles['bg'] }}; color: {{ $priorityStyles['text'] }}; font-size: 11px; font-weight: bold;">
+
+                                            <span style="display: inline-block; padding: 2px 8px; border-radius: 4px; background-color: #f1f3f5; color: #495057; font-size: 11px; font-weight: bold; margin-right: 5px; border: 1px solid #dee2e6;">
+                                                {{ $task->type_id->getLabel() }}
+                                            </span>
+                                            <span style="display: inline-block; padding: 2px 8px; border-radius: 4px; background-color: {{ $priorityStyles['bg'] }}; color: {{ $priorityStyles['text'] }}; font-size: 11px; font-weight: bold; margin-right: 5px;">
                                                 {{ $task->priority->getLabel() }}
+                                            </span>
+                                            <span style="display: inline-block; padding: 2px 8px; border-radius: 4px; background-color: #ffffff; color: #636e72; font-size: 11px; font-weight: bold; border: 1px solid #dfe6e9;">
+                                                <small style="font-weight: normal; opacity: 0.8; margin-right: 4px;">{{ __('ui.sla') }}:</small> {{ $slaText }}
                                             </span>
                                         </td>
                                     </tr>
                                 </table>
                                 <div style="margin-top: 15px; padding: 12px; background-color: #fdfdfe; border: 1px dashed #dee2e6; border-radius: 6px;">
                                     <strong style="display: block; margin-bottom: 4px; font-size: 11px; color: #aaa; text-transform: uppercase;">{{ __('ui.description') }}</strong>
-                                    <div style="font-size: 13px; color: #666;">"{{ $task->description }}"</div>
+                                    <div style="font-size: 13px; color: #666; font-style: italic;">"{{ $task->description }}"</div>
                                 </div>
                             </div>
                         </div>
@@ -133,6 +151,7 @@
                 <tr>
                     <td align="center" style="background-color: #f1f3f5; padding: 25px; border-top: 1px solid #e9ecef;">
                         <p style="margin: 0; font-size: 12px; color: #999; line-height: 1.5;">
+                            {{ __('ui.footer_message') }}<br>
                             &copy; {{ date('Y') }} <strong>{{ __('ui.gursoy_group') }}</strong>. {{ __('ui.all_rights_reserved') }}
                         </p>
                     </td>
