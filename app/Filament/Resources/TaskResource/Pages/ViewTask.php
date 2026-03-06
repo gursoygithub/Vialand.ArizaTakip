@@ -325,12 +325,19 @@ class ViewTask extends ViewRecord
                                         Infolists\Components\TextEntry::make('elapsed_time')
                                             ->label(__('ui.waiting_time'))
                                             ->getStateUsing(function ($record) {
-                                                $isCompleted = $record->status->value === \App\Enums\TaskStatusEnum::COMPLETED->value;
-                                                $end = $isCompleted ? $record->due_date : now();
+                                                $start = $record->created_at;
 
-                                                return $record->created_at->diffForHumans($end, [
+                                                if (!$start) return null;
+
+                                                // Bitiş noktası: Tamamlandıysa due_date (saatiyle birlikte), değilse şu an (now)
+                                                // endOfDay() kaldırıldı, böylece tablo ile aynı net farkı hesaplar.
+                                                $end = ($record->status->value === \App\Enums\TaskStatusEnum::COMPLETED->value && $record->due_date)
+                                                    ? $record->due_date
+                                                    : now();
+
+                                                return $start->diffForHumans($end, [
                                                     'syntax' => \Carbon\CarbonInterface::DIFF_ABSOLUTE,
-                                                    'parts' => 2,
+                                                    'parts' => 3, // Tabloyla tam uyum için burayı 2 de yapabilirsiniz
                                                     'join' => ' ',
                                                 ]);
                                             })
@@ -516,12 +523,19 @@ class ViewTask extends ViewRecord
                                                         Infolists\Components\TextEntry::make('elapsed_time')
                                                             ->label(__('ui.waiting_time'))
                                                             ->getStateUsing(function ($record) {
-                                                                $isCompleted = $record->status->value === \App\Enums\TaskStatusEnum::COMPLETED->value;
-                                                                $end = $isCompleted ? $record->due_date : now();
+                                                                $start = $record->created_at;
 
-                                                                return $record->created_at->diffForHumans($end, [
+                                                                if (!$start) return null;
+
+                                                                // Bitiş noktası: Tamamlandıysa due_date (saatiyle birlikte), değilse şu an (now)
+                                                                // endOfDay() kaldırıldı, böylece tablo ile aynı net farkı hesaplar.
+                                                                $end = ($record->status->value === \App\Enums\TaskStatusEnum::COMPLETED->value && $record->due_date)
+                                                                    ? $record->due_date
+                                                                    : now();
+
+                                                                return $start->diffForHumans($end, [
                                                                     'syntax' => \Carbon\CarbonInterface::DIFF_ABSOLUTE,
-                                                                    'parts' => 2,
+                                                                    'parts' => 3, // Tabloyla tam uyum için burayı 2 de yapabilirsiniz
                                                                     'join' => ' ',
                                                                 ]);
                                                             })

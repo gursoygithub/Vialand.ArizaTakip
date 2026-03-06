@@ -305,7 +305,31 @@ class SlaPolicyResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                //
+                // filter by area
+                Tables\Filters\SelectFilter::make('area_id')
+                    ->label(__('ui.area'))
+                    ->options(Area::all()->pluck('name', 'id'))
+                    ->searchable(),
+                // filter by sub area
+                Tables\Filters\SelectFilter::make('sub_area_id')
+                    ->label(__('ui.sub_area'))
+                    ->options(SubArea::all()->pluck('name', 'id'))
+                    ->searchable(),
+                // filter by unit
+                Tables\Filters\SelectFilter::make('unit_id')
+                    ->label(__('ui.technical_unit'))
+                    ->options(Unit::all()->pluck('name', 'id'))
+                    ->searchable(),
+                // filter by priority
+                Tables\Filters\SelectFilter::make('priority')
+                    ->label(__('ui.priority'))
+                    ->options([
+                        TaskPriorityEnum::Low->value => TaskPriorityEnum::Low->getLabel(),
+                        TaskPriorityEnum::Medium->value => TaskPriorityEnum::Medium->getLabel(),
+                        TaskPriorityEnum::High->value => TaskPriorityEnum::High->getLabel(),
+                        TaskPriorityEnum::Urgent->value => TaskPriorityEnum::Urgent->getLabel(),
+                    ])
+                    ->searchable(),
             ])
             ->actions([
                 Tables\Actions\ActionGroup::make([

@@ -146,25 +146,42 @@ class TasksRelationManager extends RelationManager
                     ->badge()
                     ->color(fn ($record) => $record->status->value === TaskStatusEnum::COMPLETED->value ? 'success' : 'warning')
                     ->getStateUsing(function ($record) {
-                        // 1. Başlangıç noktası: Kayıt oluşturulma tarihi
                         $start = $record->created_at;
 
                         if (!$start) return null;
 
-                        // 2. Bitiş noktası: Tamamlandıysa due_date, değilse şu an (now)
-                        $end = ($record->status->value === TaskStatusEnum::COMPLETED->value && $record->due_date)
+                        // Table mantığının aynısı: Tamamlandıysa due_date, değilse şu an
+                        $end = ($record->status->value === \App\Enums\TaskStatusEnum::COMPLETED->value && $record->due_date)
                             ? $record->due_date
                             : now();
 
-                        // 3. Farkı hesapla ve formatla
-                        // 'parts' => 2: Sadece en büyük iki birimi gösterir (örn: 10 gün 2 dakika)
-                        // 'join' => ' ': Birimler arasına boşluk koyar
+                        // Table görünümü ile tutarlı olması için 'parts' => 2 yapıldı
                         return $start->diffForHumans($end, [
                             'syntax' => \Carbon\CarbonInterface::DIFF_ABSOLUTE,
-                            'parts' => 2,
+                            'parts' => 3,
                             'join' => ' ',
                         ]);
                     })
+//                    ->getStateUsing(function ($record) {
+//                        // 1. Başlangıç noktası: Kayıt oluşturulma tarihi
+//                        $start = $record->created_at;
+//
+//                        if (!$start) return null;
+//
+//                        // 2. Bitiş noktası: Tamamlandıysa due_date, değilse şu an (now)
+//                        $end = ($record->status->value === TaskStatusEnum::COMPLETED->value && $record->due_date)
+//                            ? $record->due_date
+//                            : now();
+//
+//                        // 3. Farkı hesapla ve formatla
+//                        // 'parts' => 2: Sadece en büyük iki birimi gösterir (örn: 10 gün 2 dakika)
+//                        // 'join' => ' ': Birimler arasına boşluk koyar
+//                        return $start->diffForHumans($end, [
+//                            'syntax' => \Carbon\CarbonInterface::DIFF_ABSOLUTE,
+//                            'parts' => 2,
+//                            'join' => ' ',
+//                        ]);
+//                    })
                     ->description(fn ($record) => $record->status->value === TaskStatusEnum::COMPLETED->value
                         ? __('ui.time_taken_to_complete')
                         : __('ui.waiting_time'))
