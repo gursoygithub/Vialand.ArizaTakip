@@ -24,13 +24,17 @@
                         <h1 style="margin: 0; color: #ffffff; font-size: 28px; letter-spacing: 1px; font-weight: 700;">
                             {{ __('ui.fault_tracking_panel') }}
                         </h1>
-                        <div style="margin-top: 10px; height: 3px; width: 50px; background-color: #ffffff; border-radius: 2px; opacity: 0.5;"></div>
-                        <p style="margin: 15px 0 0 0; color: #ffffff; font-size: 16px; opacity: 0.9;">
+                        <div style="margin: 15px auto; height: 3px; width: 50px; background-color: #ffffff; border-radius: 2px; opacity: 0.5;"></div>
+
+                        <div style="display: inline-block; padding: 6px 15px; background-color: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3); border-radius: 20px; color: #ffffff; font-size: 14px; font-weight: 600; margin-bottom: 10px;">
+                            #{{ $task->id }}
+                        </div>
+
+                        <p style="margin: 5px 0 0 0; color: #ffffff; font-size: 18px; font-weight: 500; opacity: 0.95;">
                             {{ __('ui.new_task_assigned') }}
                         </p>
                     </td>
                 </tr>
-
                 <tr>
                     <td class="content-padding" style="padding: 40px;">
                         <p style="margin-top: 0; margin-bottom: 20px; font-size: 18px; color: #333;">
@@ -83,12 +87,11 @@
                                                     ? ($policy->deadline_minutes >= 60 ? round($policy->deadline_minutes / 60, 1) . ' Saat' : $policy->deadline_minutes . ' Dakika')
                                                     : '-';
 
-                                                // Enum Renk Eşleştirmesi (integer değerlere göre)
                                                 $priorityStyles = match($task->priority) {
-                                                    \App\Enums\TaskPriorityEnum::Low => ['bg' => '#d4edda', 'text' => '#155724'],    // Success
-                                                    \App\Enums\TaskPriorityEnum::Medium => ['bg' => '#e7f3ff', 'text' => '#007bff'], // Primary
-                                                    \App\Enums\TaskPriorityEnum::High => ['bg' => '#fff3cd', 'text' => '#856404'],   // Warning
-                                                    \App\Enums\TaskPriorityEnum::Urgent => ['bg' => '#f8d7da', 'text' => '#721c24'], // Danger
+                                                    \App\Enums\TaskPriorityEnum::Low => ['bg' => '#d4edda', 'text' => '#155724'],
+                                                    \App\Enums\TaskPriorityEnum::Medium => ['bg' => '#e7f3ff', 'text' => '#007bff'],
+                                                    \App\Enums\TaskPriorityEnum::High => ['bg' => '#fff3cd', 'text' => '#856404'],
+                                                    \App\Enums\TaskPriorityEnum::Urgent => ['bg' => '#f8d7da', 'text' => '#721c24'],
                                                     default => ['bg' => '#f1f3f5', 'text' => '#6c757d'],
                                                 };
                                             @endphp
@@ -112,7 +115,18 @@
                                         <td style="padding-bottom: 12px; font-size: 14px; color: #333;">
                                             <strong>{{ $assigned_by?->name }}</strong>
                                             <span style="color: #bbb; margin: 0 5px;">|</span>
-                                            <span style="color: #666;">{{ $task->task_date->format('d.m.Y') }}</span>
+                                            <span style="color: #666; font-size: 13px;">{{ now()->format('d.m.Y H:i') }}</span>
+                                        </td>
+                                    </tr>
+
+                                    <tr>
+                                        <td style="padding-bottom: 15px; font-size: 14px; color: #888;">{{ __('ui.fault_date') }}</td>
+                                        <td style="padding-bottom: 15px;">
+                                            <div style="display: inline-block; padding: 4px 12px; background-color: #f8f9fa; border-left: 3px solid #6c757d; border-radius: 4px;">
+                                                <span style="font-size: 14px; color: #333; font-weight: 700; letter-spacing: 0.3px;">
+                                                    {{ $task->task_date?->format('d.m.Y') ?? '-' }}
+                                                </span>
+                                            </div>
                                         </td>
                                     </tr>
                                 </table>

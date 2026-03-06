@@ -671,4 +671,7 @@ return [
     'daily_task_performance_description' => 'Sadece Çözülen Görevleri Kapsar',
     'task_performance' => 'Görev Performansı',
     'status_and_priority' => 'Durum ve Öncelik',
+    'sla_breached' => 'SLA İhlal Edildi',
+    'resolved_on_time' => 'Zamanında Çözüldü',
+
 ];
