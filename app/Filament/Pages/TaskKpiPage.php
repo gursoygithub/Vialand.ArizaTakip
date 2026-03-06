@@ -174,7 +174,8 @@ class TaskKpiPage extends Page implements HasForms
 
     public static function canAccess(): bool
     {
-        $user = Auth::user();
-        return $user->hasRole('super_admin') || $user->can('view_kpi_dashboard');
+        $user = auth()->user();
+
+        return $user?->hasRole('super_admin') || $user?->can('view_kpi_dashboard') ?? false;
     }
 }
