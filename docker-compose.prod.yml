@@ -10,7 +10,7 @@ services:
 
     ports:
       - '5006:80'
-      - '${VITE_PORT:-5179}:${VITE_PORT:-5179}'
+      - '${VITE_PORT:-5180}:${VITE_PORT:-5180}'
 
     environment:
       LARAVEL_SAIL: 1
