@@ -139,6 +139,7 @@ class EmployeeResource extends Resource
     {
         return [
             RelationManagers\TasksRelationManager::class,
+            //RelationManagers\SlaRelationManager::class,
         ];
     }
 

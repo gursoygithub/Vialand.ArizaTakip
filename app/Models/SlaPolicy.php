@@ -84,4 +84,15 @@ class SlaPolicy extends Model
             $slaPolicy->save();
         });
     }
+
+    // relation with group
+    public function groups()
+    {
+        return $this->hasMany(Group::class, 'area_id', 'area_id')
+            ->with([
+                'company',
+                'area',
+                'unit',
+            ]);
+    }
 }

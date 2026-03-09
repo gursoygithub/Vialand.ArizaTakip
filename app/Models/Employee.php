@@ -129,4 +129,15 @@ class Employee extends Model
             })
             ->pluck('id');
     }
+
+    public function getUnitPerformanceStats()
+    {
+        return $this->tasks()
+            ->select('unit_id')
+            ->selectRaw('count(*) as total')
+            ->selectRaw('count(case when sla_outcome = "SUCCESS" then 1 end) as success_count')
+            ->groupBy('unit_id')
+            ->with('unit')
+            ->get();
+    }
 }

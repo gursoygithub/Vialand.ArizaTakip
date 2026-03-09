@@ -100,4 +100,10 @@ class Group extends Model
             $group->save();
         });
     }
+
+    // relation with sla policy
+    public function slaPolicy()
+    {
+        return $this->belongsTo(SlaPolicy::class, 'area_id', 'area_id');
+    }
 }
