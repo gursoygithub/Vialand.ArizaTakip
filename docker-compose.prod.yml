@@ -29,3 +29,6 @@ services:
 networks:
   gursoy:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.40.0.0/16  # LDAP IP'si (172.23) ile asla çakışmaz
