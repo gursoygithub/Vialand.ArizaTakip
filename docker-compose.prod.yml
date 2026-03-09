@@ -3,9 +3,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      args:
-        WWWUSER: 1000
-        WWWGROUP: 1000
 
     extra_hosts:
       - 'host.docker.internal:host-gateway'
