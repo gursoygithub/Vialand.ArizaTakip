@@ -170,6 +170,7 @@ class TaskResource extends Resource
                                                 $set('sub_area_id', null);
                                                 $set('group_id', null);
                                                 $set('employee_id', null);
+                                                $set('unit_id', null);
                                                 $set('priority', null);
                                             })
                                             //->disableOptionsWhenSelectedInSiblingRepeaterItems()
@@ -219,9 +220,11 @@ class TaskResource extends Resource
                                                     return [];
                                                 }
 
-                                                return SubArea::all()
-                                                    ->where('area_id', $areaId)
-                                                    ->pluck('name', 'id');
+                                                return SubArea::where('area_id', $areaId)->pluck('name', 'id');
+
+//                                                return SubArea::all()
+//                                                    ->where('area_id', $areaId)
+//                                                    ->pluck('name', 'id');
                                             })
                                             ->preload()
                                             ->searchable()
@@ -405,8 +408,25 @@ class TaskResource extends Resource
                                         Forms\Components\Select::make('unit_id')
                                             ->label(__('ui.unit'))
                                             ->prefixIcon('heroicon-o-building-office')
-                                            ->options(Unit::query()->pluck('name', 'id'))
+                                            ->options(function (callable $get) {
+                                                $areaId = $get('area_id');
+
+                                                if (!$areaId) {
+                                                    return []; // Bölge seçilmeden birim gösterme
+                                                }
+
+                                                // Seçilen bölgeye (area_id) atanmış grupların bağlı olduğu birimleri (unit) getir
+                                                return Unit::query()
+                                                    ->whereHas('groups', function ($query) use ($areaId) {
+                                                        $query->where('area_id', $areaId)
+                                                            ->where('status', \App\Enums\ActiveStatusEnum::ACTIVE);
+                                                    })
+                                                    ->pluck('name', 'id');
+                                            })
                                             ->live()
+                                            ->preload()
+                                            ->searchable()
+                                            ->required()
                                             ->afterStateUpdated(function (callable $set) {
                                                 $set('group_id', null);
                                                 $set('employee_id', null);
@@ -426,19 +446,20 @@ class TaskResource extends Resource
                                                 $unitId = $get('unit_id');
                                                 $areaId = $get('area_id');
 
-                                                if (!$unitId && !$areaId) {
+                                                if (!$unitId) {
                                                     return [];
                                                 }
 
                                                 return \App\Models\Group::query()
-                                                    ->where('status', ActiveStatusEnum::ACTIVE)
-                                                    ->where('unit_id', $unitId)
-                                                    ->where('area_id', $areaId)
+                                                    ->where('status', \App\Enums\ActiveStatusEnum::ACTIVE)
+                                                    //->where('area_id', $areaId) // Bölge filtresi
+                                                    ->where('unit_id', $unitId) // Birim filtresi
                                                     ->pluck('name', 'id');
                                             })
+                                            ->live()
                                             ->preload()
                                             ->searchable()
-                                            ->live()
+                                            ->required()
                                             ->afterStateUpdated(fn (callable $set) => $set('employee_id', null))
                                             ->validationMessages([
                                                 'required' => __('ui.required'),

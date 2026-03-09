@@ -114,14 +114,19 @@ class Employee extends Model
 
     public function accessibleAreaIds()
     {
-        return $this->groupMemberships()
-            ->whereNull('deleted_at') // Sadece silinmemiş kayıtlar
-            ->whereHas('group')       // Sadece geçerli bir grubu olanlar
-            ->with('group')           // Eager load ile performansı artır
-            ->get()
-            ->map(fn($membership) => $membership->group?->area_id) // Gruba git ve area_id al
-            ->filter()                // Null olanları (boş area_id) temizle
-            ->unique()                // Tekrar edenleri kaldır
-            ->values();               // Diziyi yeniden indeksle
+        return Area::query()
+            ->whereIn('id', function ($query) {
+                $query->select('area_id')
+                    ->from('groups')
+                    ->join('group_members', 'groups.id', '=', 'group_members.group_id')
+                    ->where('group_members.employee_id', $this->id)
+                    ->whereNull('group_members.deleted_at');
+            })
+            ->whereExists(function ($query) {
+                $query->selectRaw(1)
+                    ->from('sla_policies')
+                    ->whereColumn('sla_policies.area_id', 'areas.id');
+            })
+            ->pluck('id');
     }
 }

@@ -27,7 +27,7 @@
                         <div style="margin: 15px auto; height: 3px; width: 50px; background-color: #ffffff; border-radius: 2px; opacity: 0.5;"></div>
 
                         <div style="display: inline-block; padding: 6px 15px; background-color: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3); border-radius: 20px; color: #ffffff; font-size: 14px; font-weight: 600; margin-bottom: 10px;">
-                            #{{ $task->id }}
+                            #{{ $task->id ?? '---' }}
                         </div>
 
                         <p style="margin: 5px 0 0 0; color: #ffffff; font-size: 18px; font-weight: 500; opacity: 0.95;">

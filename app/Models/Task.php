@@ -156,7 +156,7 @@ class Task extends Model Implements HasMedia
 
     protected static function booted()
     {
-        static::creating(function ($task) {
+        static::created(function ($task) {
             $task->created_by = auth()->id();
             if ($task->employee_id) {
                 $employee = Employee::find($task->employee_id);
