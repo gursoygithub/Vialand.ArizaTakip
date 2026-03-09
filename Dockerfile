@@ -60,7 +60,7 @@ RUN chown -R sail:sail /var/www
 USER sail
 RUN composer install --no-interaction --prefer-dist --optimize-autoloader
 RUN npm install
-RUN npm run build   # production build, veya dev için npm run dev konteyner içinde çalıştırılabilir
+RUN npm run build   # production build; dev için: npm run dev
 
 # --- Nginx ve start script ---
 COPY ./.docker/start.sh /start.sh
