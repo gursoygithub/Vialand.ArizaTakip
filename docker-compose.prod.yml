@@ -9,7 +9,7 @@ services:
       - 'ldap.proxy:host-gateway'
 
     ports:
-      - '5006:80'
+      - '5007:80'
       - '${VITE_PORT:-5180}:${VITE_PORT:-5180}'
 
     environment:
