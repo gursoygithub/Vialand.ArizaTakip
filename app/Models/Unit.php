@@ -88,4 +88,10 @@ class Unit extends Model
             ->logOnlyDirty()
             ->useLogName(static::$logName);
     }
+
+    // relation with sla policies
+    public function slaPolicies()
+    {
+        return $this->hasMany(SlaPolicy::class, 'unit_id');
+    }
 }

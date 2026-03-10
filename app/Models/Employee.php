@@ -140,4 +140,13 @@ class Employee extends Model
             ->with('unit')
             ->get();
     }
+
+    public function slaPolicies()
+    {
+        return $this->belongsToMany(SlaPolicy::class, 'employee_sla_policies')
+            ->using(EmployeeSlaPolicy::class)
+            ->withPivot(['id', 'created_by', 'updated_by', 'deleted_by']) // id'yi de ekledik ki loglar karışmasın
+            //->withPivot(['id', 'status', 'created_by', 'updated_by', 'deleted_by']) // id'yi de ekledik ki loglar karışmasın
+            ->withTimestamps();
+    }
 }

@@ -134,9 +134,12 @@ class TaskResource extends Resource
                                             ->default(TaskStatusEnum::PENDING->value)
                                             ->inline(),
                                     ]),
-                                Fieldset::make(__('ui.fault_location_and_date_information'))
+
+                                Fieldset::make(__('ui.fault_location_and_priority_information'))
                                     ->columns(2)
                                     ->schema([
+
+                                        // GÖREV TİPİ
                                         Forms\Components\Select::make('type_id')
                                             ->label(__('ui.type'))
                                             ->options(
@@ -148,32 +151,66 @@ class TaskResource extends Resource
                                             ->validationMessages([
                                                 'required' => __('ui.required'),
                                             ]),
-                                        Forms\Components\Select::make('area_id')
-                                            ->label(__('ui.area'))
+
+                                        // BÖLGE
+                                        Forms\Components\Select::make('sla_policy_id') // Sanal isim ŞART
+                                        ->label(__('ui.area'))
                                             ->prefixIcon('heroicon-o-map')
-                                            ->options(
-                                                Area::with('company')
-                                                    ->where('status', \App\Enums\ActiveStatusEnum::ACTIVE)
-                                                    ->accessibleByUser(auth()->user())
-                                                    ->get()
-                                                    ->mapWithKeys(fn ($area) => [
-                                                        $area->id => $area->name .
-                                                            ($area->company?->name ? " ({$area->company->name})" : '')
-                                                    ])
-                                                    ->toArray()
-                                            )
+                                            ->options(function () {
+                                                $user = auth()->user();
+                                                $query = SlaPolicy::with(['area', 'subArea', 'unit']);
+
+                                                if (!$user->hasRole('super_admin')) {
+                                                    $employee = Employee::where('email', $user->email)->first();
+                                                    if (!$employee) return [];
+
+                                                    $query->whereIn('id', function ($sub) use ($employee) {
+                                                        $sub->select('sla_policy_id')
+                                                            ->from('employee_sla_policies')
+                                                            ->where('employee_id', $employee->id);
+                                                    });
+                                                }
+
+                                                return $query->get()->mapWithKeys(function ($policy) {
+                                                    $label = "{$policy->area?->name} | " . ($policy->subArea?->name ?? 'Genel') . " | " . ($policy->unit?->name) . " | " . ($policy->priority->getLabel());
+                                                    return [$policy->id => $label];
+                                                })->toArray();
+                                            })
+                                            ->formatStateUsing(function ($record) { // Edit formu açıldığında, task'ın bağlı olduğu SLA politikasını bulup seçili hale getirmek için
+                                                if (!$record) return null;
+
+                                                // Task üzerindeki verilere göre eşleşen SLA politikasını buluyoruz
+                                                return \App\Models\SlaPolicy::where([
+                                                    'area_id' => $record->area_id,
+                                                    'sub_area_id' => $record->sub_area_id,
+                                                    'unit_id' => $record->unit_id,
+                                                    'priority' => $record->priority,
+                                                ])->value('id'); // Bize Policy ID'sini (10 gibi) döndürür
+                                            })
+                                            ->getOptionLabelUsing(function ($value) {
+                                                // ID'den ismi bulan kısım. Yetki sorgusuna takılmaması için düz sorgu atıyoruz.
+                                                $policy = SlaPolicy::find($value);
+                                                if (!$policy) return $value;
+
+                                                return "{$policy->area?->name} | " . ($policy->subArea?->name ?? 'Genel') . " | " . ($policy->unit?->name) . " | " . ($policy->priority->getLabel());
+                                            })
                                             ->preload()
                                             ->searchable()
                                             ->required()
                                             ->live()
-                                            ->afterStateUpdated(function (callable $set) {
-                                                $set('sub_area_id', null);
-                                                $set('group_id', null);
-                                                $set('employee_id', null);
-                                                $set('unit_id', null);
-                                                $set('priority', null);
+                                            ->dehydrated(false) // Bu sanal ismi sakın DB'ye gönderme
+                                            ->afterStateUpdated(function ($state, callable $set) {
+                                                if ($state) {
+                                                    $policy = SlaPolicy::find($state);
+                                                    if ($policy) {
+                                                        // BURASI ASIL SİHİR: Diğer alanları dolduruyoruz
+                                                        $set('area_id', $policy->area_id);
+                                                        $set('sub_area_id', $policy->sub_area_id);
+                                                        $set('unit_id', $policy->unit_id);
+                                                        $set('priority', $policy->priority->value);
+                                                    }
+                                                }
                                             })
-                                            //->disableOptionsWhenSelectedInSiblingRepeaterItems()
                                             ->validationMessages([
                                                 'required' => __('ui.required'),
                                             ])
@@ -211,21 +248,73 @@ class TaskResource extends Resource
                                                 ]);
                                                 return $location->id;
                                             })),
+
+                                        Forms\Components\Hidden::make('area_id')->required(), // Bu alan görünmez ama gerekli, çünkü area_id'ye göre diğer alanlar şekillenecek ve veritabanında da saklanacak
+
+                                        // LOKASYON
                                         Forms\Components\Select::make('sub_area_id')
                                             ->label(__('ui.sub_area'))
+                                            ->options(SubArea::all()->pluck('name', 'id')) // Tümünü çekebiliriz çünkü disabled
+                                            ->disabled()
+                                            ->dehydrated() // Veritabanına kaydedilmesi için ŞART
+                                            ->placeholder('Bölge seçiniz...'),
+
+                                        // BİRİM
+                                        Forms\Components\Select::make('unit_id')
+                                            ->label(__('ui.unit'))
+                                            ->options(Unit::all()->pluck('name', 'id'))
+                                            ->disabled()
+                                            ->dehydrated()
+                                            ->required(),
+
+                                        // ÖNCELİK
+                                        ToggleButtons::make('priority')
+                                            ->label(__('ui.priority'))
+                                            ->options(\App\Enums\TaskPriorityEnum::class)
+                                            ->disabled()
+                                            ->dehydrated()
+                                            ->inline(),
+
+                                        Forms\Components\DatePicker::make('task_date')
+                                            ->label(__('ui.fault_date'))
+                                            ->prefixIcon('heroicon-o-calendar-days')
+                                            ->required()
+                                            ->maxDate(today())
+                                            ->live()
+                                            ->afterStateUpdated(fn (callable $set) => $set('due_date', null))
+                                            ->validationMessages([
+                                                'required' => __('ui.required'),
+                                                'max' => __('ui.fault_date_cannot_be_in_future'),
+                                                'maxDate' => __('ui.fault_date_cannot_be_in_future'),
+                                            ]),
+
+                                        Forms\Components\Select::make('sub_area_id')
+                                            ->hidden()
+                                            ->label(__('ui.sub_area'))
                                             ->prefixIcon('heroicon-o-map-pin')
-                                            ->options(function (callable $get) {
+                                            ->disabled(fn (Get $get) => ! $get('area_id')) // Area seçili değilse kilitli
+                                            ->dehydrated() // Disabled olsa bile form gönderildiğinde veriyi korur
+                                            ->options(function (Get $get) {
                                                 $areaId = $get('area_id');
-                                                if (!$areaId) {
-                                                    return [];
-                                                }
+                                                if (! $areaId) return [];
 
-                                                return SubArea::where('area_id', $areaId)->pluck('name', 'id');
-
-//                                                return SubArea::all()
-//                                                    ->where('area_id', $areaId)
-//                                                    ->pluck('name', 'id');
+                                                return SubArea::whereIn('id', function ($query) use ($areaId) {
+                                                    $query->select('sub_area_id')
+                                                        ->from('sla_policies')
+                                                        ->where('area_id', $areaId)
+                                                        ->whereNotNull('sub_area_id');
+                                                })->pluck('name', 'id');
                                             })
+//                                            ->options(function (callable $get) {
+//                                                $areaId = $get('area_id');
+//                                                if (!$areaId) {
+//                                                    return [];
+//                                                }
+//
+//                                                return SubArea::where('area_id', $areaId)->pluck('name', 'id');
+//                                            })
+                                            ->live()
+                                            ->afterStateUpdated(fn (callable $set) => $set('unit_id', null))
                                             ->preload()
                                             ->searchable()
                                             ->required()
@@ -268,162 +357,68 @@ class TaskResource extends Resource
                                                 ]);
                                                 return $area->id;
                                             })),
-                                        Forms\Components\DatePicker::make('task_date')
-                                            ->label(__('ui.fault_date'))
-                                            ->prefixIcon('heroicon-o-calendar-days')
-                                            ->required()
-                                            ->maxDate(today())
-                                            ->live()
-                                            ->afterStateUpdated(fn (callable $set) => $set('due_date', null))
-                                            ->validationMessages([
-                                                'required' => __('ui.required'),
-                                                'max' => __('ui.fault_date_cannot_be_in_future'),
-                                                'maxDate' => __('ui.fault_date_cannot_be_in_future'),
-                                            ]),
-                                        Fieldset::make(__('ui.status_and_priority'))
-                                            ->columns(2)
-                                            ->schema([
-                                                ToggleButtons::make('status')
-                                                    ->label(__('ui.status'))
-                                                    ->options([
-                                                        TaskStatusEnum::PENDING->value => TaskStatusEnum::PENDING->getLabel(),
-                                                        TaskStatusEnum::WINTER_MAINTENANCE->value => TaskStatusEnum::WINTER_MAINTENANCE->getLabel(),
-                                                    ])
-                                                    ->icons([
-                                                        TaskStatusEnum::PENDING->value => TaskStatusEnum::PENDING->getIcon(),
-                                                        TaskStatusEnum::WINTER_MAINTENANCE->value => TaskStatusEnum::WINTER_MAINTENANCE->getIcon(),
-                                                    ])
-                                                    ->colors([
-                                                        TaskStatusEnum::PENDING->value => TaskStatusEnum::PENDING->getColor(),
-                                                        TaskStatusEnum::WINTER_MAINTENANCE->value => TaskStatusEnum::WINTER_MAINTENANCE->getColor(),
-                                                    ])
-                                                    ->default(TaskStatusEnum::PENDING->value)
-                                                    ->inline(),
-
-                                                ToggleButtons::make('priority')
-                                                    ->label(__('ui.priority'))
-                                                    ->options(function (Get $get) {
-
-                                                        $areaId = $get('area_id');
-
-                                                        if (!$areaId) {
-                                                            return [];
-                                                        }
-
-                                                        $priorities = SlaPolicy::where('area_id', $areaId)
-                                                            ->pluck('priority')
-                                                            ->unique()
-                                                            ->sortBy(fn ($priority) => $priority->value);
-
-                                                        return $priorities->mapWithKeys(fn ($priority) => [
-                                                            $priority->value => $priority->getLabel()
-                                                        ])->toArray();
-                                                    })
-                                                    ->icons(fn (Get $get) =>
-                                                    SlaPolicy::where('area_id', $get('area_id'))
-                                                        ->pluck('priority')
-                                                        ->unique()
-                                                        ->sortBy(fn ($priority) => $priority->value)
-                                                        ->mapWithKeys(fn ($priority) => [
-                                                            $priority->value => $priority->getIcon()
-                                                        ])
-                                                        ->toArray()
-                                                    )
-                                                    ->colors(fn (Get $get) =>
-                                                    SlaPolicy::where('area_id', $get('area_id'))
-                                                        ->pluck('priority')
-                                                        ->unique()
-                                                        ->sortBy(fn ($priority) => $priority->value)
-                                                        ->mapWithKeys(fn ($priority) => [
-                                                            $priority->value => $priority->getColor()
-                                                        ])
-                                                        ->toArray()
-                                                    )
-                                                    ->inline()
-                                                    ->required(),
-                                            ]),
-                                        Forms\Components\Select::make('unit_id')
-                                            ->hidden()
-                                            ->label(__('ui.unit'))
-                                            ->options(Unit::query()->pluck('name', 'id'))
-                                            ->live()
-                                            ->afterStateUpdated(fn (callable $set) => $set('employee_id', null))
-                                            ->preload()
-                                            ->searchable()
-                                            ->required()
-                                            ->validationMessages([
-                                                'required' => __('ui.required'),
-                                            ]),
-                                        Forms\Components\Select::make('employee_id')
-                                            ->hidden()
-                                            ->label(__('ui.related_person'))
-                                            ->options(function (callable $get) {
-
-                                                $unitId = $get('unit_id');
-
-                                                if (!$unitId) {
-                                                    return [];
-                                                }
-
-                                                // if unit_id is 5 then return employees like "Bakım%"
-                                                // 5: Ünite Bakımı
-                                                if ($unitId == 5) {
-                                                    return Employee::query()
-                                                        ->where('status', ActiveStatusEnum::ACTIVE)
-                                                        ->where('profession', 'LIKE', 'Bakım%')
-                                                        ->pluck('name', 'id');
-                                                }
-
-                                                // if unit_id is 6 then return all employees
-                                                // 6: Temapark Görsel
-                                                if ($unitId == 6) {
-                                                    return Employee::query()
-                                                        ->where('status', ActiveStatusEnum::ACTIVE)
-                                                        ->pluck('name', 'id');
-                                                }
-
-                                                $unitName = Unit::query()
-                                                    ->where('id', $unitId)
-                                                    ->value('name');
-
-                                                if (!$unitName) {
-                                                    return [];
-                                                }
-
-                                                return Employee::query()
-                                                    ->where('status', ActiveStatusEnum::ACTIVE)
-                                                    ->where('profession', 'LIKE', $unitName . '%')
-                                                    ->pluck('name', 'id');
-                                            })
-                                            ->preload()
-                                            ->searchable()
-                                            //->required()
-                                            ->validationMessages([
-                                                'required' => __('ui.required'),
-                                            ]),
                                     ]),
+
+                                Fieldset::make(__('ui.descriptions'))
+                                    ->columns(1)
+                                    ->schema([
+                                        Forms\Components\Textarea::make('description')
+                                            ->label(__('ui.fault_description'))
+                                            ->rows(3)
+                                            ->placeholder(__('ui.task_description_placeholder'))
+                                            ->required()
+                                            ->validationMessages([
+                                                'required' => __('ui.required'),
+                                            ]),
+                                        Forms\Components\Textarea::make('unit_description')
+                                            ->visibleOn('edit')
+                                            ->label(__('ui.unit_description'))
+                                            ->rows(3)
+                                            ->label(__('ui.unit_description'))
+                                            ->placeholder(__('ui.unit_description_placeholder')),
+                                    ]),
+
                                 Fieldset::make(__('ui.related_person_assignment'))
-                                    ->columns(3)
+                                    ->columns(2)
                                     ->schema([
                                         Forms\Components\Select::make('unit_id')
+                                            ->hidden()
                                             ->label(__('ui.unit'))
                                             ->prefixIcon('heroicon-o-building-office')
-                                            ->options(function (callable $get) {
+                                            ->disabled(fn (Get $get) => ! $get('sub_area_id')) // Lokasyon seçilmeden birim seçilemez
+                                            ->options(function (Get $get) {
                                                 $areaId = $get('area_id');
+                                                $subAreaId = $get('sub_area_id');
+                                                if (! $areaId || ! $subAreaId) return [];
 
-                                                if (!$areaId) {
-                                                    return []; // Bölge seçilmeden birim gösterme
-                                                }
-
-                                                // Seçilen bölgeye (area_id) atanmış grupların bağlı olduğu birimleri (unit) getir
-                                                return Unit::query()
-                                                    ->whereHas('groups', function ($query) use ($areaId) {
-                                                        $query->where('area_id', $areaId)
-                                                            ->where('status', \App\Enums\ActiveStatusEnum::ACTIVE);
-                                                    })
-                                                    ->pluck('name', 'id');
+                                                return Unit::whereIn('id', function ($query) use ($areaId, $subAreaId) {
+                                                    $query->select('unit_id')
+                                                        ->from('sla_policies')
+                                                        ->where('area_id', $areaId)
+                                                        ->where('sub_area_id', $subAreaId);
+                                                })->pluck('name', 'id');
                                             })
+//                                            ->options(function (callable $get) {
+//                                                $areaId = $get('area_id');
+//
+//                                                if (!$areaId) {
+//                                                    return []; // Bölge seçilmeden birim gösterme
+//                                                }
+//
+//                                                // Seçilen bölgeye (area_id) atanmış grupların bağlı olduğu birimleri (unit) getir
+//                                                return Unit::query()
+//                                                    ->whereHas('groups', function ($query) use ($areaId) {
+//                                                        $query->where('area_id', $areaId)
+//                                                            ->where('status', \App\Enums\ActiveStatusEnum::ACTIVE);
+//                                                    })
+//                                                    ->pluck('name', 'id');
+//                                            })
                                             ->live()
+                                            ->afterStateUpdated(function (callable $set) {
+                                                $set('group_id', null);
+                                                $set('employee_id', null);
+                                                $set('priority', null);
+                                            })
                                             ->preload()
                                             ->searchable()
                                             ->required()
@@ -491,24 +486,7 @@ class TaskResource extends Resource
                                                 //'required_with' => __('ui.related_person_required_when_group_selected'),
                                             ]),
                                     ]),
-                                Fieldset::make(__('ui.descriptions'))
-                                    ->columns(2)
-                                    ->schema([
-                                        Forms\Components\Textarea::make('description')
-                                            ->label(__('ui.task_description'))
-                                            ->rows(3)
-                                            ->placeholder(__('ui.task_description_placeholder'))
-                                            ->required()
-                                            ->validationMessages([
-                                                'required' => __('ui.required'),
-                                            ]),
-                                        Forms\Components\Textarea::make('unit_description')
-                                            ->visibleOn('edit')
-                                            ->label(__('ui.unit_description'))
-                                            ->rows(3)
-                                            ->label(__('ui.unit_description'))
-                                            ->placeholder(__('ui.unit_description_placeholder')),
-                                    ]),
+
                                 Fieldset::make(__('ui.image'))
                                     ->hiddenLabel()
                                     ->columns(1)
@@ -533,6 +511,138 @@ class TaskResource extends Resource
                                                 'file' => __('ui.file_upload_error'),
                                             ])
                                             ->columnSpanFull(),
+                                    ]),
+
+                                ToggleButtons::make('status')
+                                    ->label(__('ui.status'))
+                                    ->options([
+                                        TaskStatusEnum::PENDING->value => TaskStatusEnum::PENDING->getLabel(),
+                                        TaskStatusEnum::WINTER_MAINTENANCE->value => TaskStatusEnum::WINTER_MAINTENANCE->getLabel(),
+                                    ])
+                                    ->icons([
+                                        TaskStatusEnum::PENDING->value => TaskStatusEnum::PENDING->getIcon(),
+                                        TaskStatusEnum::WINTER_MAINTENANCE->value => TaskStatusEnum::WINTER_MAINTENANCE->getIcon(),
+                                    ])
+                                    ->colors([
+                                        TaskStatusEnum::PENDING->value => TaskStatusEnum::PENDING->getColor(),
+                                        TaskStatusEnum::WINTER_MAINTENANCE->value => TaskStatusEnum::WINTER_MAINTENANCE->getColor(),
+                                    ])
+                                    ->default(TaskStatusEnum::PENDING->value)
+                                    ->inline(),
+
+                                Fieldset::make(__('ui.status_and_priority'))
+                                    ->hidden()
+                                    ->columns(2)
+                                    ->schema([
+                                        ToggleButtons::make('status')
+                                            ->label(__('ui.status'))
+                                            ->options([
+                                                TaskStatusEnum::PENDING->value => TaskStatusEnum::PENDING->getLabel(),
+                                                TaskStatusEnum::WINTER_MAINTENANCE->value => TaskStatusEnum::WINTER_MAINTENANCE->getLabel(),
+                                            ])
+                                            ->icons([
+                                                TaskStatusEnum::PENDING->value => TaskStatusEnum::PENDING->getIcon(),
+                                                TaskStatusEnum::WINTER_MAINTENANCE->value => TaskStatusEnum::WINTER_MAINTENANCE->getIcon(),
+                                            ])
+                                            ->colors([
+                                                TaskStatusEnum::PENDING->value => TaskStatusEnum::PENDING->getColor(),
+                                                TaskStatusEnum::WINTER_MAINTENANCE->value => TaskStatusEnum::WINTER_MAINTENANCE->getColor(),
+                                            ])
+                                            ->default(TaskStatusEnum::PENDING->value)
+                                            ->inline(),
+
+                                        ToggleButtons::make('priority')
+                                            ->hidden()
+                                            ->label(__('ui.priority'))
+                                            ->options(function (Get $get) {
+                                                $areaId = $get('area_id');
+                                                $subAreaId = $get('sub_area_id');
+                                                $unitId = $get('unit_id');
+
+                                                if (!$areaId || !$unitId) return [];
+
+                                                // Bu kombinasyona sahip tüm SLA politikalarındaki öncelikleri bul
+                                                $priorities = SlaPolicy::where('area_id', $areaId)
+                                                    ->where('unit_id', $unitId)
+                                                    ->when($subAreaId, fn($q) => $q->where('sub_area_id', $subAreaId))
+                                                    ->get()
+                                                    ->pluck('priority')
+                                                    ->unique()
+                                                    ->sortBy(fn ($priority) => $priority->value);
+
+                                                return $priorities->mapWithKeys(fn ($priority) => [
+                                                    $priority->value => $priority->getLabel()
+                                                ])->toArray();
+                                            })
+                                            ->icons(function (Get $get) {
+                                                // Yukarıdaki mantığın aynısını ikonlar için de uygula
+                                                return SlaPolicy::where('area_id', $get('area_id'))
+                                                    ->where('unit_id', $get('unit_id'))
+                                                    ->when($get('sub_area_id'), fn($q) => $q->where('sub_area_id', $get('sub_area_id')))
+                                                    ->get()
+                                                    ->pluck('priority')
+                                                    ->unique()
+                                                    ->mapWithKeys(fn ($priority) => [$priority->value => $priority->getIcon()])
+                                                    ->toArray();
+                                            })
+                                            ->colors(function (Get $get) {
+                                                // Renkler için de aynı filtreleme
+                                                return SlaPolicy::where('area_id', $get('area_id'))
+                                                    ->where('unit_id', $get('unit_id'))
+                                                    ->when($get('sub_area_id'), fn($q) => $q->where('sub_area_id', $get('sub_area_id')))
+                                                    ->get()
+                                                    ->pluck('priority')
+                                                    ->unique()
+                                                    ->mapWithKeys(fn ($priority) => [$priority->value => $priority->getColor()])
+                                                    ->toArray();
+                                            })
+                                            ->inline()
+                                            ->required(),
+
+                                        ToggleButtons::make('priority')
+                                            ->hidden()
+                                            ->label(__('ui.priority'))
+                                            ->disabled(fn (Get $get) => ! $get('unit_id')) // Birim seçilmeden öncelik seçilemez
+                                            ->options(function (Get $get) {
+                                                $areaId = $get('area_id');
+                                                $subAreaId = $get('sub_area_id');
+                                                $unitId = $get('unit_id');
+
+                                                if (! $areaId || ! $unitId) return [];
+
+                                                return SlaPolicy::where('area_id', $areaId)
+                                                    ->where('unit_id', $unitId)
+                                                    ->when($subAreaId, fn($q) => $q->where('sub_area_id', $subAreaId))
+                                                    ->get()
+                                                    ->pluck('priority')
+                                                    ->unique()
+                                                    ->mapWithKeys(fn ($priority) => [$priority->value => $priority->getLabel()])
+                                                    ->toArray();
+                                            })
+                                            ->icons(function (Get $get) {
+                                                // Yukarıdaki mantığın aynısını ikonlar için de uygula
+                                                return SlaPolicy::where('area_id', $get('area_id'))
+                                                    ->where('unit_id', $get('unit_id'))
+                                                    ->when($get('sub_area_id'), fn($q) => $q->where('sub_area_id', $get('sub_area_id')))
+                                                    ->get()
+                                                    ->pluck('priority')
+                                                    ->unique()
+                                                    ->mapWithKeys(fn ($priority) => [$priority->value => $priority->getIcon()])
+                                                    ->toArray();
+                                            })
+                                            ->colors(function (Get $get) {
+                                                // Renkler için de aynı filtreleme
+                                                return SlaPolicy::where('area_id', $get('area_id'))
+                                                    ->where('unit_id', $get('unit_id'))
+                                                    ->when($get('sub_area_id'), fn($q) => $q->where('sub_area_id', $get('sub_area_id')))
+                                                    ->get()
+                                                    ->pluck('priority')
+                                                    ->unique()
+                                                    ->mapWithKeys(fn ($priority) => [$priority->value => $priority->getColor()])
+                                                    ->toArray();
+                                            })
+                                            ->inline()
+                                            ->required(),
                                     ]),
                             ]),
                         Fieldset::make(__('ui.resolution_information'))

@@ -26,7 +26,7 @@ class SlaPolicyResource extends Resource
 {
     protected static ?string $model = SlaPolicy::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static ?string $navigationIcon = 'heroicon-o-document-check';
 
     protected static ?int $navigationSort = 999;
 

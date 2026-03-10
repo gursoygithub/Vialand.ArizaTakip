@@ -500,6 +500,7 @@ return [
     'not_yet' => 'Henüz Yok',
     'related_person_info' => 'İlgili Kişi Bilgileri',
     'elapsed_time' => 'Geçen Süre',
+    'elapsed_time_in_minutes' => 'Geçen Süre (DK)',
     'not_assigned' => 'Atanmamış',
     'completed_in_same_day' => 'Aynı Günde Tamamlandı',
     'elapsed_time_in_days' => 'Geçen Süre',
@@ -673,5 +674,15 @@ return [
     'status_and_priority' => 'Durum ve Öncelik',
     'sla_breached' => 'SLA İhlal Edildi',
     'resolved_on_time' => 'Zamanında Çözüldü',
-
-];
+    'time_in_minutes' => 'Süre (Dakika)',
+    'time_in_hours' => 'Süre (Saat)',
+    'time_in_seconds' => 'Süre (Saniye)',
+    'employee_sla_policy' => 'Personel SLA Politikası',
+    'employee_sla_policies' => 'Personel SLA Politikaları',
+    'attach_employee_sla' => 'Personel SLA Politikası Ata',
+    'fault_description' => 'Arıza Açıklaması',
+    'fault_descriptions' => 'Arıza Açıklamaları',
+    'fault_description_details' => 'Arıza Açıklaması Detayları',
+    'fault_location_and_priority_information' => 'Arıza Yeri & Öncelik Bilgileri',
+    'task_status_helper_text' => 'Kış Bakımı görevlerinde "Kış Bakımı", diğer görevlerde "Beklemede" seçiniz.',
+    ];

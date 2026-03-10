@@ -23,6 +23,8 @@ class TasksRelationManager extends RelationManager
 {
     protected static string $relationship = 'tasks';
 
+    protected static ?string $icon = 'heroicon-o-wrench-screwdriver';
+
     public static function getModelLabel(): ?string
     {
         return __('ui.employee_task');

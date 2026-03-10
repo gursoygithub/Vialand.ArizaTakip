@@ -100,4 +100,9 @@ class Area extends Model
     {
         return $this->hasMany(Group::class);
     }
+
+    public function slaPolicies()
+    {
+        return $this->hasMany(SlaPolicy::class, 'area_id');
+    }
 }
