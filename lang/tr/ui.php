@@ -685,4 +685,6 @@ return [
     'fault_description_details' => 'Arıza Açıklaması Detayları',
     'fault_location_and_priority_information' => 'Arıza Yeri & Öncelik Bilgileri',
     'task_status_helper_text' => 'Kış Bakımı görevlerinde "Kış Bakımı", diğer görevlerde "Beklemede" seçiniz.',
+    'employee_group_membership' => 'Personel Grup Üyeliği',
+    'employee_group_memberships' => 'Personel Grup Üyelikleri',
     ];

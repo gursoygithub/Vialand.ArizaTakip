@@ -155,99 +155,99 @@ class TaskResource extends Resource
                                         // BÖLGE
                                         Forms\Components\Select::make('sla_policy_id') // Sanal isim ŞART
                                         ->label(__('ui.area'))
-                                            ->prefixIcon('heroicon-o-map')
-                                            ->options(function () {
-                                                $user = auth()->user();
-                                                $query = SlaPolicy::with(['area', 'subArea', 'unit']);
+                                        ->prefixIcon('heroicon-o-map')
+                                        ->options(function () {
+                                            $user = auth()->user();
+                                            $query = SlaPolicy::with(['area', 'subArea', 'unit']);
 
-                                                if (!$user->hasRole('super_admin')) {
-                                                    $employee = Employee::where('email', $user->email)->first();
-                                                    if (!$employee) return [];
+                                            if (!$user->hasRole('super_admin')) {
+                                                $employee = Employee::where('email', $user->email)->first();
+                                                if (!$employee) return [];
 
-                                                    $query->whereIn('id', function ($sub) use ($employee) {
-                                                        $sub->select('sla_policy_id')
-                                                            ->from('employee_sla_policies')
-                                                            ->where('employee_id', $employee->id);
-                                                    });
+                                                $query->whereIn('id', function ($sub) use ($employee) {
+                                                    $sub->select('sla_policy_id')
+                                                        ->from('employee_sla_policies')
+                                                        ->where('employee_id', $employee->id);
+                                                });
+                                            }
+
+                                            return $query->get()->mapWithKeys(function ($policy) {
+                                                $label = "{$policy->area?->name} | " . ($policy->subArea?->name ?? 'Genel') . " | " . ($policy->unit?->name) . " | " . ($policy->priority->getLabel());
+                                                return [$policy->id => $label];
+                                            })->toArray();
+                                        })
+                                        ->formatStateUsing(function ($record) { // Edit formu açıldığında, task'ın bağlı olduğu SLA politikasını bulup seçili hale getirmek için
+                                            if (!$record) return null;
+
+                                            // Task üzerindeki verilere göre eşleşen SLA politikasını buluyoruz
+                                            return \App\Models\SlaPolicy::where([
+                                                'area_id' => $record->area_id,
+                                                'sub_area_id' => $record->sub_area_id,
+                                                'unit_id' => $record->unit_id,
+                                                'priority' => $record->priority,
+                                            ])->value('id'); // Bize Policy ID'sini (10 gibi) döndürür
+                                        })
+                                        ->getOptionLabelUsing(function ($value) {
+                                            // ID'den ismi bulan kısım. Yetki sorgusuna takılmaması için düz sorgu atıyoruz.
+                                            $policy = SlaPolicy::find($value);
+                                            if (!$policy) return $value;
+
+                                            return "{$policy->area?->name} | " . ($policy->subArea?->name ?? 'Genel') . " | " . ($policy->unit?->name) . " | " . ($policy->priority->getLabel());
+                                        })
+                                        ->preload()
+                                        ->searchable()
+                                        ->required()
+                                        ->live()
+                                        ->dehydrated(false) // Bu sanal ismi sakın DB'ye gönderme
+                                        ->afterStateUpdated(function ($state, callable $set) {
+                                            if ($state) {
+                                                $policy = SlaPolicy::find($state);
+                                                if ($policy) {
+                                                    // BURASI ASIL SİHİR: Diğer alanları dolduruyoruz
+                                                    $set('area_id', $policy->area_id);
+                                                    $set('sub_area_id', $policy->sub_area_id);
+                                                    $set('unit_id', $policy->unit_id);
+                                                    $set('priority', $policy->priority->value);
                                                 }
-
-                                                return $query->get()->mapWithKeys(function ($policy) {
-                                                    $label = "{$policy->area?->name} | " . ($policy->subArea?->name ?? 'Genel') . " | " . ($policy->unit?->name) . " | " . ($policy->priority->getLabel());
-                                                    return [$policy->id => $label];
-                                                })->toArray();
-                                            })
-                                            ->formatStateUsing(function ($record) { // Edit formu açıldığında, task'ın bağlı olduğu SLA politikasını bulup seçili hale getirmek için
-                                                if (!$record) return null;
-
-                                                // Task üzerindeki verilere göre eşleşen SLA politikasını buluyoruz
-                                                return \App\Models\SlaPolicy::where([
-                                                    'area_id' => $record->area_id,
-                                                    'sub_area_id' => $record->sub_area_id,
-                                                    'unit_id' => $record->unit_id,
-                                                    'priority' => $record->priority,
-                                                ])->value('id'); // Bize Policy ID'sini (10 gibi) döndürür
-                                            })
-                                            ->getOptionLabelUsing(function ($value) {
-                                                // ID'den ismi bulan kısım. Yetki sorgusuna takılmaması için düz sorgu atıyoruz.
-                                                $policy = SlaPolicy::find($value);
-                                                if (!$policy) return $value;
-
-                                                return "{$policy->area?->name} | " . ($policy->subArea?->name ?? 'Genel') . " | " . ($policy->unit?->name) . " | " . ($policy->priority->getLabel());
-                                            })
-                                            ->preload()
-                                            ->searchable()
-                                            ->required()
-                                            ->live()
-                                            ->dehydrated(false) // Bu sanal ismi sakın DB'ye gönderme
-                                            ->afterStateUpdated(function ($state, callable $set) {
-                                                if ($state) {
-                                                    $policy = SlaPolicy::find($state);
-                                                    if ($policy) {
-                                                        // BURASI ASIL SİHİR: Diğer alanları dolduruyoruz
-                                                        $set('area_id', $policy->area_id);
-                                                        $set('sub_area_id', $policy->sub_area_id);
-                                                        $set('unit_id', $policy->unit_id);
-                                                        $set('priority', $policy->priority->value);
-                                                    }
-                                                }
-                                            })
-                                            ->validationMessages([
-                                                'required' => __('ui.required'),
-                                            ])
-                                            ->when(auth()->user()->hasRole('super_admin') || auth()->user()->can('create_custom_area', Area::class), fn ($select) => $select->createOptionForm(function ($form) {
-                                                $form
-                                                    ->schema([
-                                                        \Filament\Forms\Components\Card::make()
-                                                            ->schema([
-                                                                Fieldset::make(__('ui.area_information'))
-                                                                    ->columns(1)
-                                                                    ->schema([
-                                                                        Forms\Components\TextInput::make('name')
-                                                                            ->label(__('ui.name'))
-                                                                            ->placeholder(__('ui.area_placeholder'))
-                                                                            ->required()
-                                                                            ->maxLength(255),
-                                                                        Forms\Components\Select::make('company_id')
-                                                                            ->label(__('ui.company'))
-                                                                            ->options(\App\Models\Company::pluck('name', 'id'))
-                                                                            ->searchable()
-                                                                            ->validationMessages([
-                                                                                'required' => __('ui.required'),
-                                                                            ])
-                                                                            ->required(),
-                                                                    ]),
-                                                            ]),
-                                                    ]);
-                                                return $form->model(\App\Models\Area::class);
-                                            })->createOptionUsing(function ($data) {
-                                                $location = \App\Models\Area::create([
-                                                    'company_id' => $data['company_id'],
-                                                    'name' => $data['name'],
-                                                    'status' => ActiveStatusEnum::ACTIVE,
-                                                    'created_by' => auth()->id(),
+                                            }
+                                        })
+                                        ->validationMessages([
+                                            'required' => __('ui.required'),
+                                        ])
+                                        ->when(auth()->user()->hasRole('super_admin') || auth()->user()->can('create_custom_area', Area::class), fn ($select) => $select->createOptionForm(function ($form) {
+                                            $form
+                                                ->schema([
+                                                    \Filament\Forms\Components\Card::make()
+                                                        ->schema([
+                                                            Fieldset::make(__('ui.area_information'))
+                                                                ->columns(1)
+                                                                ->schema([
+                                                                    Forms\Components\TextInput::make('name')
+                                                                        ->label(__('ui.name'))
+                                                                        ->placeholder(__('ui.area_placeholder'))
+                                                                        ->required()
+                                                                        ->maxLength(255),
+                                                                    Forms\Components\Select::make('company_id')
+                                                                        ->label(__('ui.company'))
+                                                                        ->options(\App\Models\Company::pluck('name', 'id'))
+                                                                        ->searchable()
+                                                                        ->validationMessages([
+                                                                            'required' => __('ui.required'),
+                                                                        ])
+                                                                        ->required(),
+                                                                ]),
+                                                        ]),
                                                 ]);
-                                                return $location->id;
-                                            })),
+                                            return $form->model(\App\Models\Area::class);
+                                        })->createOptionUsing(function ($data) {
+                                            $location = \App\Models\Area::create([
+                                                'company_id' => $data['company_id'],
+                                                'name' => $data['name'],
+                                                'status' => ActiveStatusEnum::ACTIVE,
+                                                'created_by' => auth()->id(),
+                                            ]);
+                                            return $location->id;
+                                        })),
 
                                         Forms\Components\Hidden::make('area_id')->required(), // Bu alan görünmez ama gerekli, çünkü area_id'ye göre diğer alanlar şekillenecek ve veritabanında da saklanacak
 

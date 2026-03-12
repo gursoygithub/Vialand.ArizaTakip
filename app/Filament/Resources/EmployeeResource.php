@@ -139,7 +139,7 @@ class EmployeeResource extends Resource
     {
         return [
             RelationManagers\TasksRelationManager::class,
-            //RelationManagers\SlaRelationManager::class,
+            RelationManagers\GroupMembershipsRelationManager::class,
             RelationManagers\SlaPoliciesRelationManager::class,
         ];
     }
