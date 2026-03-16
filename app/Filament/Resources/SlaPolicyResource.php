@@ -20,6 +20,7 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class SlaPolicyResource extends Resource
@@ -277,6 +278,13 @@ class SlaPolicyResource extends Resource
                     ->alignCenter()
                     ->formatStateUsing(fn ($state) => "% " . $state)
                     ->sortable(),
+                Tables\Columns\TextColumn::make('groups_count')
+                    ->label(__('ui.associated_groups'))
+                    ->badge()
+                    ->icon('heroicon-o-user-group')
+                    ->alignCenter()
+                    ->counts('groups')
+                    ->sortable(),
                 Tables\Columns\TextColumn::make('createdBy.name')
                     ->visible(fn () => auth()->user()->hasRole('super_admin') || auth()->user()->can('view_all_sla_policies'))
                     ->label(__('ui.created_by'))
@@ -347,7 +355,7 @@ class SlaPolicyResource extends Resource
     public static function getRelations(): array
     {
         return [
-            //
+            RelationManagers\GroupsRelationManager::class,
         ];
     }
 
@@ -359,5 +367,15 @@ class SlaPolicyResource extends Resource
             'edit' => Pages\EditSlaPolicy::route('/{record}/edit'),
             'view' => Pages\ViewSlaPolicy::route('/{record}'),
         ];
+    }
+
+    public static function canDelete(Model $record): bool
+    {
+        // Prevent deletion if the SLA policy is associated with any groups (assuming a groups() relationship exists)
+        if ($record->groups()->exists()) {
+            return false;
+        }
+
+        return auth()->user()->hasRole('super_admin') || auth()->id === $record->created_by;
     }
 }

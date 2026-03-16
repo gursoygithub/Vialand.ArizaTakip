@@ -15,6 +15,7 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class GroupResource extends Resource
@@ -239,5 +240,15 @@ class GroupResource extends Resource
             'edit' => Pages\EditGroup::route('/{record}/edit'),
             'view' => Pages\ViewGroup::route('/{record}'),
         ];
+    }
+
+    public static function canDelete(Model $record): bool
+    {
+        // Prevent deletion if the group has members
+        if ($record->members()->count() > 0) {
+            return false;
+        }
+
+        return auth()->user()->hasRole('super_admin') || auth()->id === $record->created_by;
     }
 }

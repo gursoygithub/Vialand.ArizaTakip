@@ -687,4 +687,5 @@ return [
     'task_status_helper_text' => 'Kış Bakımı görevlerinde "Kış Bakımı", diğer görevlerde "Beklemede" seçiniz.',
     'employee_group_membership' => 'Personel Grup Üyeliği',
     'employee_group_memberships' => 'Personel Grup Üyelikleri',
+    'associated_groups' => 'Bağlı Gruplar',
     ];
