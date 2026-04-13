@@ -113,11 +113,7 @@ class Task extends Model Implements HasMedia
             ->where(function ($query) use ($user) {
                 $query
                     ->where('created_by', $user?->id)
-                    ->orWhere('employee_id', function ($subQuery) use ($user) {
-                        $subQuery->select('id')
-                            ->from('employees')
-                            ->where('email', $user?->email);
-                    });
+                    ->orWhere('employee_id', $user?->employee?->id);
             });
     }
 

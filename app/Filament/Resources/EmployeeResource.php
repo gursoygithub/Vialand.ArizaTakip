@@ -36,6 +36,35 @@ class EmployeeResource extends Resource
         return __('ui.reports');
     }
 
+    public static function getNavigationBadge(): ?string
+    {
+        return static::getEloquentQuery()->count();
+    }
+
+    // EmployeeResource.php
+    public static function getEloquentQuery(): Builder
+    {
+        $user = auth()->user();
+
+        if ($user?->hasRole('super_admin') || $user?->can('view_all_employees')) {
+            return parent::getEloquentQuery();
+        }
+
+        $employeeId = $user?->employee?->id;
+
+        $memberEmployeeIds = \App\Models\GroupMember::query()
+            ->join('groups', 'groups.id', '=', 'group_members.group_id')
+            ->where('groups.employee_id', $employeeId)
+            ->whereNull('group_members.deleted_at')
+            ->whereNull('groups.deleted_at')
+            ->pluck('group_members.employee_id')
+            ->push($employeeId)
+            ->filter()
+            ->unique();
+
+        return parent::getEloquentQuery()->whereIn('id', $memberEmployeeIds);
+    }
+
     public static function form(Form $form): Form
     {
         return $form
