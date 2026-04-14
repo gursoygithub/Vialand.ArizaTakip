@@ -17,7 +17,8 @@ class ViewGroup extends ViewRecord
                 ->label(__('ui.create_new'))
                 ->icon('heroicon-o-plus')
                 ->url($this->getResource()::getUrl('create'))
-                ->color('success'),
+                ->color('success')
+                ->visible(fn () => auth()->user()->can('create_custom_group')),
             Actions\EditAction::make()
                 ->icon('heroicon-o-pencil-square'),
             Actions\DeleteAction::make()

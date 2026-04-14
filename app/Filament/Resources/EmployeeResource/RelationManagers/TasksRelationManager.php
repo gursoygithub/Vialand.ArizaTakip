@@ -64,25 +64,26 @@ class TasksRelationManager extends RelationManager
                     ->badge()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('type_id')
-                    ->hidden()
                     ->label(__('ui.type'))
                     ->badge()
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('area.name')
-                    ->hidden()
                     ->label(__('ui.area'))
                     ->icon('heroicon-o-map')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('subArea.name')
-                    ->hidden()
                     ->label(__('ui.sub_area'))
                     ->searchable()
                     ->sortable()
-                    ->icon('heroicon-o-map-pin'),
+                    ->icon('heroicon-o-map-pin')
+                    ->searchable()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('unit.name')
-                    ->hidden()
                     ->label(__('ui.unit'))
                     ->icon('heroicon-o-building-office')
                     ->badge()

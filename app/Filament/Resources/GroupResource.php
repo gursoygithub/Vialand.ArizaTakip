@@ -39,6 +39,25 @@ class GroupResource extends Resource
         return __('ui.user_management');
     }
 
+    public static function getEloquentQuery(): Builder
+    {
+        $user = auth()->user();
+
+        if ($user->hasRole('super_admin') || $user->can('view_all_groups')) {
+            return parent::getEloquentQuery();
+        }
+
+        $employeeId = $user->employee?->id;
+
+        return parent::getEloquentQuery()
+            ->where('employee_id', $employeeId);
+    }
+
+    public static function getNavigationBadge(): ?string
+    {
+        return static::getEloquentQuery()->count();
+    }
+
     public static function form(Form $form): Form
     {
         return $form
@@ -249,6 +268,6 @@ class GroupResource extends Resource
             return false;
         }
 
-        return auth()->user()->hasRole('super_admin') || auth()->id === $record->created_by;
+        return auth()->user()->hasRole('super_admin') || auth()->id() === $record->created_by;
     }
 }
