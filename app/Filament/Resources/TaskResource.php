@@ -59,16 +59,10 @@ class TaskResource extends Resource
 
     public static function getNavigationBadge(): ?string
     {
-        if (auth()->user()?->hasRole('super_admin') || auth()->user()?->can('view_all_tasks')) {
-            return static::getModel()::count();
-        }
-        return static::getModel()::where('created_by', auth()->id())
-            ->orWhere('employee_id', function ($query) {
-                $query->select('id')
-                    ->from('employees')
-                    ->where('email', auth()->user()->email);
-            })
-            ->count();
+        // Use the same scope as the list query so badge and list never diverge.
+        // static::getModel()::query() goes through Ticket::query() which applies
+        // scopeVisibleBy(auth()->user()) — single source of truth for visibility.
+        return (string) static::getModel()::query()->count();
     }
 
     public static function form(Form $form): Form
