@@ -60,6 +60,13 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
 
     public ?array $data = [];
 
+    /**
+     * Soft-warning steps the user has explicitly clicked through.
+     * Cleared whenever companyId changes (different company → different state).
+     * Step keys: 'areas', 'sla', 'groups', 'users'.
+     */
+    public array $softConfirmedSteps = [];
+
     public static function getNavigationLabel(): string
     {
         return 'Şirket Kurulumu';
@@ -110,7 +117,6 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
                     $this->stepUsers(),
                     $this->stepSummary(),
                 ])
-                    ->skippable()
                     ->persistStepInQueryString()
                     ->submitAction(new HtmlString(
                         '<button type="button" wire:click="finish" class="fi-btn fi-btn-color-primary inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold text-white bg-primary-600 hover:bg-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500">'
@@ -128,6 +134,58 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
             ->send();
 
         $this->redirect(filament()->getDefaultPanel()->getUrl());
+    }
+
+    /**
+     * Two-click soft-gate: if the step hasn't been acknowledged yet, send a
+     * persistent confirmation notification with "Evet, devam et" / "Hayır,
+     * tamamlayayım" buttons and Halt the wizard. After the user clicks
+     * "Evet" (acknowledgeSoftWarning), they re-click "İleri" and this gate
+     * becomes a no-op for that step.
+     */
+    protected function softGate(string $stepKey, string $title, string $body): void
+    {
+        if (in_array($stepKey, $this->softConfirmedSteps, true)) {
+            return; // already acknowledged this run
+        }
+
+        Notification::make()
+            ->title($title)
+            ->body($body)
+            ->warning()
+            ->persistent()
+            ->actions([
+                \Filament\Notifications\Actions\Action::make('confirm_' . $stepKey)
+                    ->label('Evet, devam et')
+                    ->color('warning')
+                    ->dispatch('acknowledgeSoftWarning', ['step' => $stepKey]),
+                \Filament\Notifications\Actions\Action::make('cancel_' . $stepKey)
+                    ->label('Hayır, tamamlayayım')
+                    ->color('gray')
+                    ->close(),
+            ])
+            ->send();
+
+        throw new \Filament\Support\Exceptions\Halt;
+    }
+
+    /**
+     * Marks a soft-validated step as acknowledged. The user then re-clicks
+     * "İleri" — the second click sees the step in $softConfirmedSteps and
+     * the gate is bypassed.
+     */
+    #[\Livewire\Attributes\On('acknowledgeSoftWarning')]
+    public function acknowledgeSoftWarning(string $step): void
+    {
+        if (!in_array($step, $this->softConfirmedSteps, true)) {
+            $this->softConfirmedSteps[] = $step;
+        }
+
+        Notification::make()
+            ->title('Onaylandı')
+            ->body('Devam etmek için "İleri" butonuna tekrar tıklayın.')
+            ->success()
+            ->send();
     }
 
     public function resetWizard(): void
@@ -163,7 +221,17 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
                     ->getOptionLabelFromRecordUsing(fn (Company $c) => $c->name)
                     ->searchable()
                     ->live()
-                    ->required(),
+                    ->required()
+                    ->validationMessages([
+                        'required' => 'Devam etmek için bir şirket seçiniz.',
+                    ])
+                    // Different company = different state. Drop any soft
+                    // confirmations the user already clicked through, otherwise
+                    // a "no SLAs" warning skipped on company A would silently
+                    // skip the same warning on company B.
+                    ->afterStateUpdated(function () {
+                        $this->softConfirmedSteps = [];
+                    }),
 
                 ViewField::make('summary_card')
                     ->view('filament.pages.company-setup-wizard.partials.summary-card')
@@ -183,6 +251,24 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
         return Step::make('Bölge & Lokasyonlar')
             ->icon('heroicon-o-map')
             ->description('Bölgeleri ve lokasyonları yönetin')
+            ->afterValidation(function () {
+                $companyId = (int) ($this->data['companyId'] ?? 0);
+                if (!$companyId) {
+                    return;
+                }
+
+                $hasAreas = Area::where('company_id', $companyId)->exists();
+                if ($hasAreas) {
+                    return;
+                }
+
+                // SOFT: no areas yet — warn but allow advance after a click-through.
+                $this->softGate(
+                    'areas',
+                    'Bu şirket için henüz bölge tanımlanmamış',
+                    'Devam edebilirsiniz ancak SLA ve gruplar için bölge gereklidir. Eksik tanımlamalarla devam etmek istediğinizden emin misiniz?',
+                );
+            })
             ->schema([
                 Placeholder::make('areas_empty_company')
                     ->hiddenLabel()
@@ -240,6 +326,37 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
         return Step::make('SLA Politikaları')
             ->icon('heroicon-o-clock')
             ->description('Bölge × Birim × Öncelik için SLA tanımlayın')
+            ->afterValidation(function () {
+                $companyId = (int) ($this->data['companyId'] ?? 0);
+                if (!$companyId) {
+                    return;
+                }
+
+                $areaIds = Area::where('company_id', $companyId)->pluck('id');
+                $hasAnySla = SlaPolicy::whereIn('area_id', $areaIds)->exists();
+
+                // HARD: at least one SLA policy is required for the company.
+                if (!$hasAnySla) {
+                    Notification::make()
+                        ->title('SLA tanımlı değil')
+                        ->body('En az bir SLA politikası tanımlamanız gerekmektedir.')
+                        ->danger()
+                        ->send();
+                    throw new \Filament\Support\Exceptions\Halt;
+                }
+
+                // SOFT: any (area × unit × priority) combinations missing.
+                $stats = $this->companyStats($companyId);
+                $missing = (int) ($stats['missing_sla_combos'] ?? 0);
+
+                if ($missing > 0) {
+                    $this->softGate(
+                        'sla',
+                        'Eksik SLA Kombinasyonları',
+                        "$missing kombinasyon eksik. Eksik tanımlamalarla devam etmek istediğinizden emin misiniz?",
+                    );
+                }
+            })
             ->schema([
                 Placeholder::make('sla_empty_company')
                     ->hiddenLabel()
@@ -269,6 +386,24 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
         return Step::make('Gruplar & Üyeler')
             ->icon('heroicon-o-user-group')
             ->description('Ekipleri ve üyeleri yönetin')
+            ->afterValidation(function () {
+                $companyId = (int) ($this->data['companyId'] ?? 0);
+                if (!$companyId) {
+                    return;
+                }
+
+                $hasGroups = Group::where('company_id', $companyId)->exists();
+                if ($hasGroups) {
+                    return;
+                }
+
+                // SOFT: groups are optional, but ticket assignment needs them.
+                $this->softGate(
+                    'groups',
+                    'Grup tanımlanmamış',
+                    'Ticket atama için grup gereklidir. Eksik tanımlamalarla devam etmek istediğinizden emin misiniz?',
+                );
+            })
             ->schema([
                 Placeholder::make('groups_empty_company')
                     ->hiddenLabel()
@@ -338,6 +473,25 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
         return Step::make('Kullanıcı Rolleri')
             ->icon('heroicon-o-user-circle')
             ->description('Şirket kullanıcılarının rollerini ayarlayın')
+            ->afterValidation(function () {
+                $companyId = (int) ($this->data['companyId'] ?? 0);
+                if (!$companyId) {
+                    return;
+                }
+
+                $defaultUsers = $this->defaultUsersFor($companyId);
+                $count = count($defaultUsers);
+                if ($count === 0) {
+                    return;
+                }
+
+                // SOFT: still some users on default role.
+                $this->softGate(
+                    'users',
+                    'Default rolünde kullanıcılar var',
+                    "$count kullanıcı hâlâ default rolünde. Eksik tanımlamalarla devam etmek istediğinizden emin misiniz?",
+                );
+            })
             ->schema([
                 Placeholder::make('users_empty_company')
                     ->hiddenLabel()
