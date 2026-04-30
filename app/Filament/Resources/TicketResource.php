@@ -342,6 +342,15 @@ class TicketResource extends Resource
         return [];
     }
 
+    /**
+     * Apply the permission-aware visibility scope so the table only shows
+     * tickets the current user is allowed to see (own / group / all).
+     */
+    public static function getEloquentQuery(): Builder
+    {
+        return parent::getEloquentQuery()->visibleBy(auth()->user());
+    }
+
     public static function getPages(): array
     {
         return [

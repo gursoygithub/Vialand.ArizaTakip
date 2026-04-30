@@ -3,31 +3,26 @@
 namespace App\Filament\Widgets;
 
 use App\Enums\TaskStatusEnum;
+use App\Models\Task;
 use Filament\Widgets\StatsOverviewWidget as BaseWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 
 class TasksOverview extends BaseWidget
 {
-    /**
-     * @return string|null
-     */
     public function getHeading(): ?string
     {
         return __('ui.task_by_status');
     }
+
     protected function getStats(): array
     {
-        $taskQuery = \App\Models\Task::query();
+        // Permission-aware visibility: own / group / all per Ticket::scopeVisibleBy
+        $taskQuery = Task::query()->visibleBy(auth()->user());
 
-        $allCount = $taskQuery->count();
-        $completedCount = (clone $taskQuery)->where('status', TaskStatusEnum::COMPLETED)->count();
-        $pendingCount = (clone $taskQuery)->where('status', TaskStatusEnum::PENDING)->count();
+        $allCount               = (clone $taskQuery)->count();
+        $completedCount         = (clone $taskQuery)->where('status', TaskStatusEnum::COMPLETED)->count();
+        $pendingCount           = (clone $taskQuery)->where('status', TaskStatusEnum::PENDING)->count();
         $winterMaintenanceCount = (clone $taskQuery)->where('status', TaskStatusEnum::WINTER_MAINTENANCE)->count();
-
-        // if not super_admin or dont view all tasks
-        if (!auth()->user()->hasRole('super_admin') && !auth()->user()->can('view_all_tasks')) {
-            $taskQuery->where('created_by', auth()->id());
-        }
 
         return [
             Stat::make(__('ui.tasks'), $allCount)

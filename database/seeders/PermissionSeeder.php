@@ -52,9 +52,20 @@ class PermissionSeeder extends Seeder
 
     /**
      * Role → permission assignments per REFORM.md §5.4.
-     * super_admin is handled by Shield (has all permissions automatically).
+     *
+     * super_admin gets the ticket-visibility custom permissions explicitly
+     * because Ticket::scopeVisibleBy() uses hasPermissionTo() (Spatie direct
+     * lookup) which does NOT go through Gate::before. Shield's super_admin
+     * gate still covers $user->can() checks elsewhere; this ensures the
+     * row-level visibility scope works for super_admin too.
      */
     private const ROLE_PERMISSIONS = [
+        'super_admin' => [
+            // Custom permissions used by Ticket::scopeVisibleBy() — direct grant
+            // so hasPermissionTo() returns true without relying on Gate::before.
+            'ticket.view.all',
+            'view_all_tasks',
+        ],
         'admin' => [
             'ticket.create',
             'ticket.view.all',

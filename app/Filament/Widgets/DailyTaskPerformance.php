@@ -32,21 +32,12 @@ class DailyTaskPerformance extends ChartWidget
 
     protected function getData(): array
     {
-        $user = auth()->user();
-        $hasPermission = $user->hasRole('super_admin') || $user->can('view_all_tasks');
-
         // Zaman Aralığı Belirleme
         $start = now()->startOfMonth();
         $end = now();
 
-        // Temel Sorgu (Scope mantığı ile temizlendi)
-        $baseQuery = Task::query()
-            ->when(!$hasPermission, function (Builder $query) use ($user) {
-                $query->where(function ($q) use ($user) {
-                    $q->where('created_by', $user->id)
-                        ->orWhereHas('employee', fn($e) => $e->where('email', $user->email));
-                });
-            });
+        // Permission-aware visibility scope (own / group / all)
+        $baseQuery = Task::query()->visibleBy(auth()->user());
 
         // Verileri Çekme
         $successTrend = Trend::query((clone $baseQuery)->where('sla_outcome', 'SUCCESS'))

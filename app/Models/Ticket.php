@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\TaskStatusEnum;
 use App\Notifications\TaskAssigned;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -216,34 +217,63 @@ class Ticket extends Model implements HasMedia
         return max(0, min(100, ($remaining / $total) * 100));
     }
 
-    // --- Query Scope (permission-aware) ---
+    // --- Permission-aware visibility scope ---
 
-    public static function query()
+    /**
+     * Restrict tickets to those visible to the given user, based on the custom
+     * "Özel İzinler" permissions:
+     *
+     *   ticket.view.all   → no scope (sees everything)
+     *   ticket.view.group → tickets in regions the user supervises
+     *                       (User → employee → managedGroups → area_id)
+     *   ticket.view.own   → tickets the user created OR is assigned to
+     *                       (employee_id matches the user's Employee record)
+     *
+     * Priority: view.all > view.group > view.own. The legacy custom permission
+     * `view_all_tasks` is treated as a synonym for `ticket.view.all` (consolidation).
+     * Permission checks use Spatie's hasPermissionTo() — no role-name checks.
+     */
+    public function scopeVisibleBy(Builder $query, ?User $user): Builder
     {
-        $user = auth()->user();
-
         if (!$user) {
-            return parent::query()->whereRaw('1=0');
+            return $query->whereRaw('1=0');
         }
 
-        if ($user->hasRole('super_admin') || $user->can('ticket.view.all') || $user->can('view_all_tasks')) {
-            return parent::query();
+        // ticket.view.all (or legacy view_all_tasks) → no scope
+        if ($user->hasPermissionTo('ticket.view.all') || $user->hasPermissionTo('view_all_tasks')) {
+            return $query;
         }
 
         $employeeId = $user->employee?->id;
 
-        if ($user->can('ticket.view.group')) {
+        // ticket.view.group → tickets in user's supervised regions
+        if ($user->hasPermissionTo('ticket.view.group')) {
             $areaIds = Group::where('employee_id', $employeeId)->pluck('area_id');
 
-            return parent::query()->whereIn('area_id', $areaIds);
+            return $query->whereIn('area_id', $areaIds);
         }
 
-        // ticket.view.own or default
-        return parent::query()
-            ->where(function ($query) use ($user, $employeeId) {
-                $query->where('created_by', $user->id)
-                    ->orWhere('employee_id', $employeeId);
+        // ticket.view.own → own + assigned tickets
+        if ($user->hasPermissionTo('ticket.view.own')) {
+            return $query->where(function (Builder $q) use ($user, $employeeId) {
+                $q->where('created_by', $user->id);
+                if ($employeeId) {
+                    $q->orWhere('employee_id', $employeeId);
+                }
             });
+        }
+
+        // No relevant permission → see nothing
+        return $query->whereRaw('1=0');
+    }
+
+    /**
+     * Static query() override: keep existing global scoping behaviour by
+     * delegating to scopeVisibleBy(). Single source of truth.
+     */
+    public static function query()
+    {
+        return parent::query()->visibleBy(auth()->user());
     }
 
     // --- Boot ---

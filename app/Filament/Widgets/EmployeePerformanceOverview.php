@@ -47,16 +47,15 @@ class EmployeePerformanceOverview extends BaseWidget
     protected function calculateSlaMetrics(): array
     {
         $user = auth()->user();
-        $isAdmin        = $user->hasRole('super_admin') || $user->can('view_all_employees');
-        $canViewAllTasks = $user->can('view_all_tasks');
 
-        $cacheKey = $isAdmin
-            ? 'dashboard_sla_metrics_v4'
-            : ($canViewAllTasks
-                ? 'dashboard_sla_metrics_v4_all_tasks'
-                : "dashboard_sla_metrics_v4_user_{$user->id}");
+        // Cache key keyed by user (since visibility scope can change per user).
+        // Users with view.all share one cache; others get their own.
+        $isAll = $user->hasPermissionTo('ticket.view.all') || $user->hasPermissionTo('view_all_tasks');
+        $cacheKey = $isAll
+            ? 'dashboard_sla_metrics_v4_all'
+            : "dashboard_sla_metrics_v4_user_{$user->id}";
 
-        return Cache::remember($cacheKey, 300, function () use ($user, $isAdmin, $canViewAllTasks) {
+        return Cache::remember($cacheKey, 300, function () use ($user) {
             $pendingStatuses = [
                 \App\Enums\TaskStatusEnum::PENDING->value,
                 \App\Enums\TaskStatusEnum::WINTER_MAINTENANCE->value
@@ -64,27 +63,14 @@ class EmployeePerformanceOverview extends BaseWidget
 
             $avgThreshold = DB::table('sla_policies')->avg('success_threshold') ?? 80;
 
-            // table renamed: tasks → tickets
-            $query = DB::table('tickets as t')->whereNull('t.deleted_at');
+            // Permission-aware visibility: build a sub-query of ids the user may see,
+            // then constrain the raw aggregation query to that set. Ticket::query()
+            // already applies scopeVisibleBy(auth()->user()) — single source of truth.
+            $visibleIds = \App\Models\Ticket::query()->select('id');
 
-            // Katman 3: Ne admin ne de view_all_tasks → sadece kendi grubundaki çalışanlar
-            if (!$isAdmin && !$canViewAllTasks) {
-                $employeeId = $user->employee?->id;
-
-                $memberEmployeeIds = DB::table('group_members')
-                    ->join('groups', 'groups.id', '=', 'group_members.group_id')
-                    ->where('groups.employee_id', $employeeId)
-                    ->whereNull('group_members.deleted_at')
-                    ->whereNull('groups.deleted_at')
-                    ->pluck('group_members.employee_id')
-                    ->push($employeeId)
-                    ->filter()
-                    ->unique();
-
-                $query->whereIn('t.employee_id', $memberEmployeeIds);
-            }
-
-            // Katman 1 (admin) ve Katman 2 (view_all_tasks) → filtre yok, tüm görevler
+            $query = DB::table('tickets as t')
+                ->whereIn('t.id', $visibleIds)
+                ->whereNull('t.deleted_at');
 
             $stats = $query->selectRaw("
             COUNT(DISTINCT CASE WHEN t.sla_outcome IS NOT NULL THEN t.id END) as rated_tasks,
