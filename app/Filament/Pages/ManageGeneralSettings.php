@@ -44,7 +44,8 @@ class ManageGeneralSettings extends SettingsPage
 
     public static function canAccess(): bool
     {
-        $user = auth()->user();
-        return $user?->hasRole('super_admin') || $user?->can('manage settings');
+        // Note: previous code used 'manage settings' (with a space) which never
+        // matched any seeded permission. Canonical name is `manage_settings`.
+        return (bool) auth()->user()?->can('manage_settings');
     }
 }

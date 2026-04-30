@@ -6,13 +6,29 @@ use Illuminate\Database\Seeder;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 
+/**
+ * Single source of truth for:
+ *  - Defining every custom permission (firstOrCreate-style; idempotent)
+ *  - Wiring each permission to the correct role
+ *
+ * Auto-generated Shield resource/widget/page permissions are produced by
+ * `php artisan shield:generate --all` and live in the `permissions` table
+ * alongside the custom ones — they are NOT redefined here. However, we DO
+ * sync `super_admin` to Permission::all() at the end of run() so it always
+ * has every permission in the table (Shield's `define_via_gate` is false).
+ *
+ * Run order matters when introducing a new resource:
+ *   1) `shield:generate --all`     → adds resource permissions
+ *   2) `db:seed --class=PermissionSeeder` → grants them to super_admin
+ */
 class PermissionSeeder extends Seeder
 {
     /**
-     * Permissions from REFORM.md §5.4 plus existing legacy permissions.
+     * All custom permissions — namespaced (dot.notation) and legacy (snake_case).
+     * Anything Shield auto-generates is intentionally NOT listed here.
      */
-    private const PERMISSIONS = [
-        // Ticket permissions (new)
+    private const CUSTOM_PERMISSIONS = [
+        // Reform §5.4 — namespaced
         'ticket.create',
         'ticket.view.own',
         'ticket.view.group',
@@ -20,18 +36,12 @@ class PermissionSeeder extends Seeder
         'ticket.assign',
         'ticket.close',
         'ticket.delete',
-
-        // SLA & group management
         'sla.manage',
         'group.manage',
-
-        // User management
         'user.role.assign',
-
-        // Reporting
         'report.view',
 
-        // Legacy permissions (keep for backward compat)
+        // Legacy (kept for backward compat with TaskResource and other upstream code)
         'view_all_users',
         'view_tc_no',
         'view_all_areas',
@@ -48,24 +58,26 @@ class PermissionSeeder extends Seeder
         'can_reopen_task',
         'view_all_companies',
         'view_all_sla_policies',
+        'view_kpi_dashboard',
+        'manage_settings',
+        'create_custom_group',
+        'create_custom_group_member',
+        'view_all_groups',
+        'view_all_group_members',
+
+        // Widget permissions Shield missed during discovery
+        'widget_DailyTaskPerformance',
+    ];
+
+    private const ROLES = [
+        'super_admin', 'admin', 'supervisor', 'technician', 'viewer', 'default',
     ];
 
     /**
-     * Role → permission assignments per REFORM.md §5.4.
-     *
-     * super_admin gets the ticket-visibility custom permissions explicitly
-     * because Ticket::scopeVisibleBy() uses hasPermissionTo() (Spatie direct
-     * lookup) which does NOT go through Gate::before. Shield's super_admin
-     * gate still covers $user->can() checks elsewhere; this ensures the
-     * row-level visibility scope works for super_admin too.
+     * Per-role permission grants. super_admin is handled separately
+     * (gets ALL permissions in the table — see run()).
      */
     private const ROLE_PERMISSIONS = [
-        'super_admin' => [
-            // Custom permissions used by Ticket::scopeVisibleBy() — direct grant
-            // so hasPermissionTo() returns true without relying on Gate::before.
-            'ticket.view.all',
-            'view_all_tasks',
-        ],
         'admin' => [
             'ticket.create',
             'ticket.view.all',
@@ -92,6 +104,13 @@ class PermissionSeeder extends Seeder
             'can_reopen_task',
             'view_all_companies',
             'view_all_sla_policies',
+            'view_kpi_dashboard',
+            'manage_settings',
+            'create_custom_group',
+            'create_custom_group_member',
+            'view_all_groups',
+            'view_all_group_members',
+            'widget_DailyTaskPerformance',
         ],
         'supervisor' => [
             'ticket.create',
@@ -106,6 +125,10 @@ class PermissionSeeder extends Seeder
             'view_all_sub_areas',
             'view_all_units',
             'view_all_sla_policies',
+            'view_all_groups',
+            'view_all_group_members',
+            'view_kpi_dashboard',
+            'widget_DailyTaskPerformance',
         ],
         'technician' => [
             'ticket.create',
@@ -116,21 +139,32 @@ class PermissionSeeder extends Seeder
             'ticket.view.own',
         ],
         'default' => [
-            // Zero permissions — awaits role assignment
+            // Zero permissions — awaits role assignment from admin
         ],
     ];
 
     public function run(): void
     {
-        // Ensure all permissions exist
-        foreach (self::PERMISSIONS as $name) {
+        // 1. Custom permissions (idempotent)
+        foreach (self::CUSTOM_PERMISSIONS as $name) {
             Permission::firstOrCreate(['name' => $name, 'guard_name' => 'web']);
         }
 
-        // Ensure all roles exist and assign permissions
+        // 2. Roles (idempotent)
+        foreach (self::ROLES as $name) {
+            Role::firstOrCreate(['name' => $name, 'guard_name' => 'web']);
+        }
+
+        // 3. super_admin gets EVERY permission in the table (custom + Shield-generated).
+        //    Required because Shield's `define_via_gate` is false — there is no
+        //    Gate::before bypass for super_admin, so $user->can() needs the permission
+        //    to be directly assigned via role.
+        Role::where('name', 'super_admin')->first()
+            ->syncPermissions(Permission::pluck('name')->all());
+
+        // 4. Other roles → scoped permissions
         foreach (self::ROLE_PERMISSIONS as $roleName => $permissions) {
-            $role = Role::firstOrCreate(['name' => $roleName, 'guard_name' => 'web']);
-            $role->syncPermissions($permissions);
+            Role::where('name', $roleName)->first()->syncPermissions($permissions);
         }
     }
 }
