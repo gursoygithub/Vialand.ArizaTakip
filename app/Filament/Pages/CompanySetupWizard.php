@@ -257,17 +257,19 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
                     return;
                 }
 
+                // HARD: at least one area is required. Without an area the
+                // SLA grid (step 3) and group form (step 4) have nothing to
+                // bind to, and tickets can't be created against this company
+                // at all — so this is a hard block, no soft override.
                 $hasAreas = Area::where('company_id', $companyId)->exists();
-                if ($hasAreas) {
-                    return;
+                if (!$hasAreas) {
+                    Notification::make()
+                        ->title('Bölge tanımlı değil')
+                        ->body('Devam etmek için en az bir bölge tanımlamanız gerekmektedir.')
+                        ->danger()
+                        ->send();
+                    throw new \Filament\Support\Exceptions\Halt;
                 }
-
-                // SOFT: no areas yet — warn but allow advance after a click-through.
-                $this->softGate(
-                    'areas',
-                    'Bu şirket için henüz bölge tanımlanmamış',
-                    'Devam edebilirsiniz ancak SLA ve gruplar için bölge gereklidir. Eksik tanımlamalarla devam etmek istediğinizden emin misiniz?',
-                );
             })
             ->schema([
                 Placeholder::make('areas_empty_company')
@@ -333,9 +335,23 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
                 }
 
                 $areaIds = Area::where('company_id', $companyId)->pluck('id');
-                $hasAnySla = SlaPolicy::whereIn('area_id', $areaIds)->exists();
+
+                // HARD: areas must exist before SLA can be defined. Step 2
+                // already enforces this, but if the user navigates back to
+                // step 1, picks a different (areas-less) company, and tries
+                // to advance into step 3 by URL or back-button, this is the
+                // backstop.
+                if ($areaIds->isEmpty()) {
+                    Notification::make()
+                        ->title('Bölge gerekli')
+                        ->body('Bölge tanımlanmadan SLA politikası oluşturulamaz. Lütfen önce bölge ekleyiniz.')
+                        ->danger()
+                        ->send();
+                    throw new \Filament\Support\Exceptions\Halt;
+                }
 
                 // HARD: at least one SLA policy is required for the company.
+                $hasAnySla = SlaPolicy::whereIn('area_id', $areaIds)->exists();
                 if (!$hasAnySla) {
                     Notification::make()
                         ->title('SLA tanımlı değil')
