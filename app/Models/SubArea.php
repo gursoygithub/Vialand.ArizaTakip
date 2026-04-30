@@ -16,7 +16,6 @@ class SubArea extends Model
     protected $fillable = [
         'area_id',
         'name',
-        'status',
         'created_by',
         'updated_by',
         'deleted_by',
