@@ -164,9 +164,13 @@ class ViewTicket extends ViewRecord
                     ->icon('heroicon-o-clock')
                     ->description('Bu talep üzerinde yapılan tüm durum değişiklikleri ve yorumlar (eskiden yeniye).')
                     ->schema([
+                        // getStateUsing — not formatStateUsing — because there's
+                        // no `timeline` column on tickets. formatStateUsing only
+                        // runs when state is non-null, so the closure was never
+                        // executed and the section rendered empty.
                         TextEntry::make('timeline')
                             ->label('')
-                            ->formatStateUsing(fn (Ticket $record) => self::renderTimeline($record))
+                            ->getStateUsing(fn (Ticket $record) => self::renderTimeline($record))
                             ->html()
                             ->columnSpanFull(),
                     ]),
@@ -190,15 +194,31 @@ class ViewTicket extends ViewRecord
     {
         $ticket = $this->getRecord();
 
+        // Visibility envelope shared across action buttons.
+        // - Terminal tickets (resolved/closed/cancelled): non-creators see no
+        //   action buttons at all; creator can still reopen via the
+        //   buildTransitionActions reopen path.
+        // - Active tickets: existing per-action permission checks decide.
+        $isCreator      = (int) $ticket->created_by === (int) auth()->id();
+        $isTerminal     = in_array($ticket->status, [
+            TaskStatusEnum::RESOLVED,
+            TaskStatusEnum::CLOSED,
+            TaskStatusEnum::COMPLETED,
+            TaskStatusEnum::CANCELLED,
+        ], true);
+        $allowAnyAction = $isCreator || !$isTerminal;
+
         return [
             // STATUS TRANSITION ACTIONS — one button per allowed next status
-            ...$this->buildTransitionActions($ticket),
+            ...$this->buildTransitionActions($ticket, $allowAnyAction, $isCreator),
 
             // ADD COMMENT
             Actions\Action::make('add_comment')
                 ->label(__('ui.add_note'))
                 ->icon('heroicon-o-chat-bubble-left')
                 ->color('gray')
+                ->visible(fn () => $allowAnyAction
+                    && ($isCreator || auth()->user()?->can('ticket.assign')))
                 ->form([
                     Textarea::make('note')->label(__('ui.note'))->rows(3)->required(),
                 ])
@@ -215,8 +235,9 @@ class ViewTicket extends ViewRecord
                 ->label($ticket->employee_id ? 'Yeniden Ata' : 'Ata')
                 ->icon('heroicon-o-user-plus')
                 ->color('warning')
-                ->visible(fn () => auth()->user()?->can('ticket.assign')
-                    && !$ticket->status?->isClosed())
+                ->visible(fn () => $allowAnyAction
+                    && auth()->user()?->can('ticket.assign')
+                    && !$isTerminal)
                 ->form([
                     Select::make('employee_id')
                         ->label(__('ui.assigned_employee'))
@@ -297,8 +318,13 @@ class ViewTicket extends ViewRecord
     /**
      * Build one Filament Action per allowed next status, gated by the
      * permission required for that status type.
+     *
+     * @param bool $allowAnyAction false when the ticket is terminal and the
+     *   viewer is not the creator — every transition button is hidden in
+     *   that case (the creator can still reopen via the IN_PROGRESS arm).
+     * @param bool $isCreator     true when the viewer created the ticket.
      */
-    private function buildTransitionActions(Ticket $ticket): array
+    private function buildTransitionActions(Ticket $ticket, bool $allowAnyAction, bool $isCreator): array
     {
         $service = app(TicketService::class);
         $next    = $service->allowedNextStatuses($ticket->status);
@@ -316,9 +342,14 @@ class ViewTicket extends ViewRecord
             $label    = self::ACTION_LABEL[$to->value] ?? $to->getLabel();
 
             // "İşleme Al" / "Çözüldü" — open to assigned employee or anyone with ticket.assign
-            $allowedFn = function () use ($required, $to, $ticket) {
+            $allowedFn = function () use ($required, $to, $ticket, $allowAnyAction, $isCreator) {
+                if (!$allowAnyAction) {
+                    return false;
+                }
+
                 $user = auth()->user();
                 if (!$user) return false;
+                if ($isCreator) return true;
                 if ($required && $user->can($required)) return true;
 
                 // Re-open special-case: ticket.reopen permission

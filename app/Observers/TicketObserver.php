@@ -14,6 +14,22 @@ class TicketObserver
 {
     public function __construct(private SlaService $slaService) {}
 
+    /**
+     * Runs on every save (create + update). Whenever an employee is attached
+     * to a ticket and the ticket has no assigned_at yet, stamp it now.
+     * Covers the case where the Ata action does $ticket->update(['employee_id'])
+     * without going through TicketService::transition() — the match-arm in
+     * transition() only fires on → ASSIGNED, so a ticket that jumps OPEN → IN_PROGRESS
+     * directly (allowed by the transition matrix) would otherwise never record
+     * an assigned_at.
+     */
+    public function saving(Ticket $ticket): void
+    {
+        if ($ticket->employee_id && empty($ticket->assigned_at)) {
+            $ticket->assigned_at = now();
+        }
+    }
+
     public function creating(Ticket $ticket): void
     {
         // Resolve and snapshot the SLA deadline at creation time
