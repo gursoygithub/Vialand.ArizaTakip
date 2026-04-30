@@ -304,6 +304,7 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
                                     'name'       => $data['name'],
                                     'company_id' => $companyId,
                                     'status'     => (int) $data['status'],
+                                    'created_by' => auth()->id(),
                                 ]);
                                 Notification::make()->title('Bölge eklendi')->success()->send();
                             }),
@@ -465,6 +466,7 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
                                     'unit_id'     => (int) $data['unit_id'],
                                     'employee_id' => (int) $data['employee_id'],
                                     'status'      => ActiveStatusEnum::ACTIVE->value,
+                                    'created_by'  => auth()->id(),
                                 ]);
                                 Notification::make()->title('Grup oluşturuldu')->success()->send();
                             }),
@@ -634,9 +636,10 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
                     return;
                 }
                 SubArea::create([
-                    'area_id' => $areaId,
-                    'name'    => $data['name'],
-                    'status'  => ActiveStatusEnum::ACTIVE->value,
+                    'area_id'    => $areaId,
+                    'name'       => $data['name'],
+                    'status'     => ActiveStatusEnum::ACTIVE->value,
+                    'created_by' => auth()->id(),
                 ]);
                 Notification::make()->title('Lokasyon eklendi')->success()->send();
             });
@@ -752,6 +755,7 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
                                 'priority'          => $priorityValue,
                                 'deadline_minutes'  => (int) $minutes,
                                 'success_threshold' => $threshold,
+                                'created_by'        => auth()->id(),
                             ]);
                         }
                     } elseif ($existing) {
