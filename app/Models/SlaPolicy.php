@@ -84,4 +84,23 @@ class SlaPolicy extends Model
             $slaPolicy->save();
         });
     }
+
+    // relation with group
+    public function groups()
+    {
+        return $this->hasMany(Group::class, 'area_id', 'area_id')
+            ->with([
+                'company',
+                'area',
+                'unit',
+            ]);
+    }
+
+    public function employees()
+    {
+        return $this->belongsToMany(Employee::class, 'employee_sla_policies')
+            ->using(EmployeeSlaPolicy::class) // Özel Pivot modelinizi burada belirtmek şart
+            ->withPivot(['id', 'created_by', 'updated_by', 'deleted_by'])
+            ->withTimestamps();
+    }
 }

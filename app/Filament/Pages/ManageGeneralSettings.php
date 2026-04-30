@@ -10,6 +10,9 @@ use Filament\Pages\SettingsPage;
 
 class ManageGeneralSettings extends SettingsPage
 {
+
+    protected static bool $shouldRegisterNavigation = false;
+
     protected static ?string $navigationIcon = 'heroicon-o-cog-6-tooth';
 
     // Ayar sınıfımızı buraya bağlıyoruz
@@ -37,5 +40,11 @@ class ManageGeneralSettings extends SettingsPage
                             ->helperText('Personelin "Verimli" sayılması için gereken minimum başarı yüzdesi.'),
                     ])
             ]);
+    }
+
+    public static function canAccess(): bool
+    {
+        $user = auth()->user();
+        return $user?->hasRole('super_admin') || $user?->can('manage settings');
     }
 }

@@ -158,6 +158,12 @@ class User extends Authenticatable implements FilamentUser
             ->useLogName(static::$logName);
     }
 
+    //relation with employee
+    public function employee()
+    {
+        return $this->hasOne(Employee::class, 'email', 'email');
+    }
+
 
     // send mail to user after creation
 //    protected static function booted()

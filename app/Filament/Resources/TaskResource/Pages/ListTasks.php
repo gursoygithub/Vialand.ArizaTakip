@@ -37,17 +37,6 @@ class ListTasks extends ListRecords
                 $query->where('status', TaskStatusEnum::PENDING)
                 ),
 
-            'completed' => Tab::make(__('ui.completed'))
-                ->badge(fn () => Task::query()
-                    ->where('status', TaskStatusEnum::COMPLETED)
-                    ->count()
-                )
-                ->badgeIcon('heroicon-o-check-circle')
-                ->badgeColor('success')
-                ->modifyQueryUsing(fn ($query) =>
-                $query->where('status', TaskStatusEnum::COMPLETED)
-                ),
-
             'winter_maintenance' => Tab::make(__('ui.winter_maintenance'))
                 ->badge(fn () => Task::query()
                     ->where('status', TaskStatusEnum::WINTER_MAINTENANCE)
@@ -57,6 +46,17 @@ class ListTasks extends ListRecords
                 ->badgeColor('info')
                 ->modifyQueryUsing(fn ($query) =>
                 $query->where('status', TaskStatusEnum::WINTER_MAINTENANCE)
+                ),
+
+            'completed' => Tab::make(__('ui.completed'))
+                ->badge(fn () => Task::query()
+                    ->where('status', TaskStatusEnum::COMPLETED)
+                    ->count()
+                )
+                ->badgeIcon('heroicon-o-check-circle')
+                ->badgeColor('success')
+                ->modifyQueryUsing(fn ($query) =>
+                $query->where('status', TaskStatusEnum::COMPLETED)
                 ),
         ];
     }

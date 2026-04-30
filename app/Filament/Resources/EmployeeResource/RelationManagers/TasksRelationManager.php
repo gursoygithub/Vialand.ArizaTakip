@@ -23,6 +23,8 @@ class TasksRelationManager extends RelationManager
 {
     protected static string $relationship = 'tasks';
 
+    protected static ?string $icon = 'heroicon-o-wrench-screwdriver';
+
     public static function getModelLabel(): ?string
     {
         return __('ui.employee_task');
@@ -62,25 +64,26 @@ class TasksRelationManager extends RelationManager
                     ->badge()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('type_id')
-                    ->hidden()
                     ->label(__('ui.type'))
                     ->badge()
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('area.name')
-                    ->hidden()
                     ->label(__('ui.area'))
                     ->icon('heroicon-o-map')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('subArea.name')
-                    ->hidden()
                     ->label(__('ui.sub_area'))
                     ->searchable()
                     ->sortable()
-                    ->icon('heroicon-o-map-pin'),
+                    ->icon('heroicon-o-map-pin')
+                    ->searchable()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('unit.name')
-                    ->hidden()
                     ->label(__('ui.unit'))
                     ->icon('heroicon-o-building-office')
                     ->badge()
@@ -146,25 +149,42 @@ class TasksRelationManager extends RelationManager
                     ->badge()
                     ->color(fn ($record) => $record->status->value === TaskStatusEnum::COMPLETED->value ? 'success' : 'warning')
                     ->getStateUsing(function ($record) {
-                        // 1. Başlangıç noktası: Kayıt oluşturulma tarihi
                         $start = $record->created_at;
 
                         if (!$start) return null;
 
-                        // 2. Bitiş noktası: Tamamlandıysa due_date, değilse şu an (now)
-                        $end = ($record->status->value === TaskStatusEnum::COMPLETED->value && $record->due_date)
+                        // Table mantığının aynısı: Tamamlandıysa due_date, değilse şu an
+                        $end = ($record->status->value === \App\Enums\TaskStatusEnum::COMPLETED->value && $record->due_date)
                             ? $record->due_date
                             : now();
 
-                        // 3. Farkı hesapla ve formatla
-                        // 'parts' => 2: Sadece en büyük iki birimi gösterir (örn: 10 gün 2 dakika)
-                        // 'join' => ' ': Birimler arasına boşluk koyar
+                        // Table görünümü ile tutarlı olması için 'parts' => 2 yapıldı
                         return $start->diffForHumans($end, [
                             'syntax' => \Carbon\CarbonInterface::DIFF_ABSOLUTE,
-                            'parts' => 2,
+                            'parts' => 3,
                             'join' => ' ',
                         ]);
                     })
+//                    ->getStateUsing(function ($record) {
+//                        // 1. Başlangıç noktası: Kayıt oluşturulma tarihi
+//                        $start = $record->created_at;
+//
+//                        if (!$start) return null;
+//
+//                        // 2. Bitiş noktası: Tamamlandıysa due_date, değilse şu an (now)
+//                        $end = ($record->status->value === TaskStatusEnum::COMPLETED->value && $record->due_date)
+//                            ? $record->due_date
+//                            : now();
+//
+//                        // 3. Farkı hesapla ve formatla
+//                        // 'parts' => 2: Sadece en büyük iki birimi gösterir (örn: 10 gün 2 dakika)
+//                        // 'join' => ' ': Birimler arasına boşluk koyar
+//                        return $start->diffForHumans($end, [
+//                            'syntax' => \Carbon\CarbonInterface::DIFF_ABSOLUTE,
+//                            'parts' => 2,
+//                            'join' => ' ',
+//                        ]);
+//                    })
                     ->description(fn ($record) => $record->status->value === TaskStatusEnum::COMPLETED->value
                         ? __('ui.time_taken_to_complete')
                         : __('ui.waiting_time'))

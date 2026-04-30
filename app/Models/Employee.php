@@ -35,7 +35,10 @@ class Employee extends Model
 
     public function user()
     {
-        return $this->belongsTo(User::class, 'email', 'email');
+        return $this->belongsTo(User::class, 'email', 'email')
+            ->where('status', ActiveStatusEnum::ACTIVE)
+            ->whereNotNull('username')
+            ->whereNull('deleted_at');
     }
 
     // İlişkilerdeki ->with() kısımlarını temizledik.
@@ -108,5 +111,43 @@ class Employee extends Model
     public function getSlaPerformanceScoreAttribute()
     {
         return round($this->performance_score ?? 0, 1);
+    }
+
+    public function accessibleAreaIds()
+    {
+        return Area::query()
+            ->whereIn('id', function ($query) {
+                $query->select('area_id')
+                    ->from('groups')
+                    ->join('group_members', 'groups.id', '=', 'group_members.group_id')
+                    ->where('group_members.employee_id', $this->id)
+                    ->whereNull('group_members.deleted_at');
+            })
+            ->whereExists(function ($query) {
+                $query->selectRaw(1)
+                    ->from('sla_policies')
+                    ->whereColumn('sla_policies.area_id', 'areas.id');
+            })
+            ->pluck('id');
+    }
+
+    public function getUnitPerformanceStats()
+    {
+        return $this->tasks()
+            ->select('unit_id')
+            ->selectRaw('count(*) as total')
+            ->selectRaw('count(case when sla_outcome = "SUCCESS" then 1 end) as success_count')
+            ->groupBy('unit_id')
+            ->with('unit')
+            ->get();
+    }
+
+    public function slaPolicies()
+    {
+        return $this->belongsToMany(SlaPolicy::class, 'employee_sla_policies')
+            ->using(EmployeeSlaPolicy::class)
+            ->withPivot(['id', 'created_by', 'updated_by', 'deleted_by']) // id'yi de ekledik ki loglar karışmasın
+            //->withPivot(['id', 'status', 'created_by', 'updated_by', 'deleted_by']) // id'yi de ekledik ki loglar karışmasın
+            ->withTimestamps();
     }
 }

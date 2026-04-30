@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\GroupResource\RelationManagers;
 
+use App\Filament\Resources\GroupResource\Pages\CreateGroup;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\RelationManagers\RelationManager;
@@ -140,5 +141,29 @@ class MembersRelationManager extends RelationManager
     public function isReadOnly(): bool
     {
         return false;
+    }
+
+    protected function canCreate(): bool
+    {
+        return auth()->user()->hasRole('super_admin') || auth()->user()->can('create_custom_group_member');
+    }
+
+    protected function canEdit(Model $record): bool
+    {
+        $user = auth()->user();
+
+        if ($user->hasRole('super_admin')) return true;
+
+        return $record->created_by === $user->id;
+    }
+
+    protected function canDelete(Model $record): bool
+    {
+        $user = auth()->user();
+
+        $isAdmin = $user->hasRole('super_admin');
+        $isOwner = $record->created_by === $user->id;
+
+        return $isAdmin || $isOwner;
     }
 }

@@ -15,6 +15,7 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class GroupResource extends Resource
@@ -36,6 +37,25 @@ class GroupResource extends Resource
     public static function getNavigationGroup(): ?string
     {
         return __('ui.user_management');
+    }
+
+    public static function getEloquentQuery(): Builder
+    {
+        $user = auth()->user();
+
+        if ($user->hasRole('super_admin') || $user->can('view_all_groups')) {
+            return parent::getEloquentQuery();
+        }
+
+        $employeeId = $user->employee?->id;
+
+        return parent::getEloquentQuery()
+            ->where('employee_id', $employeeId);
+    }
+
+    public static function getNavigationBadge(): ?string
+    {
+        return static::getEloquentQuery()->count();
     }
 
     public static function form(Form $form): Form
@@ -239,5 +259,15 @@ class GroupResource extends Resource
             'edit' => Pages\EditGroup::route('/{record}/edit'),
             'view' => Pages\ViewGroup::route('/{record}'),
         ];
+    }
+
+    public static function canDelete(Model $record): bool
+    {
+        // Prevent deletion if the group has members
+        if ($record->members()->count() > 0) {
+            return false;
+        }
+
+        return auth()->user()->hasRole('super_admin') || auth()->id() === $record->created_by;
     }
 }

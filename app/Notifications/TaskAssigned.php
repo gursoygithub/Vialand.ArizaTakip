@@ -18,7 +18,7 @@ class TaskAssigned extends Notification
         public \App\Models\Task $task,
     )
     {
-        //
+        $this->task = $task->fresh(['area', 'subArea', 'unit']);
     }
 
     /**
@@ -44,7 +44,7 @@ class TaskAssigned extends Notification
             ->view('mail.task-assigned', [
                 'task' => $this->task,
                 'user' => $notifiable, // ✔ maili alan kişi
-                'assigned_by' => auth()->user(), // ✔ atayan kişi
+                'assigned_by' => $this->task->createdBy ?? auth()->user(),
                 // 'assigned_to' => $this->task->employee, // ✔ ilgili kişi
             ]);
     }

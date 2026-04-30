@@ -40,73 +40,29 @@ class UnitResource extends Resource
         return __('ui.unit_management');
     }
 
-    public static function getNavigationBadge(): ?string
-    {
-        if (auth()->user()?->hasRole('super_admin') || auth()->user()?->can('view_all_units')) {
-            return static::getModel()::count();
-        }
-
-        return static::getModel()::where('created_by', auth()->id())->count();
-    }
-
     public static function getEloquentQuery(): Builder
     {
         $user = auth()->user();
 
-        $hasPermission =
-            $user->hasRole('super_admin') ||
-            $user->can('view_all_tasks');
+        if ($user->hasRole('super_admin') || $user->can('view_all_units')) {
+            return parent::getEloquentQuery();
+        }
 
-        return parent::getEloquentQuery()
-            ->withCount([
-                'tasks as pending_tasks_count' => function ($query) use ($user, $hasPermission) {
-                    $query->where('status', TaskStatusEnum::PENDING);
+        $employeeId = $user->employee?->id;
 
-                    if (! $hasPermission) {
-                        $query->where(function ($query) use ($user) {
-                            $query
-                                ->where('created_by', $user->id)
-                                ->orWhere('employee_id', function ($subQuery) use ($user) {
-                                    $subQuery->select('id')
-                                        ->from('employees')
-                                        ->where('email', $user->email);
-                                });
-                        });
-                    }
-                },
+        $unitIds = \App\Models\Group::query()
+            ->where('employee_id', $employeeId)
+            ->whereNull('deleted_at')
+            ->pluck('unit_id')
+            ->filter()
+            ->unique();
 
-                'tasks as completed_tasks_count' => function ($query) use ($user, $hasPermission) {
-                    $query->where('status', TaskStatusEnum::COMPLETED);
+        return parent::getEloquentQuery()->whereIn('id', $unitIds);
+    }
 
-                    if (! $hasPermission) {
-                        $query->where(function ($query) use ($user) {
-                            $query
-                                ->where('created_by', $user->id)
-                                ->orWhere('employee_id', function ($subQuery) use ($user) {
-                                    $subQuery->select('id')
-                                        ->from('employees')
-                                        ->where('email', $user->email);
-                                });
-                        });
-                    }
-                },
-
-                'tasks as winter_maintenance_tasks_count' => function ($query) use ($user, $hasPermission) {
-                    $query->where('status', TaskStatusEnum::WINTER_MAINTENANCE);
-
-                    if (! $hasPermission) {
-                        $query->where(function ($query) use ($user) {
-                            $query
-                                ->where('created_by', $user->id)
-                                ->orWhere('employee_id', function ($subQuery) use ($user) {
-                                    $subQuery->select('id')
-                                        ->from('employees')
-                                        ->where('email', $user->email);
-                                });
-                        });
-                    }
-                },
-            ]);
+    public static function getNavigationBadge(): ?string
+    {
+        return static::getEloquentQuery()->count();
     }
 
     public static function form(Form $form): Form
@@ -133,7 +89,30 @@ class UnitResource extends Resource
 
     public static function table(Table $table): Table
     {
+        $user = auth()->user();
+        $hasTaskPermission = $user->hasRole('super_admin') || $user->can('view_all_tasks');
+
         return $table
+            ->modifyQueryUsing(fn (Builder $query) => $query->withCount([
+                'tasks as pending_tasks_count' => fn($q) => $q
+                    ->where('status', TaskStatusEnum::PENDING)
+                    ->when(!$hasTaskPermission, fn($q) => $q->where(fn($q) => $q
+                        ->where('created_by', $user->id)
+                        ->orWhere('employee_id', $user->employee?->id)
+                    )),
+                'tasks as completed_tasks_count' => fn($q) => $q
+                    ->where('status', TaskStatusEnum::COMPLETED)
+                    ->when(!$hasTaskPermission, fn($q) => $q->where(fn($q) => $q
+                        ->where('created_by', $user->id)
+                        ->orWhere('employee_id', $user->employee?->id)
+                    )),
+                'tasks as winter_maintenance_tasks_count' => fn($q) => $q
+                    ->where('status', TaskStatusEnum::WINTER_MAINTENANCE)
+                    ->when(!$hasTaskPermission, fn($q) => $q->where(fn($q) => $q
+                        ->where('created_by', $user->id)
+                        ->orWhere('employee_id', $user->employee?->id)
+                    )),
+            ]))
             ->defaultSort('updated_at', 'desc')
             ->paginated([5, 10, 25, 50])
             ->columns([

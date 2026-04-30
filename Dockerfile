@@ -1,33 +1,32 @@
-FROM ubuntu:24.04 AS base
+FROM ubuntu:24.04
 LABEL Maintainer="MAHAMOUD BRAHIM ADOUM"
-LABEL Description="PHP 8.4 Laravel setup with MySQL and MSSQL"
+LABEL Description="PHP 8.4 Laravel setup with MySQL, MSSQL, Node.js 20 and npm"
+
 ENV DEBIAN_FRONTEND=noninteractive
 
-# System dependencies
+# --- Sistem bağımlılıkları ---
 RUN apt-get update && \
-    apt-get install -y software-properties-common curl wget gnupg ca-certificates apt-transport-https unzip git lsb-release
+    apt-get install -y software-properties-common curl wget gnupg ca-certificates \
+    apt-transport-https unzip git lsb-release nano supervisor nginx
 
-# Add Microsoft SQL Server package repository (değişen yöntem)
+# --- Microsoft SQL Server repo ---
 RUN set -eux; \
     mkdir -p /etc/apt/keyrings; \
     wget -O - https://packages.microsoft.com/keys/microsoft.asc > /etc/apt/keyrings/microsoft.asc && \
     chmod go+r /etc/apt/keyrings/microsoft.asc && \
     echo "deb [signed-by=/etc/apt/keyrings/microsoft.asc] https://packages.microsoft.com/debian/12/prod bookworm main" > /etc/apt/sources.list.d/mssql-release.list
 
-# Add PHP repository
-RUN add-apt-repository -y ppa:ondrej/php
+# --- PHP repo ---
+RUN add-apt-repository -y ppa:ondrej/php && apt-get update
 
-# Update package lists
-RUN apt-get update
-
-# Install ODBC and SQL Server tools
+# --- ODBC ve SQL Server tools ---
 RUN ACCEPT_EULA=Y apt-get install -y \
     unixodbc \
     unixodbc-dev \
     msodbcsql18 \
     mssql-tools18
 
-# Install PHP 8.4 and required extensions
+# --- PHP 8.4 ve extensionlar ---
 RUN apt-get install -y \
     php8.4 \
     php8.4-cli \
@@ -51,34 +50,41 @@ RUN apt-get install -y \
     php8.4-redis \
     php8.4-pgsql \
     php8.4-ssh2 \
-    php8.4-soap \
-    supervisor \
-    nano \
-    nginx
+    php8.4-soap
 
-# Install SQL Server PHP extensions
+# --- SQL Server PHP extension ---
 RUN pecl channel-update pecl.php.net && \
     pecl install sqlsrv pdo_sqlsrv && \
     echo "extension=sqlsrv.so" > /etc/php/8.4/mods-available/sqlsrv.ini && \
     echo "extension=pdo_sqlsrv.so" > /etc/php/8.4/mods-available/pdo_sqlsrv.ini && \
     phpenmod sqlsrv pdo_sqlsrv
 
-# Install Composer globally
+# --- Composer ---
 RUN curl -sS https://getcomposer.org/installer | php && \
     mv composer.phar /usr/local/bin/composer
 
-# Copy Nginx and startup config
+# --- NodeJS 20 ---
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y nodejs
+
+# --- Laravel çalışma dizini ---
+WORKDIR /var/www
+
+# --- Laravel dosyaları ---
+COPY . /var/www
+
+# izinler
+RUN chown -R www-data:www-data /var/www
+
+# --- Laravel dependency ---
+RUN composer install --no-interaction --prefer-dist --optimize-autoloader
+
+RUN npm install
+RUN npm run build
+
+# --- nginx ve start script ---
 COPY ./.docker/start.sh /start.sh
 COPY ./.docker/nginx.conf /etc/nginx/nginx.conf
-
-# Set working directory
-WORKDIR /var/www
-RUN rm -rf *
-COPY . /var/www
-RUN chown www-data:www-data * -R
-
-# Install Laravel dependencies
-RUN composer install --no-interaction --prefer-dist --optimize-autoloader
 
 EXPOSE 80
 

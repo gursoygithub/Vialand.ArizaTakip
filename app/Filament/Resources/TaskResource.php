@@ -10,6 +10,7 @@ use App\Filament\Resources\TaskResource\Pages;
 use App\Filament\Resources\TaskResource\RelationManagers;
 use App\Models\Area;
 use App\Models\Employee;
+use App\Models\SlaPolicy;
 use App\Models\SubArea;
 use App\Models\Task;
 use App\Models\Unit;
@@ -20,6 +21,7 @@ use Filament\Forms;
 use Filament\Forms\Components\Fieldset;
 use Filament\Forms\Components\ToggleButtons;
 use Filament\Forms\Form;
+use Filament\Forms\Get;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
@@ -87,6 +89,7 @@ class TaskResource extends Resource
                             ->columns(3)
                             ->schema([
                                 Fieldset::make(__('ui.priority_level_and_status'))
+                                    ->hidden()
                                     ->columns(2)
                                     ->schema([
                                         ToggleButtons::make('priority')
@@ -131,9 +134,12 @@ class TaskResource extends Resource
                                             ->default(TaskStatusEnum::PENDING->value)
                                             ->inline(),
                                     ]),
-                                Fieldset::make(__('ui.fault_location_and_date_information'))
+
+                                Fieldset::make(__('ui.fault_location_and_priority_information'))
                                     ->columns(2)
                                     ->schema([
+
+                                        // GÖREV TİPİ
                                         Forms\Components\Select::make('type_id')
                                             ->label(__('ui.type'))
                                             ->options(
@@ -145,76 +151,170 @@ class TaskResource extends Resource
                                             ->validationMessages([
                                                 'required' => __('ui.required'),
                                             ]),
-                                        Forms\Components\Select::make('area_id')
-                                            ->label(__('ui.area'))
-                                            ->prefixIcon('heroicon-o-map')
-                                            ->options(Area::with('company')
-                                                ->where('status', ActiveStatusEnum::ACTIVE)
-                                                ->get()->mapWithKeys(function ($area) {
-                                                $companyName = $area->company?->name ? " ({$area->company->name})" : '';
-                                                return [$area->id => $area->name . $companyName];
-                                                })->toArray()
-                                            )
-                                            ->preload()
-                                            ->searchable()
-                                            ->required()
-                                            ->live()
-                                            ->afterStateUpdated(function (callable $set) {
-                                                $set('sub_area_id', null);
-                                                $set('group_id', null);
-                                                $set('employee_id', null);
-                                            })
-                                            //->disableOptionsWhenSelectedInSiblingRepeaterItems()
-                                            ->validationMessages([
-                                                'required' => __('ui.required'),
-                                            ])
-                                            ->when(auth()->user()->hasRole('super_admin') || auth()->user()->can('create_custom_area', Area::class), fn ($select) => $select->createOptionForm(function ($form) {
-                                                $form
-                                                    ->schema([
-                                                        \Filament\Forms\Components\Card::make()
-                                                            ->schema([
-                                                                Fieldset::make(__('ui.area_information'))
-                                                                    ->columns(1)
-                                                                    ->schema([
-                                                                        Forms\Components\TextInput::make('name')
-                                                                            ->label(__('ui.name'))
-                                                                            ->placeholder(__('ui.area_placeholder'))
-                                                                            ->required()
-                                                                            ->maxLength(255),
-                                                                        Forms\Components\Select::make('company_id')
-                                                                            ->label(__('ui.company'))
-                                                                            ->options(\App\Models\Company::pluck('name', 'id'))
-                                                                            ->searchable()
-                                                                            ->validationMessages([
-                                                                                'required' => __('ui.required'),
-                                                                            ])
-                                                                            ->required(),
-                                                                    ]),
-                                                            ]),
-                                                    ]);
-                                                return $form->model(\App\Models\Area::class);
-                                            })->createOptionUsing(function ($data) {
-                                                $location = \App\Models\Area::create([
-                                                    'company_id' => $data['company_id'],
-                                                    'name' => $data['name'],
-                                                    'status' => ActiveStatusEnum::ACTIVE,
-                                                    'created_by' => auth()->id(),
+
+                                        // BÖLGE
+                                        Forms\Components\Select::make('sla_policy_id') // Sanal isim ŞART
+                                        ->label(__('ui.area'))
+                                        ->prefixIcon('heroicon-o-map')
+                                        ->options(function () {
+                                            $user = auth()->user();
+                                            $query = SlaPolicy::with(['area', 'subArea', 'unit']);
+
+                                            if (!$user->hasRole('super_admin')) {
+                                                $employee = Employee::where('email', $user->email)->first();
+                                                if (!$employee) return [];
+
+                                                $query->whereIn('id', function ($sub) use ($employee) {
+                                                    $sub->select('sla_policy_id')
+                                                        ->from('employee_sla_policies')
+                                                        ->where('employee_id', $employee->id);
+                                                });
+                                            }
+
+                                            return $query->get()->mapWithKeys(function ($policy) {
+                                                $label = "{$policy->area?->name} | " . ($policy->subArea?->name ?? 'Genel') . " | " . ($policy->unit?->name) . " | " . ($policy->priority->getLabel());
+                                                return [$policy->id => $label];
+                                            })->toArray();
+                                        })
+                                        ->formatStateUsing(function ($record) { // Edit formu açıldığında, task'ın bağlı olduğu SLA politikasını bulup seçili hale getirmek için
+                                            if (!$record) return null;
+
+                                            // Task üzerindeki verilere göre eşleşen SLA politikasını buluyoruz
+                                            return \App\Models\SlaPolicy::where([
+                                                'area_id' => $record->area_id,
+                                                'sub_area_id' => $record->sub_area_id,
+                                                'unit_id' => $record->unit_id,
+                                                'priority' => $record->priority,
+                                            ])->value('id'); // Bize Policy ID'sini (10 gibi) döndürür
+                                        })
+                                        ->getOptionLabelUsing(function ($value) {
+                                            // ID'den ismi bulan kısım. Yetki sorgusuna takılmaması için düz sorgu atıyoruz.
+                                            $policy = SlaPolicy::find($value);
+                                            if (!$policy) return $value;
+
+                                            return "{$policy->area?->name} | " . ($policy->subArea?->name ?? 'Genel') . " | " . ($policy->unit?->name) . " | " . ($policy->priority->getLabel());
+                                        })
+                                        ->preload()
+                                        ->searchable()
+                                        ->required()
+                                        ->live()
+                                        ->dehydrated(false) // Bu sanal ismi sakın DB'ye gönderme
+                                        ->afterStateUpdated(function ($state, callable $set) {
+                                            if ($state) {
+                                                $policy = SlaPolicy::find($state);
+                                                if ($policy) {
+                                                    // BURASI ASIL SİHİR: Diğer alanları dolduruyoruz
+                                                    $set('area_id', $policy->area_id);
+                                                    $set('sub_area_id', $policy->sub_area_id);
+                                                    $set('unit_id', $policy->unit_id);
+                                                    $set('priority', $policy->priority->value);
+                                                }
+                                            }
+                                        })
+                                        ->validationMessages([
+                                            'required' => __('ui.required'),
+                                        ])
+                                        ->when(auth()->user()->hasRole('super_admin') || auth()->user()->can('create_custom_area', Area::class), fn ($select) => $select->createOptionForm(function ($form) {
+                                            $form
+                                                ->schema([
+                                                    \Filament\Forms\Components\Card::make()
+                                                        ->schema([
+                                                            Fieldset::make(__('ui.area_information'))
+                                                                ->columns(1)
+                                                                ->schema([
+                                                                    Forms\Components\TextInput::make('name')
+                                                                        ->label(__('ui.name'))
+                                                                        ->placeholder(__('ui.area_placeholder'))
+                                                                        ->required()
+                                                                        ->maxLength(255),
+                                                                    Forms\Components\Select::make('company_id')
+                                                                        ->label(__('ui.company'))
+                                                                        ->options(\App\Models\Company::pluck('name', 'id'))
+                                                                        ->searchable()
+                                                                        ->validationMessages([
+                                                                            'required' => __('ui.required'),
+                                                                        ])
+                                                                        ->required(),
+                                                                ]),
+                                                        ]),
                                                 ]);
-                                                return $location->id;
-                                            })),
+                                            return $form->model(\App\Models\Area::class);
+                                        })->createOptionUsing(function ($data) {
+                                            $location = \App\Models\Area::create([
+                                                'company_id' => $data['company_id'],
+                                                'name' => $data['name'],
+                                                'status' => ActiveStatusEnum::ACTIVE,
+                                                'created_by' => auth()->id(),
+                                            ]);
+                                            return $location->id;
+                                        })),
+
+                                        Forms\Components\Hidden::make('area_id')->required(), // Bu alan görünmez ama gerekli, çünkü area_id'ye göre diğer alanlar şekillenecek ve veritabanında da saklanacak
+
+                                        // LOKASYON
                                         Forms\Components\Select::make('sub_area_id')
                                             ->label(__('ui.sub_area'))
-                                            ->prefixIcon('heroicon-o-map-pin')
-                                            ->options(function (callable $get) {
-                                                $areaId = $get('area_id');
-                                                if (!$areaId) {
-                                                    return [];
-                                                }
+                                            ->options(SubArea::all()->pluck('name', 'id')) // Tümünü çekebiliriz çünkü disabled
+                                            ->disabled()
+                                            ->dehydrated() // Veritabanına kaydedilmesi için ŞART
+                                            ->placeholder('Bölge seçiniz...'),
 
-                                                return SubArea::all()
-                                                    ->where('area_id', $areaId)
-                                                    ->pluck('name', 'id');
+                                        // BİRİM
+                                        Forms\Components\Select::make('unit_id')
+                                            ->label(__('ui.unit'))
+                                            ->options(Unit::all()->pluck('name', 'id'))
+                                            ->disabled()
+                                            ->dehydrated()
+                                            ->required(),
+
+                                        // ÖNCELİK
+                                        ToggleButtons::make('priority')
+                                            ->label(__('ui.priority'))
+                                            ->options(\App\Enums\TaskPriorityEnum::class)
+                                            ->disabled()
+                                            ->dehydrated()
+                                            ->inline(),
+
+                                        Forms\Components\DatePicker::make('task_date')
+                                            ->label(__('ui.fault_date'))
+                                            ->prefixIcon('heroicon-o-calendar-days')
+                                            ->required()
+                                            ->maxDate(today())
+                                            ->live()
+                                            ->afterStateUpdated(fn (callable $set) => $set('due_date', null))
+                                            ->validationMessages([
+                                                'required' => __('ui.required'),
+                                                'max' => __('ui.fault_date_cannot_be_in_future'),
+                                                'maxDate' => __('ui.fault_date_cannot_be_in_future'),
+                                            ]),
+
+                                        Forms\Components\Select::make('sub_area_id')
+                                            ->hidden()
+                                            ->label(__('ui.sub_area'))
+                                            ->prefixIcon('heroicon-o-map-pin')
+                                            ->disabled(fn (Get $get) => ! $get('area_id')) // Area seçili değilse kilitli
+                                            ->dehydrated() // Disabled olsa bile form gönderildiğinde veriyi korur
+                                            ->options(function (Get $get) {
+                                                $areaId = $get('area_id');
+                                                if (! $areaId) return [];
+
+                                                return SubArea::whereIn('id', function ($query) use ($areaId) {
+                                                    $query->select('sub_area_id')
+                                                        ->from('sla_policies')
+                                                        ->where('area_id', $areaId)
+                                                        ->whereNotNull('sub_area_id');
+                                                })->pluck('name', 'id');
                                             })
+//                                            ->options(function (callable $get) {
+//                                                $areaId = $get('area_id');
+//                                                if (!$areaId) {
+//                                                    return [];
+//                                                }
+//
+//                                                return SubArea::where('area_id', $areaId)->pluck('name', 'id');
+//                                            })
+                                            ->live()
+                                            ->afterStateUpdated(fn (callable $set) => $set('unit_id', null))
                                             ->preload()
                                             ->searchable()
                                             ->required()
@@ -257,86 +357,71 @@ class TaskResource extends Resource
                                                 ]);
                                                 return $area->id;
                                             })),
-                                        Forms\Components\DatePicker::make('task_date')
-                                            ->label(__('ui.fault_date'))
-                                            ->prefixIcon('heroicon-o-calendar-days')
+                                    ]),
+
+                                Fieldset::make(__('ui.descriptions'))
+                                    ->columns(1)
+                                    ->schema([
+                                        Forms\Components\Textarea::make('description')
+                                            ->label(__('ui.fault_description'))
+                                            ->rows(3)
+                                            ->placeholder(__('ui.task_description_placeholder'))
                                             ->required()
-                                            ->maxDate(today())
-                                            ->live()
-                                            ->afterStateUpdated(fn (callable $set) => $set('due_date', null))
                                             ->validationMessages([
                                                 'required' => __('ui.required'),
-                                                'max' => __('ui.fault_date_cannot_be_in_future'),
-                                                'maxDate' => __('ui.fault_date_cannot_be_in_future'),
                                             ]),
+                                        Forms\Components\Textarea::make('unit_description')
+                                            ->visibleOn('edit')
+                                            ->label(__('ui.unit_description'))
+                                            ->rows(3)
+                                            ->label(__('ui.unit_description'))
+                                            ->placeholder(__('ui.unit_description_placeholder')),
+                                    ]),
+
+                                Fieldset::make(__('ui.related_person_assignment'))
+                                    ->columns(2)
+                                    ->schema([
                                         Forms\Components\Select::make('unit_id')
                                             ->hidden()
                                             ->label(__('ui.unit'))
-                                            ->options(Unit::query()->pluck('name', 'id'))
+                                            ->prefixIcon('heroicon-o-building-office')
+                                            ->disabled(fn (Get $get) => ! $get('sub_area_id')) // Lokasyon seçilmeden birim seçilemez
+                                            ->options(function (Get $get) {
+                                                $areaId = $get('area_id');
+                                                $subAreaId = $get('sub_area_id');
+                                                if (! $areaId || ! $subAreaId) return [];
+
+                                                return Unit::whereIn('id', function ($query) use ($areaId, $subAreaId) {
+                                                    $query->select('unit_id')
+                                                        ->from('sla_policies')
+                                                        ->where('area_id', $areaId)
+                                                        ->where('sub_area_id', $subAreaId);
+                                                })->pluck('name', 'id');
+                                            })
+//                                            ->options(function (callable $get) {
+//                                                $areaId = $get('area_id');
+//
+//                                                if (!$areaId) {
+//                                                    return []; // Bölge seçilmeden birim gösterme
+//                                                }
+//
+//                                                // Seçilen bölgeye (area_id) atanmış grupların bağlı olduğu birimleri (unit) getir
+//                                                return Unit::query()
+//                                                    ->whereHas('groups', function ($query) use ($areaId) {
+//                                                        $query->where('area_id', $areaId)
+//                                                            ->where('status', \App\Enums\ActiveStatusEnum::ACTIVE);
+//                                                    })
+//                                                    ->pluck('name', 'id');
+//                                            })
                                             ->live()
-                                            ->afterStateUpdated(fn (callable $set) => $set('employee_id', null))
-                                            ->preload()
-                                            ->searchable()
-                                            ->required()
-                                            ->validationMessages([
-                                                'required' => __('ui.required'),
-                                            ]),
-                                        Forms\Components\Select::make('employee_id')
-                                            ->hidden()
-                                            ->label(__('ui.related_person'))
-                                            ->options(function (callable $get) {
-
-                                                $unitId = $get('unit_id');
-
-                                                if (!$unitId) {
-                                                    return [];
-                                                }
-
-                                                // if unit_id is 5 then return employees like "Bakım%"
-                                                // 5: Ünite Bakımı
-                                                if ($unitId == 5) {
-                                                    return Employee::query()
-                                                        ->where('status', ActiveStatusEnum::ACTIVE)
-                                                        ->where('profession', 'LIKE', 'Bakım%')
-                                                        ->pluck('name', 'id');
-                                                }
-
-                                                // if unit_id is 6 then return all employees
-                                                // 6: Temapark Görsel
-                                                if ($unitId == 6) {
-                                                    return Employee::query()
-                                                        ->where('status', ActiveStatusEnum::ACTIVE)
-                                                        ->pluck('name', 'id');
-                                                }
-
-                                                $unitName = Unit::query()
-                                                    ->where('id', $unitId)
-                                                    ->value('name');
-
-                                                if (!$unitName) {
-                                                    return [];
-                                                }
-
-                                                return Employee::query()
-                                                    ->where('status', ActiveStatusEnum::ACTIVE)
-                                                    ->where('profession', 'LIKE', $unitName . '%')
-                                                    ->pluck('name', 'id');
+                                            ->afterStateUpdated(function (callable $set) {
+                                                $set('group_id', null);
+                                                $set('employee_id', null);
+                                                $set('priority', null);
                                             })
                                             ->preload()
                                             ->searchable()
-                                            //->required()
-                                            ->validationMessages([
-                                                'required' => __('ui.required'),
-                                            ]),
-                                    ]),
-                                Fieldset::make(__('ui.related_person_assignment'))
-                                    ->columns(3)
-                                    ->schema([
-                                        Forms\Components\Select::make('unit_id')
-                                            ->label(__('ui.unit'))
-                                            ->prefixIcon('heroicon-o-building-office')
-                                            ->options(Unit::query()->pluck('name', 'id'))
-                                            ->live()
+                                            ->required()
                                             ->afterStateUpdated(function (callable $set) {
                                                 $set('group_id', null);
                                                 $set('employee_id', null);
@@ -356,19 +441,20 @@ class TaskResource extends Resource
                                                 $unitId = $get('unit_id');
                                                 $areaId = $get('area_id');
 
-                                                if (!$unitId && !$areaId) {
+                                                if (!$unitId) {
                                                     return [];
                                                 }
 
                                                 return \App\Models\Group::query()
-                                                    ->where('status', ActiveStatusEnum::ACTIVE)
-                                                    ->where('unit_id', $unitId)
-                                                    ->where('area_id', $areaId)
+                                                    ->where('status', \App\Enums\ActiveStatusEnum::ACTIVE)
+                                                    //->where('area_id', $areaId) // Bölge filtresi
+                                                    ->where('unit_id', $unitId) // Birim filtresi
                                                     ->pluck('name', 'id');
                                             })
+                                            ->live()
                                             ->preload()
                                             ->searchable()
-                                            ->live()
+                                            ->required()
                                             ->afterStateUpdated(fn (callable $set) => $set('employee_id', null))
                                             ->validationMessages([
                                                 'required' => __('ui.required'),
@@ -400,24 +486,7 @@ class TaskResource extends Resource
                                                 //'required_with' => __('ui.related_person_required_when_group_selected'),
                                             ]),
                                     ]),
-                                Fieldset::make(__('ui.descriptions'))
-                                    ->columns(2)
-                                    ->schema([
-                                        Forms\Components\Textarea::make('description')
-                                            ->label(__('ui.task_description'))
-                                            ->rows(3)
-                                            ->placeholder(__('ui.task_description_placeholder'))
-                                            ->required()
-                                            ->validationMessages([
-                                                'required' => __('ui.required'),
-                                            ]),
-                                        Forms\Components\Textarea::make('unit_description')
-                                            ->visibleOn('edit')
-                                            ->label(__('ui.unit_description'))
-                                            ->rows(3)
-                                            ->label(__('ui.unit_description'))
-                                            ->placeholder(__('ui.unit_description_placeholder')),
-                                    ]),
+
                                 Fieldset::make(__('ui.image'))
                                     ->hiddenLabel()
                                     ->columns(1)
@@ -442,6 +511,138 @@ class TaskResource extends Resource
                                                 'file' => __('ui.file_upload_error'),
                                             ])
                                             ->columnSpanFull(),
+                                    ]),
+
+                                ToggleButtons::make('status')
+                                    ->label(__('ui.status'))
+                                    ->options([
+                                        TaskStatusEnum::PENDING->value => TaskStatusEnum::PENDING->getLabel(),
+                                        TaskStatusEnum::WINTER_MAINTENANCE->value => TaskStatusEnum::WINTER_MAINTENANCE->getLabel(),
+                                    ])
+                                    ->icons([
+                                        TaskStatusEnum::PENDING->value => TaskStatusEnum::PENDING->getIcon(),
+                                        TaskStatusEnum::WINTER_MAINTENANCE->value => TaskStatusEnum::WINTER_MAINTENANCE->getIcon(),
+                                    ])
+                                    ->colors([
+                                        TaskStatusEnum::PENDING->value => TaskStatusEnum::PENDING->getColor(),
+                                        TaskStatusEnum::WINTER_MAINTENANCE->value => TaskStatusEnum::WINTER_MAINTENANCE->getColor(),
+                                    ])
+                                    ->default(TaskStatusEnum::PENDING->value)
+                                    ->inline(),
+
+                                Fieldset::make(__('ui.status_and_priority'))
+                                    ->hidden()
+                                    ->columns(2)
+                                    ->schema([
+                                        ToggleButtons::make('status')
+                                            ->label(__('ui.status'))
+                                            ->options([
+                                                TaskStatusEnum::PENDING->value => TaskStatusEnum::PENDING->getLabel(),
+                                                TaskStatusEnum::WINTER_MAINTENANCE->value => TaskStatusEnum::WINTER_MAINTENANCE->getLabel(),
+                                            ])
+                                            ->icons([
+                                                TaskStatusEnum::PENDING->value => TaskStatusEnum::PENDING->getIcon(),
+                                                TaskStatusEnum::WINTER_MAINTENANCE->value => TaskStatusEnum::WINTER_MAINTENANCE->getIcon(),
+                                            ])
+                                            ->colors([
+                                                TaskStatusEnum::PENDING->value => TaskStatusEnum::PENDING->getColor(),
+                                                TaskStatusEnum::WINTER_MAINTENANCE->value => TaskStatusEnum::WINTER_MAINTENANCE->getColor(),
+                                            ])
+                                            ->default(TaskStatusEnum::PENDING->value)
+                                            ->inline(),
+
+                                        ToggleButtons::make('priority')
+                                            ->hidden()
+                                            ->label(__('ui.priority'))
+                                            ->options(function (Get $get) {
+                                                $areaId = $get('area_id');
+                                                $subAreaId = $get('sub_area_id');
+                                                $unitId = $get('unit_id');
+
+                                                if (!$areaId || !$unitId) return [];
+
+                                                // Bu kombinasyona sahip tüm SLA politikalarındaki öncelikleri bul
+                                                $priorities = SlaPolicy::where('area_id', $areaId)
+                                                    ->where('unit_id', $unitId)
+                                                    ->when($subAreaId, fn($q) => $q->where('sub_area_id', $subAreaId))
+                                                    ->get()
+                                                    ->pluck('priority')
+                                                    ->unique()
+                                                    ->sortBy(fn ($priority) => $priority->value);
+
+                                                return $priorities->mapWithKeys(fn ($priority) => [
+                                                    $priority->value => $priority->getLabel()
+                                                ])->toArray();
+                                            })
+                                            ->icons(function (Get $get) {
+                                                // Yukarıdaki mantığın aynısını ikonlar için de uygula
+                                                return SlaPolicy::where('area_id', $get('area_id'))
+                                                    ->where('unit_id', $get('unit_id'))
+                                                    ->when($get('sub_area_id'), fn($q) => $q->where('sub_area_id', $get('sub_area_id')))
+                                                    ->get()
+                                                    ->pluck('priority')
+                                                    ->unique()
+                                                    ->mapWithKeys(fn ($priority) => [$priority->value => $priority->getIcon()])
+                                                    ->toArray();
+                                            })
+                                            ->colors(function (Get $get) {
+                                                // Renkler için de aynı filtreleme
+                                                return SlaPolicy::where('area_id', $get('area_id'))
+                                                    ->where('unit_id', $get('unit_id'))
+                                                    ->when($get('sub_area_id'), fn($q) => $q->where('sub_area_id', $get('sub_area_id')))
+                                                    ->get()
+                                                    ->pluck('priority')
+                                                    ->unique()
+                                                    ->mapWithKeys(fn ($priority) => [$priority->value => $priority->getColor()])
+                                                    ->toArray();
+                                            })
+                                            ->inline()
+                                            ->required(),
+
+                                        ToggleButtons::make('priority')
+                                            ->hidden()
+                                            ->label(__('ui.priority'))
+                                            ->disabled(fn (Get $get) => ! $get('unit_id')) // Birim seçilmeden öncelik seçilemez
+                                            ->options(function (Get $get) {
+                                                $areaId = $get('area_id');
+                                                $subAreaId = $get('sub_area_id');
+                                                $unitId = $get('unit_id');
+
+                                                if (! $areaId || ! $unitId) return [];
+
+                                                return SlaPolicy::where('area_id', $areaId)
+                                                    ->where('unit_id', $unitId)
+                                                    ->when($subAreaId, fn($q) => $q->where('sub_area_id', $subAreaId))
+                                                    ->get()
+                                                    ->pluck('priority')
+                                                    ->unique()
+                                                    ->mapWithKeys(fn ($priority) => [$priority->value => $priority->getLabel()])
+                                                    ->toArray();
+                                            })
+                                            ->icons(function (Get $get) {
+                                                // Yukarıdaki mantığın aynısını ikonlar için de uygula
+                                                return SlaPolicy::where('area_id', $get('area_id'))
+                                                    ->where('unit_id', $get('unit_id'))
+                                                    ->when($get('sub_area_id'), fn($q) => $q->where('sub_area_id', $get('sub_area_id')))
+                                                    ->get()
+                                                    ->pluck('priority')
+                                                    ->unique()
+                                                    ->mapWithKeys(fn ($priority) => [$priority->value => $priority->getIcon()])
+                                                    ->toArray();
+                                            })
+                                            ->colors(function (Get $get) {
+                                                // Renkler için de aynı filtreleme
+                                                return SlaPolicy::where('area_id', $get('area_id'))
+                                                    ->where('unit_id', $get('unit_id'))
+                                                    ->when($get('sub_area_id'), fn($q) => $q->where('sub_area_id', $get('sub_area_id')))
+                                                    ->get()
+                                                    ->pluck('priority')
+                                                    ->unique()
+                                                    ->mapWithKeys(fn ($priority) => [$priority->value => $priority->getColor()])
+                                                    ->toArray();
+                                            })
+                                            ->inline()
+                                            ->required(),
                                     ]),
                             ]),
                         Fieldset::make(__('ui.resolution_information'))
@@ -531,17 +732,20 @@ class TaskResource extends Resource
                     ->label(__('ui.type'))
                     ->badge()
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('area.name')
                     ->label(__('ui.area'))
                     ->icon('heroicon-o-map')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('subArea.name')
                     ->label(__('ui.sub_area'))
                     ->searchable()
                     ->sortable()
-                    ->icon('heroicon-o-map-pin'),
+                    ->icon('heroicon-o-map-pin')
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('unit.name')
                     ->label(__('ui.unit'))
                     ->icon('heroicon-o-building-office')
@@ -678,71 +882,109 @@ class TaskResource extends Resource
             ])
             ->actions([
                 Tables\Actions\ActionGroup::make([
-                    Tables\Actions\Action::make(__('ui.assign_related_person'))
-                        ->visible(fn ($record) => ($record->status->isNot(TaskStatusEnum::COMPLETED) && $record->employee_id === null) && (auth()->user()->hasRole('super_admin') || auth()->user()->can('can_assign_task') || $record->created_by === auth()->id()))
+                    Tables\Actions\Action::make(__('ui.dispatch'))
+                        ->visible(fn ($record) => $record->status->isNot(TaskStatusEnum::COMPLETED) && (auth()->user()->hasRole('super_admin') || auth()->user()->can('can_assign_task') || $record->employee?->email === auth()->user()->email) && filled($record->employee_id))
                         ->form([
                             Fieldset::make(__('ui.related_person_info'))
                                 ->columns(1)
                                 ->schema([
-                                    Forms\Components\Select::make('unit_id')
-                                        ->label(__('ui.unit'))
-                                        ->options(Unit::query()->pluck('name', 'id'))
-                                        ->live()
-                                        ->afterStateUpdated(fn (callable $set) => $set('employee_id', null))
-                                        ->preload()
-                                        ->searchable()
-                                        ->required()
-                                        ->default(fn ($record) => $record->unit_id)
-                                        ->disabled(fn ($record) => filled($record->unit_id))
-                                        ->validationMessages([
-                                            'required' => __('ui.required'),
-                                        ]),
+                                    Forms\Components\TextInput::make('group.name')
+                                        ->label(__('ui.group'))
+                                        ->default(fn ($record) => $record->group?->name)
+                                        ->disabled(),
                                     Forms\Components\Select::make('employee_id')
                                         //->hidden()
                                         ->label(__('ui.related_person'))
                                         ->options(function (callable $get) {
 
-                                            $unitId = $get('unit_id');
+                                            $groupName = $get('group.name');
 
-                                            if (!$unitId) {
-                                                return [];
-                                            }
-
-                                            // if unit_id is 5 then return employees like "Bakım%"
-                                            // 5: Ünite Bakımı
-                                            if ($unitId == 5) {
-                                                return Employee::query()
-                                                    ->where('status', ActiveStatusEnum::ACTIVE)
-                                                    ->where('profession', 'LIKE', 'Bakım%')
-                                                    ->pluck('name', 'id');
-                                            }
-
-                                            // if unit_id is 6 then return all employees
-                                            // 6: Temapark Görsel
-                                            if ($unitId == 6) {
-                                                return Employee::query()
-                                                    ->where('status', ActiveStatusEnum::ACTIVE)
-                                                    ->pluck('name', 'id');
-                                            }
-
-                                            $unitName = Unit::query()
-                                                ->where('id', $unitId)
-                                                ->value('name');
-
-                                            if (!$unitName) {
+                                            if (!$groupName) {
                                                 return [];
                                             }
 
                                             return Employee::query()
                                                 ->where('status', ActiveStatusEnum::ACTIVE)
-                                                ->where('profession', 'LIKE', $unitName . '%')
+                                                ->whereHas('groupMemberships', function ($query) use ($groupName) {
+                                                    $query->whereHas('group', function ($q) use ($groupName) {
+                                                        $q->where('name', $groupName);
+                                                    })->whereNull('deleted_at');
+                                                })
                                                 ->pluck('name', 'id');
                                         })
                                         ->preload()
                                         ->searchable()
                                         ->default(fn ($record) => $record->employee_id)
                                         //->disabled(fn ($record) => filled($record->employee_id))
-                                        //->required()
+                                        ->required()
+                                        ->validationMessages([
+                                            'required' => __('ui.required'),
+                                        ])
+                                ]),
+                        ])
+                        ->action(function (array $data, Task $record) {
+                            DB::transaction(function () use ($data, $record) {
+                                $record->update([
+                                    'employee_id' => $data['employee_id'],
+                                    'updated_by' => Auth::id(),
+                                    'updated_at' => now(),
+                                ]);
+                            });
+
+                            $record->refresh();
+
+                            if ($record->employee) {
+                                $record->notify(new \App\Notifications\TaskAssigned($record));
+                            }
+
+                            Notification::make()
+                                ->title(__('ui.related_person_assigned_successfully'))
+                                ->success()
+                                ->send();
+
+                            // redirect to index page after dispatching if the user is not super_admin and doesn't have can_assign_task permission
+//                            if (!auth()->user()->hasRole('super_admin') && !auth()->user()->can('can_assign_task')) {
+//                                return redirect($this->getResource()::getUrl('index'));
+//                            }
+                        })
+                        ->requiresConfirmation()
+                        ->color('warning')
+                        ->icon('heroicon-o-arrow-uturn-right'),
+                    Tables\Actions\Action::make(__('ui.assign_related_person'))
+                        ->visible(fn ($record) => ($record->status->isNot(TaskStatusEnum::COMPLETED) && $record->employee_id === null) && (auth()->user()->hasRole('super_admin') || auth()->user()->can('can_assign_task') || $record->created_by === auth()->id()))
+                        ->form([
+                            Fieldset::make(__('ui.related_person_info'))
+                                ->columns(1)
+                                ->schema([
+                                    Forms\Components\TextInput::make('group.name')
+                                        ->label(__('ui.group'))
+                                        ->default(fn ($record) => $record->group?->name)
+                                        ->disabled(),
+                                    Forms\Components\Select::make('employee_id')
+                                        //->hidden()
+                                        ->label(__('ui.related_person'))
+                                        ->options(function (callable $get) {
+
+                                            $groupName = $get('group.name');
+
+                                            if (!$groupName) {
+                                                return [];
+                                            }
+
+                                            return Employee::query()
+                                                ->where('status', ActiveStatusEnum::ACTIVE)
+                                                ->whereHas('groupMemberships', function ($query) use ($groupName) {
+                                                    $query->whereHas('group', function ($q) use ($groupName) {
+                                                        $q->where('name', $groupName);
+                                                    })->whereNull('deleted_at');
+                                                })
+                                                ->pluck('name', 'id');
+                                        })
+                                        ->preload()
+                                        ->searchable()
+                                        ->default(fn ($record) => $record->employee_id)
+                                        //->disabled(fn ($record) => filled($record->employee_id))
+                                        ->required()
                                         ->validationMessages([
                                             'required' => __('ui.required'),
                                         ]),
@@ -750,46 +992,17 @@ class TaskResource extends Resource
                         ])
                         ->action(function (array $data, Task $record) {
                             DB::transaction(function () use ($data, $record) {
-                                $updateData = [
+                                $record->update([
                                     'employee_id' => $data['employee_id'],
                                     'updated_by' => Auth::id(),
                                     'updated_at' => now(),
-                                ];
-
-                                // Eğer yeni unit_id ve employee_id verilmişse güncelle
-                                if (isset($data['unit_id']) && !$record->unit_id) {
-                                    $updateData['unit_id'] = $data['unit_id'];
-                                }
-                                if (isset($data['employee_id']) && !$record->employee_id) {
-                                    $updateData['employee_id'] = $data['employee_id'];
-                                }
-
-                                $record->update($updateData);
+                                ]);
                             });
 
                             $record->refresh();
 
                             if ($record->employee) {
-
-                                $record->notify(new TaskAssigned($record));
-
-                                // Notify via User model
-                                $employeeId = $record->employee->email;
-
-                                $recipient = User::where('email', $employeeId)->first();
-
-                                if ($recipient) {
-                                    $recipient->notify(
-                                        Notification::make()
-                                            //->title(__('ui.task_assigned_notification_title', ['task_id' => $record->id]))
-                                            ->title(__('ui.task_assigned_notification_title'))
-                                            ->body(__('ui.task_assigned_notification_body', [
-                                                'task_description' => Str::limit($record->description, 50),
-                                            ]))
-                                            ->icon('heroicon-o-clipboard-check')
-                                            ->toDatabase()
-                                    );
-                                }
+                                $record->notify(new \App\Notifications\TaskAssigned($record));
                             }
 
                             Notification::make()
@@ -799,149 +1012,43 @@ class TaskResource extends Resource
                         })
                         ->requiresConfirmation()
                         ->color('warning')
-                        ->icon('heroicon-o-user-circle'),
+                        ->icon('heroicon-o-user-group'),
                     Tables\Actions\Action::make(__('ui.close'))
                         ->visible(fn ($record) =>
                             ($record->status->isNot(TaskStatusEnum::COMPLETED) && filled($record->employee_id)) &&
                             (auth()->user()->hasRole('super_admin') || auth()->user()->can('can_close_task') || $record->employee?->email === auth()->user()->email || $record->created_by === auth()->id())
                         )
                         ->form([
-                            Fieldset::make(__('ui.related_person_info'))
+                            Fieldset::make(__('ui.closure_info'))
                                 ->columns(1)
                                 ->schema([
-                                    Forms\Components\Select::make('unit_id')
-                                        ->label(__('ui.unit'))
-                                        ->options(Unit::query()->pluck('name', 'id'))
-                                        ->live()
-                                        ->afterStateUpdated(fn (callable $set) => $set('employee_id', null))
-                                        ->preload()
-                                        ->searchable()
+                                    Forms\Components\DatePicker::make('due_date')
+                                        ->hidden()
+                                        ->label(__('ui.due_date'))
+                                        ->minDate(fn ($record) => $record->task_date)
+                                        ->maxDate(now())
+                                        ->afterOrEqual('task_date')
                                         ->required()
-                                        ->default(fn ($record) => $record->unit_id)
-                                        //->disabled(fn ($record) => filled($record->unit_id))
                                         ->validationMessages([
                                             'required' => __('ui.required'),
+                                            'after_or_equal' => __('ui.due_date_after_or_equal_task_date'),
                                         ]),
-                                    Forms\Components\Select::make('employee_id')
-                                        //->hidden()
-                                        ->label(__('ui.related_person'))
-                                        ->options(function (callable $get) {
-
-                                            $unitId = $get('unit_id');
-
-                                            if (!$unitId) {
-                                                return [];
-                                            }
-
-                                            // if unit_id is 5 then return employees like "Bakım%"
-                                            // 5: Ünite Bakımı
-                                            if ($unitId == 5) {
-                                                return Employee::query()
-                                                    ->where('status', ActiveStatusEnum::ACTIVE)
-                                                    ->where('profession', 'LIKE', 'Bakım%')
-                                                    ->pluck('name', 'id');
-                                            }
-
-                                            // if unit_id is 6 then return all employees
-                                            // 6: Temapark Görsel
-                                            if ($unitId == 6) {
-                                                return Employee::query()
-                                                    ->where('status', ActiveStatusEnum::ACTIVE)
-                                                    ->pluck('name', 'id');
-                                            }
-
-                                            $unitName = Unit::query()
-                                                ->where('id', $unitId)
-                                                ->value('name');
-
-                                            if (!$unitName) {
-                                                return [];
-                                            }
-
-                                            return Employee::query()
-                                                ->where('status', ActiveStatusEnum::ACTIVE)
-                                                ->where('profession', 'LIKE', $unitName . '%')
-                                                ->pluck('name', 'id');
-                                        })
-                                        ->preload()
-                                        ->searchable()
-                                        ->default(fn ($record) => $record->employee_id)
-                                        //->disabled(fn ($record) => filled($record->employee_id))
-                                        //->required()
+                                    Forms\Components\Textarea::make('resolution_notes')
+                                        ->label(__('ui.resolution_notes'))
+                                        ->placeholder(__('ui.resolution_placeholder'))
+                                        ->requiredWith('due_date')
+                                        ->columnSpanFull()
                                         ->validationMessages([
                                             'required' => __('ui.required'),
-                                        ]),
-//                                    Forms\Components\Select::make('employee_id')
-//                                        ->label(__('ui.assigned_to'))
-//                                        ->options(
-//                                            \App\Models\Employee::all()
-//                                                ->where('status', ActiveStatusEnum::ACTIVE)
-//                                                ->pluck('name', 'id')
-//                                        )
-//                                        ->preload()
-//                                        ->searchable(),
-
-//                                    Forms\Components\Select::make('person_type')
-//                                        ->label(__('ui.person_type'))
-//                                        ->options([
-//                                            'employee' => __('ui.employee'),
-//                                            'subcontractor' => __('ui.subcontractor'),
-//                                        ])
-//                                        ->required()
-//                                        ->live()
-//                                        ->afterStateUpdated(fn (callable $set) => $set('assigned_person_id', null))
-//                                        ->validationMessages([
-//                                            'required' => __('ui.required'),
-//                                        ]),
-//                                    Forms\Components\Select::make('assigned_person_id')
-//                                        ->label(__('ui.assigned_to'))
-//                                        ->options(function (callable $get) {
-//                                            $personType = $get('person_type');
-//
-//                                            if ($personType === 'employee') {
-//                                                return \App\Models\Employee::all()
-//                                                    ->where('status', ActiveStatusEnum::ACTIVE)
-//                                                    ->pluck('name', 'id');
-//                                            } elseif ($personType === 'subcontractor') {
-//                                                return \App\Models\SubcontractorEmployee::all()
-//                                                    ->where('active', ActiveStatusEnum::ACTIVE)
-//                                                    ->pluck('name', 'id');
-//                                            }
-//
-//                                            return [];
-//                                        })
-//                                        ->preload()
-//                                        ->searchable()
-//                                        ->required()
-//                                        ->visible(fn (callable $get) => filled($get('person_type')))
-//                                        ->validationMessages([
-//                                            'required' => __('ui.required'),
-//                                        ]),
+                                        ])->columnSpanFull(),
                                 ]),
-                            Forms\Components\DatePicker::make('due_date')
-                                ->label(__('ui.due_date'))
-                                ->minDate(fn ($record) => $record->task_date)
-                                ->maxDate(now())
-                                ->afterOrEqual('task_date')
-                                ->required()
-                                ->validationMessages([
-                                    'required' => __('ui.required'),
-                                    'after_or_equal' => __('ui.due_date_after_or_equal_task_date'),
-                                ]),
-                            Forms\Components\Textarea::make('resolution_notes')
-                                ->label(__('ui.resolution_notes'))
-                                ->placeholder(__('ui.resolution_placeholder'))
-                                ->requiredWith('due_date')
-                                ->columnSpanFull()
-                                ->validationMessages([
-                                    'required' => __('ui.required'),
-                                ])->columnSpanFull(),
                         ])
                         ->action(function (array $data, Task $record) {
                             DB::transaction(function () use ($data, $record) {
-                                $updateData = [
+                                $record->update([
                                     'status' => TaskStatusEnum::COMPLETED,
-                                    'due_date' => $data['due_date'],
+                                    'due_date' => now(),
+                                    //'due_date' => $data['due_date'],
                                     'resolution_notes' => $data['resolution_notes'],
                                     'completed_by' => Auth::id(),
                                     'updated_by' => Auth::id(),
@@ -949,17 +1056,7 @@ class TaskResource extends Resource
                                     'reopen_reason' => null,
                                     'reopened_by' => null,
                                     'reopened_at' => null,
-                                ];
-
-                                // Eğer yeni unit_id ve employee_id verilmişse güncelle
-                                if (isset($data['unit_id']) && !$record->unit_id) {
-                                    $updateData['unit_id'] = $data['unit_id'];
-                                }
-                                if (isset($data['employee_id']) && !$record->employee_id) {
-                                    $updateData['employee_id'] = $data['employee_id'];
-                                }
-
-                                $record->update($updateData);
+                                ]);
                             });
 
                             $record->refresh();
@@ -974,6 +1071,48 @@ class TaskResource extends Resource
                         ->requiresConfirmation()
                         ->color('success')
                         ->icon('heroicon-o-check-circle'),
+                    Tables\Actions\Action::make(__('ui.reopen'))
+                        ->visible(fn ($record) => $record->status->is(TaskStatusEnum::COMPLETED) && (auth()->user()->hasRole('super_admin') || auth()->user()->can('can_reopen_task') || $record->created_by === auth()->id()))
+                        ->form([
+                            Fieldset::make(__('ui.reopening_reason'))
+                                ->schema([
+                                    Forms\Components\Textarea::make('reopen_reason')
+                                        ->hiddenLabel(__('ui.reopen_reason'))
+                                        ->placeholder(__('ui.reopen_reason_placeholder'))
+                                        ->required()
+                                        ->columnSpanFull()
+                                        ->validationMessages([
+                                            'required' => __('ui.required'),
+                                        ]),
+                                ]),
+                        ])
+                        ->action(function (Task $record, array $data) {
+                            DB::transaction(function () use ($record, $data) {
+                                $record->update([
+                                    'status' => TaskStatusEnum::PENDING,
+                                    'due_date' => null,
+                                    'resolution_notes' => null,
+                                    'completed_by' => null,
+                                    'updated_by' => Auth::id(),
+                                    'updated_at' => now(),
+                                    'reopen_reason' => $data['reopen_reason'],
+                                    'reopened_by' => Auth::id(),
+                                    'reopened_at' => now(),
+                                ]);
+                            });
+
+                            $record->refresh();
+
+                            $record->employee->notify(new \App\Notifications\TaskReopened($record));
+
+                            Notification::make()
+                                ->title(__('ui.task_reopened_successfully'))
+                                ->success()
+                                ->send();
+                        })
+                        ->requiresConfirmation()
+                        ->color('warning')
+                        ->icon('heroicon-o-arrow-uturn-left'),
                     Tables\Actions\ViewAction::make(),
                     Tables\Actions\EditAction::make(),
                     Tables\Actions\DeleteAction::make(),

@@ -500,6 +500,7 @@ return [
     'not_yet' => 'Henüz Yok',
     'related_person_info' => 'İlgili Kişi Bilgileri',
     'elapsed_time' => 'Geçen Süre',
+    'elapsed_time_in_minutes' => 'Geçen Süre (DK)',
     'not_assigned' => 'Atanmamış',
     'completed_in_same_day' => 'Aynı Günde Tamamlandı',
     'elapsed_time_in_days' => 'Geçen Süre',
@@ -652,17 +653,51 @@ return [
     'sla_target_threshold' => 'SLA Hedef Oranı',
     'performance_report' => 'Performans Raporu',
     'task_performance_this_month' => 'Bu Ayın Görev Performansı',
+    'resolved_task_performance_for_current_month' => 'Aylık Çözülen Görev Performansı',
+    'task_performance_description' => 'Sadece Çözülen Görevler Hesaba Katılır',
     'on_time' => 'Zamanında',
     'delayed' => 'Gecikmiş',
+    // Upstream additions
+    'hour' => 'Saat',
+    'hours' => 'Saat',
+    'minute' => 'Dakika',
+    'minutes' => 'Dakika',
+    'second' => 'Saniye',
+    'seconds' => 'Saniye',
+    'not_available' => 'N/A',
+    'not_defined' => 'Tanımlanmamış',
+    'sla_limit' => 'SLA Çözüm Limiti',
+    'sla_status' => 'SLA Durumu',
+    'breached' => 'İhlal Edildi',
+    'daily_task_performance' => 'Günlük Görev Performansı',
+    'daily_task_performance_description' => 'Sadece Çözülen Görevleri Kapsar',
+    'task_performance' => 'Görev Performansı',
+    'status_and_priority' => 'Durum ve Öncelik',
+    'resolved_on_time' => 'Zamanında Çözüldü',
+    'time_in_minutes' => 'Süre (Dakika)',
+    'time_in_hours' => 'Süre (Saat)',
+    'time_in_seconds' => 'Süre (Saniye)',
+    'employee_sla_policy' => 'Personel SLA Politikası',
+    'employee_sla_policies' => 'Personel SLA Politikaları',
+    'attach_employee_sla' => 'Personel SLA Politikası Ata',
+    'fault_description' => 'Arıza Açıklaması',
+    'fault_descriptions' => 'Arıza Açıklamaları',
+    'fault_description_details' => 'Arıza Açıklaması Detayları',
+    'fault_location_and_priority_information' => 'Arıza Yeri & Öncelik Bilgileri',
+    'task_status_helper_text' => 'Kış Bakımı görevlerinde "Kış Bakımı", diğer görevlerde "Beklemede" seçiniz.',
+    'employee_group_membership' => 'Personel Grup Üyeliği',
+    'employee_group_memberships' => 'Personel Grup Üyelikleri',
+    'associated_groups' => 'Bağlı Gruplar',
+    'employee_performance_overview' => 'Personel Performans Genel Bakışı',
 
-    // Ticket lifecycle statuses
+    // Reform: ticket lifecycle statuses
     'open' => 'Açık',
     'assigned' => 'Atandı',
     'resolved' => 'Çözüldü',
     'closed' => 'Kapatıldı',
     'on_hold' => 'Beklemede',
 
-    // Ticket UI
+    // Reform: ticket UI
     'ticket' => 'Arıza Talebi',
     'tickets' => 'Arıza Talepleri',
     'ticket_no' => 'Talep No',
@@ -678,7 +713,7 @@ return [
     'resolved_at' => 'Çözüm Tarihi',
     'closed_at' => 'Kapatma Tarihi',
 
-    // Status timeline
+    // Reform: status timeline
     'status_history' => 'Durum Geçmişi',
     'status_change' => 'Durum Değiştir',
     'change_status' => 'Durumu Değiştir',
@@ -688,7 +723,7 @@ return [
     'changed_by' => 'Değiştiren',
     'note' => 'Not',
 
-    // Performance dashboard
+    // Reform: performance dashboard
     'performance_dashboard' => 'Performans Paneli',
     'compliance_rate' => 'Uyum Oranı',
     'avg_resolution_time' => 'Ortalama Çözüm Süresi',

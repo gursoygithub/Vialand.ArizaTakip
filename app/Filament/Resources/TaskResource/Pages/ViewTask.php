@@ -106,109 +106,6 @@ class ViewTask extends ViewRecord
                 ->requiresConfirmation()
                 ->color('warning')
                 ->icon('heroicon-o-arrow-uturn-right'),
-//            Actions\Action::make(__('ui.dispatch'))
-//                ->visible(fn ($record) => $record->status->isNot(TaskStatusEnum::COMPLETED) && (auth()->user()->hasRole('super_admin') || auth()->user()->can('can_assign_task') || $record->employee?->email === auth()->user()->email) && filled($record->employee_id))
-//                ->form([
-//                    Fieldset::make(__('ui.related_person_info'))
-//                        ->columns(1)
-//                        ->schema([
-//                            Forms\Components\Select::make('unit_id')
-//                                ->label(__('ui.unit'))
-//                                ->options(Unit::query()->pluck('name', 'id'))
-//                                ->live()
-//                                ->afterStateUpdated(fn (callable $set) => $set('employee_id', null))
-//                                ->preload()
-//                                ->searchable()
-//                                ->required()
-//                                ->default(fn ($record) => $record->unit_id)
-//                                ->disabled(fn ($record) => filled($record->unit_id))
-//                                ->validationMessages([
-//                                    'required' => __('ui.required'),
-//                                ]),
-//                            Forms\Components\Select::make('employee_id')
-//                                //->hidden()
-//                                ->label(__('ui.related_person'))
-//                                ->options(function (callable $get) {
-//
-//                                    $unitId = $get('unit_id');
-//
-//                                    if (!$unitId) {
-//                                        return [];
-//                                    }
-//
-//                                    // if unit_id is 5 then return employees like "Bakım%"
-//                                    // 5: Ünite Bakımı
-//                                    if ($unitId == 5) {
-//                                        return Employee::query()
-//                                            ->where('status', ActiveStatusEnum::ACTIVE)
-//                                            ->where('profession', 'LIKE', 'Bakım%')
-//                                            ->pluck('name', 'id');
-//                                    }
-//
-//                                    // if unit_id is 6 then return all employees
-//                                    // 6: Temapark Görsel
-//                                    if ($unitId == 6) {
-//                                        return Employee::query()
-//                                            ->where('status', ActiveStatusEnum::ACTIVE)
-//                                            ->pluck('name', 'id');
-//                                    }
-//
-//                                    $unitName = Unit::query()
-//                                        ->where('id', $unitId)
-//                                        ->value('name');
-//
-//                                    if (!$unitName) {
-//                                        return [];
-//                                    }
-//
-//                                    return Employee::query()
-//                                        ->where('status', ActiveStatusEnum::ACTIVE)
-//                                        ->where('profession', 'LIKE', $unitName . '%')
-//                                        ->pluck('name', 'id');
-//                                })
-//                                ->preload()
-//                                ->searchable()
-//                                ->default(fn ($record) => $record->employee_id)
-//                                //->disabled(fn ($record) => filled($record->employee_id))
-//                                //->required()
-//                                ->validationMessages([
-//                                    'required' => __('ui.required'),
-//                                ]),
-//                        ]),
-//                ])
-//                ->action(function (array $data, Task $record) {
-//                    DB::transaction(function () use ($data, $record) {
-//                        $updateData = [
-//                            'employee_id' => $data['employee_id'],
-//                            'updated_by' => Auth::id(),
-//                            'updated_at' => now(),
-//                        ];
-//
-//                        // Eğer yeni unit_id ve employee_id verilmişse güncelle
-//                        if (isset($data['unit_id']) && !$record->unit_id) {
-//                            $updateData['unit_id'] = $data['unit_id'];
-//                        }
-//                        if (isset($data['employee_id']) && !$record->employee_id) {
-//                            $updateData['employee_id'] = $data['employee_id'];
-//                        }
-//
-//                        $record->update($updateData);
-//                    });
-//
-//                    $record->refresh();
-//
-//                    if ($record->employee) {
-//                        $record->notify(new \App\Notifications\TaskAssigned($record));
-//                    }
-//
-//                    Notification::make()
-//                        ->title(__('ui.related_person_assigned_successfully'))
-//                        ->success()
-//                        ->send();
-//                })
-//                ->requiresConfirmation()
-//                ->color('warning')
-//                ->icon('heroicon-o-arrow-uturn-right'),
             Actions\Action::make(__('ui.assign_related_person'))
                 ->visible(fn ($record) => ($record->status->isNot(TaskStatusEnum::COMPLETED) && $record->employee_id === null) && (auth()->user()->hasRole('super_admin') || auth()->user()->can('can_assign_task') || $record->created_by === auth()->id()))
                 ->form([
@@ -272,110 +169,6 @@ class ViewTask extends ViewRecord
                 ->requiresConfirmation()
                 ->color('warning')
                 ->icon('heroicon-o-user-group'),
-//            Actions\Action::make(__('ui.assign_related_person'))
-//                ->hidden()
-//                ->visible(fn ($record) => ($record->status->isNot(TaskStatusEnum::COMPLETED) && $record->employee_id === null) && (auth()->user()->hasRole('super_admin') || auth()->user()->can('can_assign_task') || $record->created_by === auth()->id()))
-//                ->form([
-//                    Fieldset::make(__('ui.related_person_info'))
-//                        ->columns(1)
-//                        ->schema([
-//                            Forms\Components\Select::make('unit_id')
-//                                ->label(__('ui.unit'))
-//                                ->options(Unit::query()->pluck('name', 'id'))
-//                                ->live()
-//                                ->afterStateUpdated(fn (callable $set) => $set('employee_id', null))
-//                                ->preload()
-//                                ->searchable()
-//                                ->required()
-//                                ->default(fn ($record) => $record->unit_id)
-//                                ->disabled(fn ($record) => filled($record->unit_id))
-//                                ->validationMessages([
-//                                    'required' => __('ui.required'),
-//                                ]),
-//                            Forms\Components\Select::make('employee_id')
-//                                //->hidden()
-//                                ->label(__('ui.related_person'))
-//                                ->options(function (callable $get) {
-//
-//                                    $unitId = $get('unit_id');
-//
-//                                    if (!$unitId) {
-//                                        return [];
-//                                    }
-//
-//                                    // if unit_id is 5 then return employees like "Bakım%"
-//                                    // 5: Ünite Bakımı
-//                                    if ($unitId == 5) {
-//                                        return Employee::query()
-//                                            ->where('status', ActiveStatusEnum::ACTIVE)
-//                                            ->where('profession', 'LIKE', 'Bakım%')
-//                                            ->pluck('name', 'id');
-//                                    }
-//
-//                                    // if unit_id is 6 then return all employees
-//                                    // 6: Temapark Görsel
-//                                    if ($unitId == 6) {
-//                                        return Employee::query()
-//                                            ->where('status', ActiveStatusEnum::ACTIVE)
-//                                            ->pluck('name', 'id');
-//                                    }
-//
-//                                    $unitName = Unit::query()
-//                                        ->where('id', $unitId)
-//                                        ->value('name');
-//
-//                                    if (!$unitName) {
-//                                        return [];
-//                                    }
-//
-//                                    return Employee::query()
-//                                        ->where('status', ActiveStatusEnum::ACTIVE)
-//                                        ->where('profession', 'LIKE', $unitName . '%')
-//                                        ->pluck('name', 'id');
-//                                })
-//                                ->preload()
-//                                ->searchable()
-//                                ->default(fn ($record) => $record->employee_id)
-//                                //->disabled(fn ($record) => filled($record->employee_id))
-//                                //->required()
-//                                ->validationMessages([
-//                                    'required' => __('ui.required'),
-//                                ]),
-//                        ]),
-//                ])
-//                ->action(function (array $data, Task $record) {
-//                    DB::transaction(function () use ($data, $record) {
-//                        $updateData = [
-//                            'employee_id' => $data['employee_id'],
-//                            'updated_by' => Auth::id(),
-//                            'updated_at' => now(),
-//                        ];
-//
-//                        // Eğer yeni unit_id ve employee_id verilmişse güncelle
-//                        if (isset($data['unit_id']) && !$record->unit_id) {
-//                            $updateData['unit_id'] = $data['unit_id'];
-//                        }
-//                        if (isset($data['employee_id']) && !$record->employee_id) {
-//                            $updateData['employee_id'] = $data['employee_id'];
-//                        }
-//
-//                        $record->update($updateData);
-//                    });
-//
-//                    $record->refresh();
-//
-//                    if ($record->employee) {
-//                        $record->notify(new \App\Notifications\TaskAssigned($record));
-//                    }
-//
-//                    Notification::make()
-//                        ->title(__('ui.related_person_assigned_successfully'))
-//                        ->success()
-//                        ->send();
-//                })
-//                ->requiresConfirmation()
-//                ->color('warning')
-//                ->icon('heroicon-o-user-circle'),
             Actions\EditAction::make()
                 //->visible(fn ($record) => $record->status->isNot(TaskStatusEnum::COMPLETED) && (auth()->user()->hasRole('super_admin') || $record->created_by == auth()->id()))
                 ->icon('heroicon-o-pencil')
@@ -384,7 +177,6 @@ class ViewTask extends ViewRecord
                     return $data;
                 }),
             Actions\Action::make(__('ui.close'))
-                ->hidden(fn ($record) => $record->trashed())
                 ->visible(fn ($record) =>
                     ($record->status->isNot(TaskStatusEnum::COMPLETED) && filled($record->employee_id)) &&
                     (auth()->user()->hasRole('super_admin') || auth()->user()->can('can_close_task') || $record->employee?->email === auth()->user()->email || $record->created_by === auth()->id())
@@ -442,135 +234,6 @@ class ViewTask extends ViewRecord
                 ->requiresConfirmation()
                 ->color('success')
                 ->icon('heroicon-o-check-circle'),
-//            Actions\Action::make(__('ui.close'))
-//                ->hidden(fn ($record) => $record->trashed())
-//                ->visible(fn ($record) =>
-//                    ($record->status->isNot(TaskStatusEnum::COMPLETED) && filled($record->employee_id)) &&
-//                    (auth()->user()->hasRole('super_admin') || auth()->user()->can('can_close_task') || $record->employee?->email === auth()->user()->email || $record->created_by === auth()->id())
-//                )
-//                ->form([
-//                    Fieldset::make(__('ui.related_person_info'))
-//                        ->columns(1)
-//                        ->schema([
-//                            Forms\Components\Select::make('unit_id')
-//                                ->label(__('ui.unit'))
-//                                ->options(Unit::query()->pluck('name', 'id'))
-//                                ->live()
-//                                ->afterStateUpdated(fn (callable $set) => $set('employee_id', null))
-//                                ->preload()
-//                                ->searchable()
-//                                ->required()
-//                                ->default(fn ($record) => $record->unit_id)
-//                                //->disabled(fn ($record) => filled($record->unit_id))
-//                                ->validationMessages([
-//                                    'required' => __('ui.required'),
-//                                ]),
-//                            Forms\Components\Select::make('employee_id')
-//                                //->hidden()
-//                                ->label(__('ui.related_person'))
-//                                ->options(function (callable $get) {
-//
-//                                    $unitId = $get('unit_id');
-//
-//                                    if (!$unitId) {
-//                                        return [];
-//                                    }
-//
-//                                    // if unit_id is 5 then return employees like "Bakım%"
-//                                    // 5: Ünite Bakımı
-//                                    if ($unitId == 5) {
-//                                        return Employee::query()
-//                                            ->where('status', ActiveStatusEnum::ACTIVE)
-//                                            ->where('profession', 'LIKE', 'Bakım%')
-//                                            ->pluck('name', 'id');
-//                                    }
-//
-//                                    // if unit_id is 6 then return all employees
-//                                    // 6: Temapark Görsel
-//                                    if ($unitId == 6) {
-//                                        return Employee::query()
-//                                            ->where('status', ActiveStatusEnum::ACTIVE)
-//                                            ->pluck('name', 'id');
-//                                    }
-//
-//                                    $unitName = Unit::query()
-//                                        ->where('id', $unitId)
-//                                        ->value('name');
-//
-//                                    if (!$unitName) {
-//                                        return [];
-//                                    }
-//
-//                                    return Employee::query()
-//                                        ->where('status', ActiveStatusEnum::ACTIVE)
-//                                        ->where('profession', 'LIKE', $unitName . '%')
-//                                        ->pluck('name', 'id');
-//                                })
-//                                ->preload()
-//                                ->searchable()
-//                                ->default(fn ($record) => $record->employee_id)
-//                                //->disabled(fn ($record) => filled($record->employee_id))
-//                                //->required()
-//                                ->validationMessages([
-//                                    'required' => __('ui.required'),
-//                                ]),
-//                        ]),
-//                    Forms\Components\DatePicker::make('due_date')
-//                        ->label(__('ui.due_date'))
-//                        ->minDate(fn ($record) => $record->task_date)
-//                        ->maxDate(now())
-//                        ->afterOrEqual('task_date')
-//                        ->required()
-//                        ->validationMessages([
-//                            'required' => __('ui.required'),
-//                            'after_or_equal' => __('ui.due_date_after_or_equal_task_date'),
-//                        ]),
-//                    Forms\Components\Textarea::make('resolution_notes')
-//                        ->label(__('ui.resolution_notes'))
-//                        ->placeholder(__('ui.resolution_placeholder'))
-//                        ->requiredWith('due_date')
-//                        ->columnSpanFull()
-//                        ->validationMessages([
-//                            'required' => __('ui.required'),
-//                        ])->columnSpanFull(),
-//                ])
-//                ->action(function (array $data, Task $record) {
-//                    DB::transaction(function () use ($data, $record) {
-//                        $updateData = [
-//                            'status' => TaskStatusEnum::COMPLETED,
-//                            'due_date' => $data['due_date'],
-//                            'resolution_notes' => $data['resolution_notes'],
-//                            'completed_by' => Auth::id(),
-//                            'updated_by' => Auth::id(),
-//                            'updated_at' => now(),
-//                            'reopen_reason' => null,
-//                            'reopened_by' => null,
-//                            'reopened_at' => null,
-//                        ];
-//
-//                        // Eğer yeni unit_id ve employee_id verilmişse güncelle
-//                        if (isset($data['unit_id']) && !$record->unit_id) {
-//                            $updateData['unit_id'] = $data['unit_id'];
-//                        }
-//                        if (isset($data['employee_id']) && !$record->employee_id) {
-//                            $updateData['employee_id'] = $data['employee_id'];
-//                        }
-//
-//                        $record->update($updateData);
-//                    });
-//
-//                    $record->refresh();
-//
-//                    $record->createdBy->notify(new TaskClosed($record));
-//
-//                    Notification::make()
-//                        ->title(__('ui.task_closed_successfully'))
-//                        ->success()
-//                        ->send();
-//                })
-//                ->requiresConfirmation()
-//                ->color('success')
-//                ->icon('heroicon-o-check-circle'),
             Actions\Action::make('ui.reopen')
                 ->label(__('ui.reopen'))
                 ->visible(fn ($record) => $record->status->is(TaskStatusEnum::COMPLETED) && (auth()->user()->hasRole('super_admin') || auth()->user()->can('can_reopen_task') || $record->created_by === auth()->id()))
@@ -659,14 +322,62 @@ class ViewTask extends ViewRecord
                                         Infolists\Components\TextEntry::make('status')
                                             ->label(__('ui.status'))
                                             ->badge(),
-                                        Infolists\Components\TextEntry::make('subcontractor')
-                                            ->hidden()
-                                            ->visible(fn ($record) => $record->assigned_person_type_id === AssignedPersonTypeEnum::SUBCONTRACTOR && $record->subcontractorEmployee?->subcontractor)
-                                            ->getStateUsing(fn ($record) => $record->subcontractorEmployee?->subcontractor?->name)
-                                            ->label(__('ui.subcontractor_company'))
+                                        Infolists\Components\TextEntry::make('elapsed_time')
+                                            ->label(__('ui.waiting_time'))
+                                            ->getStateUsing(function ($record) {
+                                                $start = $record->created_at;
+
+                                                if (!$start) return null;
+
+                                                // Bitiş noktası: Tamamlandıysa due_date (saatiyle birlikte), değilse şu an (now)
+                                                // endOfDay() kaldırıldı, böylece tablo ile aynı net farkı hesaplar.
+                                                $end = ($record->status->value === \App\Enums\TaskStatusEnum::COMPLETED->value && $record->due_date)
+                                                    ? $record->due_date
+                                                    : now();
+
+                                                return $start->diffForHumans($end, [
+                                                    'syntax' => \Carbon\CarbonInterface::DIFF_ABSOLUTE,
+                                                    'parts' => 3, // Tabloyla tam uyum için burayı 2 de yapabilirsiniz
+                                                    'join' => ' ',
+                                                ]);
+                                            })
                                             ->badge()
-                                            ->color('primary')
-                                            ->icon('heroicon-o-building-office-2')
+                                            ->color(fn ($record) => $record->status->value === \App\Enums\TaskStatusEnum::COMPLETED->value ? 'success' : 'warning'),
+                                        Infolists\Components\TextEntry::make('sla_limit')
+                                            ->label(__('ui.sla_limit'))
+                                            ->getStateUsing(function ($record) {
+                                                $policy = \App\Models\SlaPolicy::where('unit_id', $record->unit_id)
+                                                    ->where('area_id', $record->area_id)
+                                                    ->where('priority', $record->priority)
+                                                    ->first();
+
+                                                return $policy ? ($policy->deadline_minutes >= 60 ? round($policy->deadline_minutes / 60, 1) . ' Saat' : $policy->deadline_minutes . ' Dakika') : '-';
+                                            })
+                                            ->badge()->color('info')->icon('heroicon-o-flag'),
+                                        Infolists\Components\TextEntry::make('canli_sla_durumu')
+                                            ->hidden()
+                                            ->label(__('ui.sla_status'))
+                                            ->badge()
+                                            ->getStateUsing(function ($record) {
+                                                // Senin modelinde yeni gördüğüm calculateSlaStatus metodunu çağırıyoruz
+                                                // Bu metod içindeki diffInMinutes(now()) sayesinde sonuç ARTIK CANLI.
+                                                $status = $record->calculateSlaStatus();
+
+                                                return match($status) {
+                                                    'SUCCESS' => __('ui.on_time'),
+                                                    'FAILED' => __('ui.breached'),
+                                                    'NO_POLICY' => 'Politika Yok',
+                                                    default => '-',
+                                                };
+                                            })
+                                            ->color(function ($state) {
+                                                return match($state) {
+                                                    __('ui.on_time') => 'success',
+                                                    __('ui.breached') => 'danger',
+                                                    default => 'gray',
+                                                };
+                                            })
+                                            ->icon(fn ($state) => $state === __('ui.on_time') ? 'heroicon-m-check-badge' : 'heroicon-m-x-circle'),
                                     ]),
                                 Infolists\Components\Fieldset::make(__('ui.fault_location_and_date_information'))
                                     ->columns(3)
@@ -725,76 +436,6 @@ class ViewTask extends ViewRecord
                                             ->columnSpanFull(),
                                     ]),
                                 //->stacked() // Alt alta sıralamak için (opsiyonel)
-                                Infolists\Components\Fieldset::make(__('ui.record_info'))
-                                    ->hidden()
-                                    ->schema([
-                                        Infolists\Components\TextEntry::make('createdBy.name')
-                                            ->label(__('ui.created_by'))
-                                            ->badge()
-                                            ->color('primary')
-                                            ->icon('heroicon-o-user'),
-                                        Infolists\Components\TextEntry::make('created_at')
-                                            ->label(__('ui.created_at'))
-                                            ->dateTime()
-                                            ->badge()
-                                            ->color('primary')
-                                            ->icon('heroicon-o-calendar-days'),
-                                        Infolists\Components\TextEntry::make('updatedBy.name')
-                                            ->visible(fn ($record) => $record->updated_by !== null)
-                                            ->label(__('ui.last_updated_by'))
-                                            ->badge()
-                                            ->color('primary')
-                                            ->icon('heroicon-o-user'),
-                                        Infolists\Components\TextEntry::make('updated_at')
-                                            ->visible(fn ($record) => $record->updated_by !== null)
-                                            ->label(__('ui.last_updated_at'))
-                                            ->dateTime()
-                                            ->badge()
-                                            ->color('primary')
-                                            ->icon('heroicon-o-calendar-days'),
-                                    ])->columns(4),
-
-                                Infolists\Components\Fieldset::make(__('ui.resolution_information'))
-                                    ->hidden()
-                                    ->visible(fn ($record) => $record->status === \App\Enums\TaskStatusEnum::COMPLETED)
-                                    ->columns(3)
-                                    ->schema([
-                                        Infolists\Components\TextEntry::make('completedBy.name')
-                                            ->label(__('ui.closed_by'))
-                                            ->badge()
-                                            ->color('success')
-                                            ->icon('heroicon-o-user'),
-                                        Infolists\Components\TextEntry::make('due_date')
-                                            ->label(__('ui.due_date'))
-                                            ->date()
-                                            ->badge()
-                                            ->color('success')
-                                            ->icon('heroicon-o-calendar-days'),
-                                        Infolists\Components\TextEntry::make('elapsed_time')
-                                                ->label(__('ui.elapsed_time_in_days'))
-                                                ->getStateUsing(function ($record) {
-                                                    if ($record->due_date && $record->task_date) {
-                                                        $start = Carbon::parse($record->task_date)->startOfDay();
-                                                        $end = Carbon::parse($record->due_date)->startOfDay();
-
-                                                        $days = $start->diffInDays($end);
-
-                                                        return $days == 0 ? __('ui.completed_in_same_day') : $days . ' ' . __('ui.days');
-                                                    }
-                                                    return __('ui.not_available');
-                                                })
-                                                ->badge()
-                                                ->color('warning')
-                                                ->icon('heroicon-o-clock'),
-                                        Infolists\Components\Fieldset::make(__('ui.resolution_notes'))
-                                            ->schema([
-                                                Infolists\Components\TextEntry::make('resolution_notes')
-                                                    ->hiddenLabel()
-                                                    ->formatStateUsing(fn ($state) => nl2br(e($state)))
-                                                    ->html()
-                                                    ->columnSpanFull()
-                                            ]),
-                                    ]),
 
                                 Tabs::make(__('ui.resolution_information'))
                                     ->columnSpanFull()
@@ -831,7 +472,9 @@ class ViewTask extends ViewRecord
                                                             ->color('primary')
                                                             ->icon('heroicon-o-calendar-days'),
                                                         Infolists\Components\TextEntry::make('elapsed_time')
-                                                            ->visible(fn ($record) => $record->status->isNot(\App\Enums\TaskStatusEnum::COMPLETED))                                                            ->label(__('ui.waiting_time'))
+                                                            ->hidden()
+                                                            ->visible(fn ($record) => $record->status->isNot(\App\Enums\TaskStatusEnum::COMPLETED))
+                                                            ->label(__('ui.waiting_time'))
                                                             ->getStateUsing(function ($record) {
                                                                 // Başlangıç her zaman oluşturulma tarihi (datetime)
                                                                 $start = $record->created_at;
@@ -864,7 +507,7 @@ class ViewTask extends ViewRecord
                                             ->schema([
                                                 Infolists\Components\Fieldset::make(__('ui.resolution_information'))
                                                     ->hiddenLabel()
-                                                    ->columns(3)
+                                                    ->columns(4)
                                                     ->schema([
                                                         Infolists\Components\TextEntry::make('completedBy.name')
                                                             ->label(__('ui.closed_by'))
@@ -877,47 +520,62 @@ class ViewTask extends ViewRecord
                                                             ->badge()
                                                             ->color('success')
                                                             ->icon('heroicon-o-calendar-days'),
-//                                                        Infolists\Components\TextEntry::make('elapsed_time')
-//                                                            ->label(__('ui.elapsed_time_in_days'))
-//                                                            ->getStateUsing(function ($record) {
-//                                                                if ($record->due_date && $record->created_at) {
-//                                                                    $start = Carbon::parse($record->created_at)->startOfDay();
-//                                                                    $end = Carbon::parse($record->due_date)->startOfDay();
-//
-//                                                                    $days = $start->diffInDays($end);
-//
-//                                                                    return $days == 0 ? __('ui.completed_in_same_day') : $days . ' ' . __('ui.days');
-//                                                                }
-//                                                                return __('ui.not_available');
-//                                                            })
-//                                                            ->badge()
-//                                                            ->color('warning')
-//                                                            ->icon('heroicon-o-clock'),
                                                         Infolists\Components\TextEntry::make('elapsed_time')
-                                                            ->label(__('ui.elapsed_time'))
+                                                            ->label(__('ui.waiting_time'))
                                                             ->getStateUsing(function ($record) {
-                                                                // Başlangıç her zaman oluşturulma tarihi (datetime)
                                                                 $start = $record->created_at;
 
-                                                                if (!$start) return __('ui.not_available');
+                                                                if (!$start) return null;
 
-                                                                // Bitiş: Tamamlanmışsa due_date, hala açıksa şu anki zaman
-                                                                $isCompleted = $record->status->value === \App\Enums\TaskStatusEnum::COMPLETED->value;
-                                                                $end = ($isCompleted && $record->due_date) ? $record->due_date : now();
+                                                                // Bitiş noktası: Tamamlandıysa due_date (saatiyle birlikte), değilse şu an (now)
+                                                                // endOfDay() kaldırıldı, böylece tablo ile aynı net farkı hesaplar.
+                                                                $end = ($record->status->value === \App\Enums\TaskStatusEnum::COMPLETED->value && $record->due_date)
+                                                                    ? $record->due_date
+                                                                    : now();
 
-                                                                // Aradaki farkı Carbon'un diffForHumans metodu ile alalım
-                                                                // 'parts' => 2 sayesinde "10 Gün 2 Dakika" formatını yakalarız
                                                                 return $start->diffForHumans($end, [
                                                                     'syntax' => \Carbon\CarbonInterface::DIFF_ABSOLUTE,
-                                                                    'parts' => 2,
+                                                                    'parts' => 3, // Tabloyla tam uyum için burayı 2 de yapabilirsiniz
                                                                     'join' => ' ',
                                                                 ]);
                                                             })
                                                             ->badge()
-                                                            ->color(fn ($record) =>
-                                                            $record->status->value === \App\Enums\TaskStatusEnum::COMPLETED->value ? 'success' : 'warning'
-                                                            )
-                                                            ->icon('heroicon-o-clock'),
+                                                            ->color(fn ($record) => $record->status->value === \App\Enums\TaskStatusEnum::COMPLETED->value ? 'success' : 'warning'),
+                                                        Infolists\Components\TextEntry::make('sla_limit')
+                                                            ->label(__('ui.sla_limit'))
+                                                            ->getStateUsing(function ($record) {
+                                                                $policy = \App\Models\SlaPolicy::where('unit_id', $record->unit_id)
+                                                                    ->where('area_id', $record->area_id)
+                                                                    ->where('priority', $record->priority)
+                                                                    ->first();
+
+                                                                return $policy ? ($policy->deadline_minutes >= 60 ? round($policy->deadline_minutes / 60, 1) . ' Saat' : $policy->deadline_minutes . ' Dakika') : '-';
+                                                            })
+                                                            ->badge()->color('info')->icon('heroicon-o-flag'),
+                                                        Infolists\Components\TextEntry::make('canli_sla_durumu')
+                                                            ->hidden()
+                                                            ->label(__('ui.sla_status'))
+                                                            ->badge()
+                                                            ->getStateUsing(function ($record) {
+                                                                // Senin modelinde yeni gördüğüm calculateSlaStatus metodunu çağırıyoruz
+                                                                // Bu metod içindeki diffInMinutes(now()) sayesinde sonuç ARTIK CANLI.
+                                                                $status = $record->calculateSlaStatus();
+
+                                                                return match($status) {
+                                                                    'SUCCESS' => __('ui.on_time'),
+                                                                    'FAILED' => __('ui.breached'),
+                                                                    'NO_POLICY' => 'Politika Yok',
+                                                                    default => '-',
+                                                                };
+                                                            })
+                                                            ->color(function ($state) {
+                                                                return match($state) {
+                                                                    __('ui.on_time') => 'success',
+                                                                    __('ui.breached') => 'danger',
+                                                                    default => 'gray',
+                                                                };
+                                                            })
+                                                            ->icon(fn ($state) => $state === __('ui.on_time') ? 'heroicon-m-check-badge' : 'heroicon-m-x-circle'),
                                                         Infolists\Components\Fieldset::make(__('ui.resolution_notes'))
                                                             ->schema([
                                                                 Infolists\Components\TextEntry::make('resolution_notes')

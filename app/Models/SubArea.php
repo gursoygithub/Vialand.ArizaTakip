@@ -70,4 +70,9 @@ class SubArea extends Model
             ->logOnlyDirty()
             ->useLogName(static::$logName);
     }
+
+    public function slaPolicies()
+    {
+        return $this->hasMany(SlaPolicy::class, 'sub_area_id');
+    }
 }

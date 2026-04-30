@@ -20,13 +20,14 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class SlaPolicyResource extends Resource
 {
     protected static ?string $model = SlaPolicy::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static ?string $navigationIcon = 'heroicon-o-document-check';
 
     protected static ?int $navigationSort = 999;
 
@@ -277,6 +278,13 @@ class SlaPolicyResource extends Resource
                     ->alignCenter()
                     ->formatStateUsing(fn ($state) => "% " . $state)
                     ->sortable(),
+                Tables\Columns\TextColumn::make('groups_count')
+                    ->label(__('ui.associated_groups'))
+                    ->badge()
+                    ->icon('heroicon-o-user-group')
+                    ->alignCenter()
+                    ->counts('groups')
+                    ->sortable(),
                 Tables\Columns\TextColumn::make('createdBy.name')
                     ->visible(fn () => auth()->user()->hasRole('super_admin') || auth()->user()->can('view_all_sla_policies'))
                     ->label(__('ui.created_by'))
@@ -305,7 +313,31 @@ class SlaPolicyResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                //
+                // filter by area
+                Tables\Filters\SelectFilter::make('area_id')
+                    ->label(__('ui.area'))
+                    ->options(Area::all()->pluck('name', 'id'))
+                    ->searchable(),
+                // filter by sub area
+                Tables\Filters\SelectFilter::make('sub_area_id')
+                    ->label(__('ui.sub_area'))
+                    ->options(SubArea::all()->pluck('name', 'id'))
+                    ->searchable(),
+                // filter by unit
+                Tables\Filters\SelectFilter::make('unit_id')
+                    ->label(__('ui.technical_unit'))
+                    ->options(Unit::all()->pluck('name', 'id'))
+                    ->searchable(),
+                // filter by priority
+                Tables\Filters\SelectFilter::make('priority')
+                    ->label(__('ui.priority'))
+                    ->options([
+                        TaskPriorityEnum::Low->value => TaskPriorityEnum::Low->getLabel(),
+                        TaskPriorityEnum::Medium->value => TaskPriorityEnum::Medium->getLabel(),
+                        TaskPriorityEnum::High->value => TaskPriorityEnum::High->getLabel(),
+                        TaskPriorityEnum::Urgent->value => TaskPriorityEnum::Urgent->getLabel(),
+                    ])
+                    ->searchable(),
             ])
             ->actions([
                 Tables\Actions\ActionGroup::make([
@@ -323,7 +355,7 @@ class SlaPolicyResource extends Resource
     public static function getRelations(): array
     {
         return [
-            //
+            RelationManagers\GroupsRelationManager::class,
         ];
     }
 
@@ -335,5 +367,15 @@ class SlaPolicyResource extends Resource
             'edit' => Pages\EditSlaPolicy::route('/{record}/edit'),
             'view' => Pages\ViewSlaPolicy::route('/{record}'),
         ];
+    }
+
+    public static function canDelete(Model $record): bool
+    {
+        // Prevent deletion if the SLA policy is associated with any groups (assuming a groups() relationship exists)
+        if ($record->groups()->exists()) {
+            return false;
+        }
+
+        return auth()->user()->hasRole('super_admin') || auth()->id === $record->created_by;
     }
 }

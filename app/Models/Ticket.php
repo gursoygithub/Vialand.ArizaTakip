@@ -226,27 +226,23 @@ class Ticket extends Model implements HasMedia
             return parent::query()->whereRaw('1=0');
         }
 
-        if ($user->hasRole('super_admin') || $user->can('ticket.view.all')) {
+        if ($user->hasRole('super_admin') || $user->can('ticket.view.all') || $user->can('view_all_tasks')) {
             return parent::query();
         }
 
+        $employeeId = $user->employee?->id;
+
         if ($user->can('ticket.view.group')) {
-            $areaIds = Group::where('employee_id', function ($q) use ($user) {
-                $q->select('id')->from('employees')->where('email', $user->email);
-            })->pluck('area_id');
+            $areaIds = Group::where('employee_id', $employeeId)->pluck('area_id');
 
             return parent::query()->whereIn('area_id', $areaIds);
         }
 
         // ticket.view.own or default
         return parent::query()
-            ->where(function ($query) use ($user) {
+            ->where(function ($query) use ($user, $employeeId) {
                 $query->where('created_by', $user->id)
-                    ->orWhere('employee_id', function ($subQuery) use ($user) {
-                        $subQuery->select('id')
-                            ->from('employees')
-                            ->where('email', $user->email);
-                    });
+                    ->orWhere('employee_id', $employeeId);
             });
     }
 
