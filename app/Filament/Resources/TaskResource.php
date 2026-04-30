@@ -15,8 +15,9 @@ use App\Models\SubArea;
 use App\Models\Task;
 use App\Models\Unit;
 use App\Models\User;
-use App\Notifications\TaskAssigned;
-use App\Notifications\TaskClosed;
+use App\Notifications\TicketAssignedNotification;
+use App\Notifications\TicketClosedNotification;
+use App\Notifications\TicketReopenedNotification;
 use Filament\Forms;
 use Filament\Forms\Components\Fieldset;
 use Filament\Forms\Components\ToggleButtons;
@@ -935,7 +936,7 @@ class TaskResource extends Resource
                             $record->refresh();
 
                             if ($record->employee) {
-                                $record->notify(new \App\Notifications\TaskAssigned($record));
+                                $record->notify(new TicketAssignedNotification($record));
                             }
 
                             Notification::make()
@@ -1003,7 +1004,7 @@ class TaskResource extends Resource
                             $record->refresh();
 
                             if ($record->employee) {
-                                $record->notify(new \App\Notifications\TaskAssigned($record));
+                                $record->notify(new TicketAssignedNotification($record));
                             }
 
                             Notification::make()
@@ -1062,7 +1063,7 @@ class TaskResource extends Resource
 
                             $record->refresh();
 
-                            $record->createdBy->notify(new TaskClosed($record));
+                            $record->createdBy->notify(new TicketClosedNotification($record));
 
                             Notification::make()
                                 ->title(__('ui.task_closed_successfully'))
@@ -1104,7 +1105,7 @@ class TaskResource extends Resource
 
                             $record->refresh();
 
-                            $record->employee->notify(new \App\Notifications\TaskReopened($record));
+                            $record->employee->notify(new TicketReopenedNotification($record));
 
                             Notification::make()
                                 ->title(__('ui.task_reopened_successfully'))

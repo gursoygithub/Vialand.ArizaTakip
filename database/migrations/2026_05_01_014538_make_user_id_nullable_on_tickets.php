@@ -16,6 +16,15 @@ return new class extends Migration
 {
     public function up(): void
     {
+        // SQLite (used by the test suite) doesn't have information_schema and
+        // doesn't enforce the user_id NOT NULL the same way — TicketFactory
+        // already provides user_id on test fixtures, so the column constraint
+        // is a no-op there. Apply the relaxation only on MySQL where prod
+        // ticket inserts were failing.
+        if (DB::connection()->getDriverName() !== 'mysql') {
+            return;
+        }
+
         // Drop the FK first if it still exists. The tasks→tickets rename
         // migration may have already dropped it implicitly on some envs,
         // so this is a best-effort. MySQL won't let us alter a referenced
@@ -50,6 +59,10 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (DB::connection()->getDriverName() !== 'mysql') {
+            return;
+        }
+
         Schema::table('tickets', function (Blueprint $table) {
             $table->dropForeign(['user_id']);
         });

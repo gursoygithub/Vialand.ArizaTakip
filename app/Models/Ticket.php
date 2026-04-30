@@ -3,7 +3,6 @@
 namespace App\Models;
 
 use App\Enums\TaskStatusEnum;
-use App\Notifications\TaskAssigned;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -349,13 +348,9 @@ class Ticket extends Model implements HasMedia
 
         static::updating(function (Ticket $ticket) {
             $ticket->updated_by = auth()->id();
-
-            if ($ticket->isDirty('employee_id') && $ticket->employee_id) {
-                $employee = Employee::find($ticket->employee_id);
-                if ($employee) {
-                    $employee->notify(new TaskAssigned($ticket));
-                }
-            }
+            // Assignment notification is dispatched by TicketObserver::updating
+            // through TicketAssignedNotification (notifies the User, which is
+            // what the panel bell reads). No legacy Employee-direct dispatch.
         });
 
         static::deleting(function (Ticket $ticket) {

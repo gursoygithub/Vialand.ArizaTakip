@@ -10,7 +10,9 @@ use App\Filament\Resources\TaskResource;
 use App\Models\Employee;
 use App\Models\Task;
 use App\Models\Unit;
-use App\Notifications\TaskClosed;
+use App\Notifications\TicketAssignedNotification;
+use App\Notifications\TicketClosedNotification;
+use App\Notifications\TicketReopenedNotification;
 use Filament\Actions;
 use Filament\Facades\Filament;
 use Filament\Forms;
@@ -90,7 +92,7 @@ class ViewTask extends ViewRecord
                     $record->refresh();
 
                     if ($record->employee) {
-                        $record->notify(new \App\Notifications\TaskAssigned($record));
+                        $record->notify(new TicketAssignedNotification($record));
                     }
 
                     Notification::make()
@@ -158,7 +160,7 @@ class ViewTask extends ViewRecord
                     $record->refresh();
 
                     if ($record->employee) {
-                        $record->notify(new \App\Notifications\TaskAssigned($record));
+                        $record->notify(new TicketAssignedNotification($record));
                     }
 
                     Notification::make()
@@ -224,7 +226,7 @@ class ViewTask extends ViewRecord
 
                     $record->refresh();
 
-                    $record->createdBy->notify(new TaskClosed($record));
+                    $record->createdBy->notify(new TicketClosedNotification($record));
 
                     Notification::make()
                         ->title(__('ui.task_closed_successfully'))
@@ -267,7 +269,7 @@ class ViewTask extends ViewRecord
 
                     $record->refresh();
 
-                    $record->employee->notify(new \App\Notifications\TaskReopened($record));
+                    $record->employee->notify(new TicketReopenedNotification($record));
 
                     Notification::make()
                         ->title(__('ui.task_reopened_successfully'))
