@@ -557,25 +557,53 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
 
                                 Select::make('unit_id')
                                     ->label('Birim')
+                                    // Guard wrapper: when the action modal is closed and
+                                    // re-opened, Filament rebuilds the form schema and the
+                                    // options/helperText closures can fire before the new
+                                    // Component's $container has been initialized. Reading
+                                    // $get('area_id') in that window throws "Typed property
+                                    // Component::$container must not be accessed before
+                                    // initialization". Catch and fall back to the unfiltered
+                                    // unit list — once the form is fully mounted the next
+                                    // render runs the real branch.
                                     ->options(function (Forms\Get $modalGet) {
-                                        $areaId = $modalGet('area_id');
+                                        try {
+                                            $areaId = $modalGet('area_id');
+                                        } catch (\Throwable) {
+                                            return Unit::orderBy('name')->pluck('name', 'id');
+                                        }
+
                                         if (!$areaId) {
                                             return Unit::orderBy('name')->pluck('name', 'id');
                                         }
+
                                         $unitIds = SlaPolicy::where('area_id', (int) $areaId)
                                             ->distinct()
                                             ->pluck('unit_id');
+
+                                        if ($unitIds->isEmpty()) {
+                                            return Unit::orderBy('name')->pluck('name', 'id');
+                                        }
+
                                         return Unit::whereIn('id', $unitIds)
                                             ->orderBy('name')
                                             ->pluck('name', 'id');
                                     })
                                     ->helperText(function (Forms\Get $modalGet) {
-                                        $areaId = $modalGet('area_id');
                                         $defaultHint = 'Sadece seçilen bölgede SLA politikası tanımlı birimler listelenir.';
+
+                                        try {
+                                            $areaId = $modalGet('area_id');
+                                        } catch (\Throwable) {
+                                            return $defaultHint;
+                                        }
+
                                         if (!$areaId) {
                                             return $defaultHint;
                                         }
+
                                         $hasAny = SlaPolicy::where('area_id', (int) $areaId)->exists();
+
                                         return $hasAny
                                             ? $defaultHint
                                             : 'Bu bölge için henüz hiçbir birime SLA tanımlanmamış. Lütfen önce SLA Politikaları adımına dönün.';
