@@ -48,3 +48,35 @@ All ticket notifications return `FilamentNotification::getDatabaseMessage()`
 from `toDatabase()` so the panel's bell renders them with title, body, icon,
 and an action button. Mail channel is opt-in via `config/notifications.php`
 (`mail_enabled`, default false).
+
+## Setup Chain Rules
+
+These rules are NON-NEGOTIABLE. Every feature that touches setup data must
+enforce this chain:
+
+1. **Company must exist before anything else**
+   → companies populated automatically via `employee:sync`
+
+2. **Area (bölge) requires a company**
+   → `Area::company_id` is mandatory
+
+3. **SubArea (lokasyon) requires an area**
+   → `SubArea::area_id` is mandatory
+
+4. **SLA Policy requires: area + unit + priority** (at minimum)
+   → Cannot create SLA without at least one area
+   → `SlaService::resolvePolicy()` uses 3-level fallback but always needs
+     `area_id` as the starting point
+
+5. **Group requires: area + unit**
+   → Cannot create group without area
+
+6. **Ticket requires: area + SLA policy** (resolved automatically)
+   → `TicketObserver` resolves SLA on `creating`
+   → If no SLA found → ticket gets `NULL sla_deadline` (no SLA tracking)
+
+7. **User visibility requires: employee → company_id**
+   → If employee has no `company_id` → fallback to own tickets only
+
+Breaking this chain at any point causes silent failures. Always validate
+prerequisites before allowing creation.

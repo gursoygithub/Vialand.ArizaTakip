@@ -81,6 +81,15 @@ Usage rules:
 
 ## Gotchas
 
+### Setup chain must be enforced
+The setup chain `company → area → (sub_area | sla | group) → ticket` is
+documented in `app/Services/CLAUDE.md` under "Setup Chain Rules". Breaking
+it at any point causes silent failures (NULL `sla_deadline`, empty group
+selects, invisible tickets). `CompanySetupWizard` enforces this chain via
+hard blocks in step `afterValidation` hooks. **Any new wizard step or
+setup feature must do the same** — validate prerequisites before allowing
+creation.
+
 ### shield:generate overwrites custom policies
 `php artisan shield:generate --all` rewrites these files with auto-generated
 stubs that use the wrong permission names (`view_ticket`, `create_ticket`)
