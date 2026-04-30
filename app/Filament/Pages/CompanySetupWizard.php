@@ -358,14 +358,16 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
                     return;
                 }
 
-                $areaIds = Area::where('company_id', $companyId)->pluck('id');
-
                 // HARD: areas must exist before SLA can be defined. Step 2
                 // already enforces this, but if the user navigates back to
                 // step 1, picks a different (areas-less) company, and tries
                 // to advance into step 3 by URL or back-button, this is the
                 // backstop.
-                if ($areaIds->isEmpty()) {
+                $areas = Area::where('company_id', $companyId)
+                    ->orderBy('name')
+                    ->get(['id', 'name']);
+
+                if ($areas->isEmpty()) {
                     Notification::make()
                         ->title('Bölge gerekli')
                         ->body('Bölge tanımlanmadan SLA politikası oluşturulamaz. Lütfen önce bölge ekleyiniz.')
@@ -374,26 +376,55 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
                     throw new \Filament\Support\Exceptions\Halt;
                 }
 
-                // HARD: at least one SLA policy is required for the company.
-                $hasAnySla = SlaPolicy::whereIn('area_id', $areaIds)->exists();
-                if (!$hasAnySla) {
+                // Per-area SLA presence check. An area with ZERO policies is
+                // unusable for tickets — SlaService falls back at area+unit
+                // level, but if NO row exists for the area_id at all the
+                // resolver returns null and tickets get a NULL sla_deadline.
+                // That's a hard block. An area with SOME policies but not
+                // every (unit × priority) combination is recoverable via
+                // fallback for some priorities and acceptable as a soft
+                // warning.
+                $units = Unit::pluck('id');
+                $unitCount = $units->count();
+                $expectedPerArea = $unitCount * 4;
+
+                $areasWithNoSla = [];
+                $areasWithPartialSla = [];
+
+                foreach ($areas as $area) {
+                    $count = SlaPolicy::where('area_id', $area->id)
+                        ->whereIn('unit_id', $units)
+                        ->count();
+
+                    if ($count === 0) {
+                        $areasWithNoSla[] = $area->name;
+                    } elseif ($count < $expectedPerArea) {
+                        $areasWithPartialSla[] = $area->name;
+                    }
+                }
+
+                // HARD: any area with zero SLA → block.
+                if (!empty($areasWithNoSla)) {
+                    $list = implode(', ', $areasWithNoSla);
                     Notification::make()
-                        ->title('SLA tanımlı değil')
-                        ->body('En az bir SLA politikası tanımlamanız gerekmektedir.')
+                        ->title('SLA tanımlı olmayan bölgeler')
+                        ->body("Bazı bölgeler için hiç SLA politikası tanımlanmamış: {$list}. En az bir birim için SLA tanımlamanız gerekmektedir.")
                         ->danger()
+                        ->persistent()
                         ->send();
                     throw new \Filament\Support\Exceptions\Halt;
                 }
 
-                // SOFT: any (area × unit × priority) combinations missing.
-                $stats = $this->companyStats($companyId);
-                $missing = (int) ($stats['missing_sla_combos'] ?? 0);
+                // SOFT: areas with partial coverage. Surface the count so the
+                // user sees how big the gap is before clicking through.
+                if (!empty($areasWithPartialSla)) {
+                    $stats = $this->companyStats($companyId);
+                    $missing = (int) ($stats['missing_sla_combos'] ?? 0);
 
-                if ($missing > 0) {
                     $this->softGate(
                         'sla',
                         'Eksik SLA Kombinasyonları',
-                        "$missing kombinasyon eksik. Eksik tanımlamalarla devam etmek istediğinizden emin misiniz?",
+                        "$missing kombinasyon eksik. Eksik kombinasyonlar için SLA bulunamazsa ticket'lar SLA'sız açılacaktır. Devam etmek istiyor musunuz?",
                     );
                 }
             })
