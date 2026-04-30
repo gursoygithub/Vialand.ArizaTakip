@@ -532,28 +532,42 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
                             ->icon('heroicon-o-plus')
                             ->modalHeading('Yeni Grup')
                             ->form(fn (Forms\Get $get) => [
-                                TextInput::make('name')->label('Grup Adı')->required(),
+                                TextInput::make('name')
+                                    ->label('Grup Adı')
+                                    ->required()
+                                    ->validationMessages(['required' => 'Grup adı zorunludur.']),
+
                                 Select::make('area_id')
                                     ->label('Bölge')
-                                    ->options(fn () => Area::where('company_id', (int) $get('companyId'))
+                                    ->helperText('Sadece SLA politikası tanımlanmış bölgeler listelenmektedir.')
+                                    ->options(fn () => Area::query()
+                                        ->where('company_id', (int) $get('companyId'))
+                                        ->where('status', ActiveStatusEnum::ACTIVE->value)
+                                        ->whereHas('slaPolicies')
                                         ->orderBy('name')
                                         ->pluck('name', 'id'))
                                     ->required()
-                                    ->searchable(),
+                                    ->searchable()
+                                    ->validationMessages(['required' => 'Bölge alanı zorunludur.']),
+
                                 Select::make('unit_id')
                                     ->label('Birim')
                                     ->options(fn () => Unit::orderBy('name')->pluck('name', 'id'))
                                     ->required()
-                                    ->searchable(),
+                                    ->searchable()
+                                    ->validationMessages(['required' => 'Birim alanı zorunludur.']),
+
                                 Select::make('employee_id')
                                     ->label('Amir')
-                                    ->options(fn () => Employee::where('company_id', (int) $get('companyId'))
+                                    ->options(fn () => Employee::query()
+                                        ->where('company_id', (int) $get('companyId'))
                                         ->where('status', ActiveStatusEnum::ACTIVE->value)
                                         ->orderBy('name')
                                         ->limit(500)
                                         ->pluck('name', 'id'))
                                     ->required()
-                                    ->searchable(),
+                                    ->searchable()
+                                    ->validationMessages(['required' => 'Amir alanı zorunludur.']),
                             ])
                             ->action(function (array $data, Forms\Get $get) {
                                 Group::create([
