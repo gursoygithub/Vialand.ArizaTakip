@@ -207,9 +207,12 @@ class ViewTicket extends ViewRecord
                     Notification::make()->title('Yorum eklendi')->success()->send();
                 }),
 
-            // REASSIGN
-            Actions\Action::make('reassign')
-                ->label('Yeniden Ata')
+            // ASSIGN / REASSIGN — single action, label depends on current state.
+            // Replaces the auto-generated "Ata" status-transition button (the
+            // ASSIGNED case is filtered out of buildTransitionActions below)
+            // because plain status-flip without an employee picker is useless.
+            Actions\Action::make('assign')
+                ->label($ticket->employee_id ? 'Yeniden Ata' : 'Ata')
                 ->icon('heroicon-o-user-plus')
                 ->color('warning')
                 ->visible(fn () => auth()->user()?->can('ticket.assign')
@@ -218,11 +221,32 @@ class ViewTicket extends ViewRecord
                     Select::make('employee_id')
                         ->label(__('ui.assigned_employee'))
                         ->options(function () use ($ticket) {
+                            // Prefer group-member filter; fall back to company
+                            // employees so an unassigned ticket without a group
+                            // can still be staffed.
+                            $groupId = $ticket->group_id;
+
+                            if ($groupId) {
+                                $byGroup = Employee::query()
+                                    ->whereHas('groupMemberships', fn (\Illuminate\Database\Eloquent\Builder $q)
+                                        => $q->where('group_id', $groupId))
+                                    ->where('status', \App\Enums\ActiveStatusEnum::ACTIVE->value)
+                                    ->orderBy('name')
+                                    ->pluck('name', 'id');
+
+                                if ($byGroup->isNotEmpty()) {
+                                    return $byGroup;
+                                }
+                            }
+
+                            $companyId = Employee::find($ticket->employee_id)?->company_id
+                                ?? \App\Models\Area::find($ticket->area_id)?->company_id;
+
                             return Employee::query()
-                                ->whereHas('groupMemberships.group', fn ($q) =>
-                                    $q->where('area_id', $ticket->area_id)
-                                      ->when($ticket->unit_id, fn ($q2, $u) => $q2->where('unit_id', $u))
-                                )
+                                ->when($companyId, fn ($q) => $q->where('company_id', $companyId))
+                                ->where('status', \App\Enums\ActiveStatusEnum::ACTIVE->value)
+                                ->orderBy('name')
+                                ->limit(500)
                                 ->pluck('name', 'id');
                         })
                         ->searchable()
@@ -243,11 +267,27 @@ class ViewTicket extends ViewRecord
                             // already not open — fine
                         }
                     }
-                    Notification::make()->title('Bilet yeniden atandı')->success()->send();
+                    Notification::make()
+                        ->title($ticket->employee_id ? 'Bilet yeniden atandı' : 'Bilet atandı')
+                        ->success()
+                        ->send();
                 }),
 
             Actions\EditAction::make()
-                ->visible(fn () => auth()->user()?->can('update', $ticket)),
+                ->visible(function () use ($ticket): bool {
+                    // Mirror the mount-time gate in EditTicket so the button
+                    // never appears for users the page would 403 anyway.
+                    $user = auth()->user();
+                    if (!$user) {
+                        return false;
+                    }
+                    if (!$user->can('update', $ticket)) {
+                        return false;
+                    }
+                    return $ticket->created_by === $user->id
+                        || $user->hasPermissionTo('ticket.view.all')
+                        || $user->hasPermissionTo('ticket.view.group');
+                }),
 
             Actions\DeleteAction::make()
                 ->visible(fn () => auth()->user()?->can('delete', $ticket)),
@@ -265,6 +305,13 @@ class ViewTicket extends ViewRecord
         $actions = [];
 
         foreach ($next as $to) {
+            // ASSIGNED is handled by the dedicated Ata/Yeniden Ata header
+            // action which also captures employee_id; skip the auto-generated
+            // status-only button.
+            if ($to === TaskStatusEnum::ASSIGNED) {
+                continue;
+            }
+
             $required = self::ACTION_PERMISSION[$to->value] ?? null;
             $label    = self::ACTION_LABEL[$to->value] ?? $to->getLabel();
 
@@ -381,17 +428,23 @@ class ViewTicket extends ViewRecord
     }
 
     /**
-     * Vertical timeline of status transitions + comments for a ticket.
-     * Order is oldest → newest so the reader follows the lifecycle top-down.
-     * Comments (where from_status === to_status) get the 💬 styling and an
-     * "X dakika içinde düzenlenebilir" hint when within the edit window for
-     * the comment's own author.
+     * Vertical timeline of a ticket's full history.
+     *
+     * Three entry shapes:
+     *   - Creation     (from_status NULL): "Talep Açıldı" header + creator name
+     *   - Transition   (from != to)       : from-pill → to-pill, colored dot, optional note
+     *   - Comment      (from == to)       : 💬 "Not Eklendi" header + comment body
+     *
+     * Author resolution prefers employee.name (the human display) over
+     * users.name (often a username from LDAP). Eager loads
+     * changedBy.employee so we make one user query and one employee query
+     * for all rows together.
      */
     private static function renderTimeline(Ticket $record): HtmlString
     {
         $service = app(TicketService::class);
         $entries = TicketStatusHistory::where('ticket_id', $record->id)
-            ->with('changedBy')
+            ->with(['changedBy.employee'])
             ->orderBy('created_at', 'asc')
             ->get();
 
@@ -403,20 +456,55 @@ class ViewTicket extends ViewRecord
             );
         }
 
-        $user = auth()->user();
+        $viewer = auth()->user();
         $html = '<div style="position:relative;padding-left:28px;">';
-        // Vertical guide line for the whole timeline column.
         $html .= '<div style="position:absolute;left:11px;top:6px;bottom:6px;width:2px;background:#e5e7eb;border-radius:1px;"></div>';
 
         foreach ($entries as $entry) {
-            $isComment = $entry->from_status?->value === $entry->to_status?->value
-                && $entry->from_status !== null;
-            $author    = e($entry->changedBy?->name ?? '—');
-            $when      = $entry->created_at?->format('d M Y H:i') ?? '';
-            $note      = $entry->note ? '<div style="margin-top:6px;color:#374151;line-height:1.5;">' . e($entry->note) . '</div>' : '';
+            $isCreation   = $entry->from_status === null;
+            $isComment    = !$isCreation
+                && $entry->from_status?->value === $entry->to_status?->value;
+
+            // Author display: prefer employee.name, fall back to user.name, then '—'.
+            $author = e(
+                $entry->changedBy?->employee?->name
+                ?? $entry->changedBy?->name
+                ?? '—'
+            );
+            $when = $entry->created_at?->format('d M Y H:i') ?? '';
+
+            // Note: treat empty string the same as null. Render only if non-empty.
+            $rawNote   = trim((string) ($entry->note ?? ''));
+            $hasNote   = $rawNote !== '' && !($isCreation && $rawNote === 'Ticket created');
+            $noteBlock = $hasNote
+                ? '<blockquote style="margin:8px 0 0;padding:8px 12px;border-left:3px solid #d1d5db;background:#f9fafb;color:#374151;line-height:1.5;border-radius:0 6px 6px 0;">' . nl2br(e($rawNote)) . '</blockquote>'
+                : '';
+
+            if ($isCreation) {
+                // 🟡 Talep Açıldı
+                $dotColor = '#eab308';
+                $html .= <<<HTML
+                    <div style="position:relative;margin-bottom:18px;">
+                        <div style="position:absolute;left:-22px;top:2px;width:20px;height:20px;border-radius:50%;background:{$dotColor};border:2px solid #fff;box-shadow:0 0 0 2px {$dotColor}33;display:flex;align-items:center;justify-content:center;font-size:11px;">🟡</div>
+                        <div style="background:#fff;border:1px solid #e5e7eb;border-left:3px solid {$dotColor};border-radius:8px;padding:10px 12px;">
+                            <div style="font-weight:700;color:#111827;">Talep Açıldı</div>
+                            <div style="font-size:0.85em;color:#6b7280;margin-top:4px;">{$author} tarafından • {$when}</div>
+                            {$noteBlock}
+                        </div>
+                    </div>
+                HTML;
+                continue;
+            }
 
             if ($isComment) {
-                $editable    = $user && $service->canEditComment($entry, $user);
+                // 💬 Not Eklendi — comment text gets a prominent block (note text
+                // is the entire payload of a comment, so render it always even
+                // if the "ticket created" filter would otherwise strip it).
+                $commentBody = $rawNote !== ''
+                    ? '<div style="margin-top:8px;color:#111827;font-size:0.95em;line-height:1.55;white-space:pre-wrap;">' . nl2br(e($rawNote)) . '</div>'
+                    : '<div style="margin-top:8px;color:#9ca3af;font-style:italic;">(boş yorum)</div>';
+
+                $editable    = $viewer && $service->canEditComment($entry, $viewer);
                 $minutesLeft = null;
                 if ($editable && $entry->created_at) {
                     $minutesLeft = max(0, 10 - (int) $entry->created_at->diffInMinutes(now()));
@@ -430,36 +518,39 @@ class ViewTicket extends ViewRecord
                     <div style="position:relative;margin-bottom:18px;">
                         <div style="position:absolute;left:-22px;top:2px;width:20px;height:20px;border-radius:50%;background:#fff;border:2px solid {$dotColor};display:flex;align-items:center;justify-content:center;font-size:11px;">💬</div>
                         <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px;">
-                            <div style="font-weight:600;color:#111827;">{$author} <span style="font-weight:400;color:#6b7280;font-size:0.85em;">• {$when}</span>{$editTag}</div>
-                            {$note}
+                            <div style="font-weight:700;color:#111827;">Not Eklendi{$editTag}</div>
+                            <div style="font-size:0.85em;color:#6b7280;margin-top:4px;">{$author} tarafından • {$when}</div>
+                            {$commentBody}
                         </div>
                     </div>
                 HTML;
-            } else {
-                $fromLabel = e($entry->from_status?->getLabel() ?? '—');
-                $toLabel   = e($entry->to_status?->getLabel() ?? '—');
-                $toColor   = match (true) {
-                    $entry->to_status === TaskStatusEnum::CANCELLED => '#ef4444',
-                    $entry->to_status === TaskStatusEnum::CLOSED, $entry->to_status === TaskStatusEnum::COMPLETED => '#10b981',
-                    $entry->to_status === TaskStatusEnum::ON_HOLD   => '#f59e0b',
-                    $entry->to_status === TaskStatusEnum::RESOLVED  => '#22c55e',
-                    default => '#3b82f6',
-                };
-                $html .= <<<HTML
-                    <div style="position:relative;margin-bottom:18px;">
-                        <div style="position:absolute;left:-22px;top:2px;width:20px;height:20px;border-radius:50%;background:{$toColor};border:2px solid #fff;box-shadow:0 0 0 2px {$toColor}33;"></div>
-                        <div style="background:#fff;border:1px solid #e5e7eb;border-left:3px solid {$toColor};border-radius:8px;padding:10px 12px;">
-                            <div style="font-weight:600;color:#111827;">
-                                <span style="background:#f3f4f6;color:#6b7280;padding:2px 8px;border-radius:4px;font-size:0.85em;">{$fromLabel}</span>
-                                <span style="margin:0 6px;color:#6b7280;">→</span>
-                                <span style="background:{$toColor}22;color:{$toColor};padding:2px 8px;border-radius:4px;font-size:0.85em;font-weight:700;">{$toLabel}</span>
-                            </div>
-                            <div style="font-size:0.85em;color:#6b7280;margin-top:4px;">{$author} • {$when}</div>
-                            {$note}
-                        </div>
-                    </div>
-                HTML;
+                continue;
             }
+
+            // Status transition.
+            $fromLabel = e($entry->from_status?->getLabel() ?? '—');
+            $toLabel   = e($entry->to_status?->getLabel() ?? '—');
+            $toColor   = match (true) {
+                $entry->to_status === TaskStatusEnum::CANCELLED => '#ef4444',
+                $entry->to_status === TaskStatusEnum::CLOSED, $entry->to_status === TaskStatusEnum::COMPLETED => '#10b981',
+                $entry->to_status === TaskStatusEnum::ON_HOLD   => '#f59e0b',
+                $entry->to_status === TaskStatusEnum::RESOLVED  => '#22c55e',
+                default => '#3b82f6',
+            };
+            $html .= <<<HTML
+                <div style="position:relative;margin-bottom:18px;">
+                    <div style="position:absolute;left:-22px;top:2px;width:20px;height:20px;border-radius:50%;background:{$toColor};border:2px solid #fff;box-shadow:0 0 0 2px {$toColor}33;"></div>
+                    <div style="background:#fff;border:1px solid #e5e7eb;border-left:3px solid {$toColor};border-radius:8px;padding:10px 12px;">
+                        <div style="font-weight:600;color:#111827;">
+                            <span style="background:#f3f4f6;color:#6b7280;padding:2px 8px;border-radius:4px;font-size:0.85em;">{$fromLabel}</span>
+                            <span style="margin:0 6px;color:#6b7280;">→</span>
+                            <span style="background:{$toColor}22;color:{$toColor};padding:2px 8px;border-radius:4px;font-size:0.85em;font-weight:700;">{$toLabel}</span>
+                        </div>
+                        <div style="font-size:0.85em;color:#6b7280;margin-top:4px;">{$author} tarafından • {$when}</div>
+                        {$noteBlock}
+                    </div>
+                </div>
+            HTML;
         }
 
         $html .= '</div>';

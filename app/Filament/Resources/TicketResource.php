@@ -350,13 +350,15 @@ class TicketResource extends Resource
                             ->rows(4)
                             ->columnSpanFull(),
 
-                        // Resolution notes only on edit — on create the ticket has no
-                        // resolution yet. Comments / status notes belong on ViewTicket.
+                        // Resolution notes don't belong on the form — they're set via
+                        // the ViewTicket "Çözüldü" transition action's note field.
+                        // Hidden on both create and edit so the form stays focused on
+                        // ticket identity, not status-side payloads.
                         Forms\Components\Textarea::make('resolution_notes')
                             ->label(__('ui.resolution_notes'))
-                            ->placeholder('Çözüm sırasında yapılan işlemleri buraya yazınız...')
                             ->rows(3)
-                            ->visible(fn ($livewire) => !($livewire instanceof \App\Filament\Resources\TicketResource\Pages\CreateTicket))
+                            ->hidden(fn ($livewire) => $livewire instanceof \App\Filament\Resources\TicketResource\Pages\CreateTicket
+                                || $livewire instanceof \App\Filament\Resources\TicketResource\Pages\EditTicket)
                             ->columnSpanFull(),
 
                         \Filament\Forms\Components\SpatieMediaLibraryFileUpload::make('task_attachments')
