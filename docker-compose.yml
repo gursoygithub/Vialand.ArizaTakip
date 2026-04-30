@@ -9,6 +9,7 @@ services:
         extra_hosts:
             - 'host.docker.internal:host-gateway'
             - 'ldap.proxy:host-gateway'  # Your WSL IP
+            #- 'ldap.proxy:host-gateway'  # Your WSL IP
             # - 'ldap.proxy:172.28.128.190'  # Your WSL IP
         ports:
             - '${APP_PORT:-80}:80'
@@ -83,6 +84,9 @@ services:
 networks:
     sail:
         driver: bridge
+        ipam:
+            config:
+                - subnet: 172.40.0.0/16  # 172.23 ile çakışmaz
 
 volumes:
     sail-mysql:

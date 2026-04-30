@@ -654,4 +654,52 @@ return [
     'task_performance_this_month' => 'Bu Ayın Görev Performansı',
     'on_time' => 'Zamanında',
     'delayed' => 'Gecikmiş',
+
+    // Ticket lifecycle statuses
+    'open' => 'Açık',
+    'assigned' => 'Atandı',
+    'resolved' => 'Çözüldü',
+    'closed' => 'Kapatıldı',
+    'on_hold' => 'Beklemede',
+
+    // Ticket UI
+    'ticket' => 'Arıza Talebi',
+    'tickets' => 'Arıza Talepleri',
+    'ticket_no' => 'Talep No',
+    'ticket_management' => 'Arıza Talep Yönetimi',
+    'ticket_detail' => 'Talep Detayı',
+    'ticket_information' => 'Talep Bilgileri',
+    'sla_deadline' => 'SLA Son Tarihi',
+    'sla_breached' => 'SLA İhlal Edildi',
+    'sla_indicator' => 'SLA Durumu',
+    'sla_remaining' => 'SLA Kalan Süre',
+    'countdown' => 'Kalan Süre',
+    'assigned_at' => 'Atanma Tarihi',
+    'resolved_at' => 'Çözüm Tarihi',
+    'closed_at' => 'Kapatma Tarihi',
+
+    // Status timeline
+    'status_history' => 'Durum Geçmişi',
+    'status_change' => 'Durum Değiştir',
+    'change_status' => 'Durumu Değiştir',
+    'add_note' => 'Not Ekle',
+    'from_status' => 'Önceki Durum',
+    'to_status' => 'Yeni Durum',
+    'changed_by' => 'Değiştiren',
+    'note' => 'Not',
+
+    // Performance dashboard
+    'performance_dashboard' => 'Performans Paneli',
+    'compliance_rate' => 'Uyum Oranı',
+    'avg_resolution_time' => 'Ortalama Çözüm Süresi',
+    'breach_count' => 'İhlal Sayısı',
+    'total_tickets' => 'Toplam Talep',
+    'open_tickets' => 'Açık Talepler',
+    'breached_tickets' => 'İhlal Edilen Talepler',
+    'date_from' => 'Başlangıç Tarihi',
+    'date_to' => 'Bitiş Tarihi',
+    'export_csv' => 'CSV İndir',
+    'export_excel' => 'Excel İndir',
+    'technician_performance' => 'Teknisyen Performansı',
+    'avg_resolution_minutes' => 'Ort. Çözüm (dk)',
 ];

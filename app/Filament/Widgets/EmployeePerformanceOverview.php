@@ -51,8 +51,8 @@ class EmployeePerformanceOverview extends BaseWidget
             // 1. Politikadaki "Başarı Eşiği Yüzdesi" ortalamasını dinamik alıyoruz
             $avgThreshold = \Illuminate\Support\Facades\DB::table('sla_policies')->avg('success_threshold') ?? 80;
 
-            // 2. Canlı Görev Verilerini Çekiyoruz
-            $stats = \Illuminate\Support\Facades\DB::table('tasks as t')
+            // 2. Canlı Görev Verilerini Çekiyoruz (table renamed: tasks → tickets)
+            $stats = \Illuminate\Support\Facades\DB::table('tickets as t')
                 ->selectRaw("
                 COUNT(DISTINCT CASE WHEN t.sla_outcome IS NOT NULL THEN t.id END) as rated_tasks,
                 COUNT(DISTINCT CASE WHEN t.sla_outcome = 'SUCCESS' THEN t.id END) as success_count,

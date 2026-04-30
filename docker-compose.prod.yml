@@ -9,8 +9,8 @@ services:
       - 'ldap.proxy:host-gateway'
 
     ports:
-      - '5006:80'
-      - '${VITE_PORT:-5179}:${VITE_PORT:-5179}'
+      - '5007:80'
+      - '${VITE_PORT:-5180}:${VITE_PORT:-5180}'
 
     environment:
       LARAVEL_SAIL: 1
@@ -29,3 +29,6 @@ services:
 networks:
   gursoy:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.40.0.0/16  # LDAP IP'si (172.23) ile asla çakışmaz
