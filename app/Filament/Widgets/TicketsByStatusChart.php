@@ -51,6 +51,7 @@ class TicketsByStatusChart extends ChartWidget
         ];
 
         $counts = Ticket::query()
+            ->visibleBy(auth()->user())
             ->selectRaw('status, COUNT(*) as total')
             ->groupBy('status')
             ->pluck('total', 'status')

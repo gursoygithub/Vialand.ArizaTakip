@@ -33,24 +33,29 @@ class TicketStatsOverview extends BaseWidget
         ];
 
         $openCount = Ticket::query()
+            ->visibleBy(auth()->user())
             ->whereIn('status', $openStatuses)
             ->count();
 
         $breachedCount = Ticket::query()
+            ->visibleBy(auth()->user())
             ->where('sla_breached', true)
             ->whereNotIn('status', $closedStatuses)
             ->count();
 
         $resolvedToday = Ticket::query()
+            ->visibleBy(auth()->user())
             ->whereDate('closed_at', '>=', now()->startOfDay())
             ->count();
 
         $thirtyDaysAgo = now()->subDays(30);
         $totalClosedRecent = Ticket::query()
+            ->visibleBy(auth()->user())
             ->whereNotNull('closed_at')
             ->where('closed_at', '>=', $thirtyDaysAgo)
             ->count();
         $onTimeRecent = Ticket::query()
+            ->visibleBy(auth()->user())
             ->whereNotNull('closed_at')
             ->where('closed_at', '>=', $thirtyDaysAgo)
             ->where('sla_breached', false)

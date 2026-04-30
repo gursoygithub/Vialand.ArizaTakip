@@ -239,11 +239,13 @@ class Ticket extends Model implements HasMedia
      */
     public function scopeVisibleBy(Builder $query, ?User $user): Builder
     {
-        // No authenticated user → fall through with no rows. Anonymous access
-        // shouldn't reach this scope in practice, but if it does we don't want
-        // to leak data.
+        // No user → caller is responsible (background jobs, schedulers,
+        // artisan commands). Returning the unfiltered query is correct here:
+        // anything that reaches user-scoped code paths must pass an explicit
+        // $user, and anything that operates over all tickets (SLA checker,
+        // notifications, exports) deliberately wants no restriction.
         if (!$user) {
-            return $query->whereRaw('1=0');
+            return $query;
         }
 
         // 1. ticket.view.all (or legacy view_all_tasks) → no scope.
@@ -271,15 +273,6 @@ class Ticket extends Model implements HasMedia
                 $q->orWhere('employee_id', $employeeId);
             }
         });
-    }
-
-    /**
-     * Static query() override: keep existing global scoping behaviour by
-     * delegating to scopeVisibleBy(). Single source of truth.
-     */
-    public static function query()
-    {
-        return parent::query()->visibleBy(auth()->user());
     }
 
     // --- Boot ---

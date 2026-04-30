@@ -52,6 +52,7 @@ class TicketResource extends Resource
     {
         // Only show open/assigned/in_progress in the badge — closed/cancelled are noise.
         $count = Ticket::query()
+            ->visibleBy(auth()->user())
             ->whereIn('status', [
                 TaskStatusEnum::OPEN->value,
                 TaskStatusEnum::ASSIGNED->value,
@@ -66,6 +67,7 @@ class TicketResource extends Resource
     public static function getNavigationBadgeColor(): string
     {
         $breached = Ticket::query()
+            ->visibleBy(auth()->user())
             ->where('sla_breached', true)
             ->whereIn('status', [
                 TaskStatusEnum::OPEN->value,

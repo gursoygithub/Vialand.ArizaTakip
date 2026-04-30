@@ -53,6 +53,7 @@ class TicketsByPriorityChart extends ChartWidget
         ];
 
         $counts = Ticket::query()
+            ->visibleBy(auth()->user())
             ->whereIn('status', $openStatuses)
             ->selectRaw('priority, COUNT(*) as total')
             ->groupBy('priority')

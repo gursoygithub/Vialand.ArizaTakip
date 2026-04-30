@@ -37,6 +37,7 @@ class RecentTicketsTable extends BaseWidget
         return $table
             ->query(
                 Ticket::query()
+                    ->visibleBy(auth()->user())
                     ->whereIn('status', $openStatuses)
                     ->latest('created_at')
                     ->limit(10)
