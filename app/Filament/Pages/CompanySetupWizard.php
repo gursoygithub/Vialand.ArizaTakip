@@ -67,15 +67,6 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
      */
     public array $softConfirmedSteps = [];
 
-    /**
-     * Mirrors the area_id selection inside the addGroup modal so the unit_id
-     * options/helperText closures can read it without going through Forms\Get,
-     * which fires before the modal's Component::$container is initialized on
-     * second-open and throws. Set in area_id->afterStateUpdated, reset on
-     * mountUsing and after action runs.
-     */
-    public ?int $modalAreaId = null;
-
     public static function getNavigationLabel(): string
     {
         return 'Şirket Kurulumu';
@@ -540,11 +531,6 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
                             ->label('Yeni Grup Ekle')
                             ->icon('heroicon-o-plus')
                             ->modalHeading('Yeni Grup')
-                            // Reset modal-scoped state on every open so a previous
-                            // area selection doesn't bleed into a fresh modal.
-                            ->mountUsing(function () {
-                                $this->modalAreaId = null;
-                            })
                             ->form(fn (Forms\Get $get) => [
                                 TextInput::make('name')
                                     ->label('Grup Adı')
@@ -563,48 +549,44 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
                                     ->required()
                                     ->searchable()
                                     ->live()
-                                    // Mirror the selection into the Livewire property so
-                                    // unit_id's options/helperText closures can read it
-                                    // without Forms\Get (which throws on second-open).
-                                    // Also clear unit_id so a stale selection from the
-                                    // prior area doesn't smuggle through the SLA filter.
-                                    ->afterStateUpdated(function ($state, Forms\Set $set) {
-                                        $this->modalAreaId = $state ? (int) $state : null;
-                                        $set('unit_id', null);
-                                    })
+                                    ->afterStateUpdated(fn (Forms\Set $set) => $set('unit_id', null))
                                     ->validationMessages(['required' => 'Bölge alanı zorunludur.']),
 
                                 Select::make('unit_id')
                                     ->label('Birim')
-                                    ->options(function () {
-                                        if (!$this->modalAreaId) {
+                                    ->options(function (Forms\Get $get) {
+                                        $areaId = $get('area_id');
+
+                                        if (!$areaId) {
                                             return Unit::orderBy('name')->pluck('name', 'id');
                                         }
 
-                                        $unitIds = SlaPolicy::where('area_id', $this->modalAreaId)
+                                        $unitIds = SlaPolicy::where('area_id', $areaId)
                                             ->distinct()
                                             ->pluck('unit_id');
 
                                         if ($unitIds->isEmpty()) {
-                                            return Unit::orderBy('name')->pluck('name', 'id');
+                                            return [];
                                         }
 
                                         return Unit::whereIn('id', $unitIds)
                                             ->orderBy('name')
                                             ->pluck('name', 'id');
                                     })
-                                    ->helperText(function (): string {
-                                        $defaultHint = 'Sadece seçilen bölgede SLA politikası tanımlı birimler listelenir.';
+                                    ->helperText(function (Forms\Get $get): string {
+                                        $areaId = $get('area_id');
 
-                                        if (!$this->modalAreaId) {
-                                            return $defaultHint;
+                                        if (!$areaId) {
+                                            return 'Önce bölge seçiniz.';
                                         }
 
-                                        $hasAny = SlaPolicy::where('area_id', $this->modalAreaId)->exists();
+                                        $hasSla = SlaPolicy::where('area_id', $areaId)->exists();
 
-                                        return $hasAny
-                                            ? $defaultHint
-                                            : 'Bu bölge için henüz hiçbir birime SLA tanımlanmamış. Lütfen önce SLA Politikaları adımına dönün.';
+                                        if (!$hasSla) {
+                                            return 'Bu bölge için henüz SLA tanımlanmamış. SLA adımına dönünüz.';
+                                        }
+
+                                        return 'Sadece SLA tanımlı birimler listelenmektedir.';
                                     })
                                     ->required()
                                     ->searchable()
@@ -632,7 +614,6 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
                                     'status'      => ActiveStatusEnum::ACTIVE->value,
                                     'created_by'  => auth()->id(),
                                 ]);
-                                $this->modalAreaId = null;
                                 Notification::make()->title('Grup oluşturuldu')->success()->send();
                             }),
                     ])
