@@ -108,15 +108,6 @@ class TicketResource extends Resource
                             ->validationMessages(['required' => __('ui.required')])
                             ->columnSpanFull(),
 
-                        Forms\Components\Select::make('type_id')
-                            ->label(__('ui.type'))
-                            ->placeholder('Arıza türünü seçiniz')
-                            ->options(collect(TaskTypeEnum::cases())
-                                ->mapWithKeys(fn ($case) => [$case->value => $case->getLabel()])
-                                ->toArray())
-                            ->required()
-                            ->validationMessages(['required' => __('ui.required')]),
-
                         Forms\Components\DatePicker::make('task_date')
                             ->label(__('ui.task_date'))
                             ->placeholder('Arıza tarihini seçiniz')
@@ -129,6 +120,13 @@ class TicketResource extends Resource
                         // overrides that for the ticket lifecycle.
                         Forms\Components\Hidden::make('status')
                             ->default(TaskStatusEnum::OPEN->value)
+                            ->visible(fn ($livewire) => $livewire instanceof \App\Filament\Resources\TicketResource\Pages\CreateTicket),
+
+                        // type_id is NOT NULL with no DB default but the Tür field was
+                        // removed from the form. Pin it to OPERATION so creates pass
+                        // the constraint until/unless the column is dropped.
+                        Forms\Components\Hidden::make('type_id')
+                            ->default(TaskTypeEnum::OPERATION->value)
                             ->visible(fn ($livewire) => $livewire instanceof \App\Filament\Resources\TicketResource\Pages\CreateTicket),
 
                         // Edit: read-only display. Status changes happen via the
@@ -197,8 +195,12 @@ class TicketResource extends Resource
                             ->searchable()
                             ->required()
                             ->live()
-                            ->afterStateUpdated(function (callable $set) {
+                            ->afterStateUpdated(function (Forms\Set $set) {
+                                // Whole downstream chain is invalidated when the area
+                                // changes — sub_area, unit (filtered by area's SLA),
+                                // group (filtered by area), employee (filtered by group).
                                 $set('sub_area_id', null);
+                                $set('unit_id', null);
                                 $set('group_id', null);
                                 $set('employee_id', null);
                             })
@@ -208,19 +210,45 @@ class TicketResource extends Resource
                             ->label(__('ui.sub_area'))
                             ->placeholder('Alt bölge seçiniz (opsiyonel)')
                             ->prefixIcon('heroicon-o-map-pin')
-                            ->options(fn (callable $get) => SubArea::where('area_id', $get('area_id'))->pluck('name', 'id'))
-                            ->searchable()
-                            ->live()
-                            ->afterStateUpdated(fn (callable $set) => $set('employee_id', null)),
+                            ->options(fn (Forms\Get $get) => SubArea::where('area_id', $get('area_id'))->pluck('name', 'id'))
+                            ->searchable(),
 
                         Forms\Components\Select::make('unit_id')
                             ->label(__('ui.unit'))
-                            ->placeholder('Teknik birim seçiniz')
+                            ->placeholder('Önce bölge seçiniz')
                             ->prefixIcon('heroicon-o-building-office')
-                            ->options(Unit::pluck('name', 'id'))
+                            ->options(function (Forms\Get $get) {
+                                $areaId = $get('area_id');
+                                if (!$areaId) {
+                                    return [];
+                                }
+                                $unitIds = \App\Models\SlaPolicy::where('area_id', $areaId)
+                                    ->distinct()
+                                    ->pluck('unit_id');
+                                if ($unitIds->isEmpty()) {
+                                    return [];
+                                }
+                                return Unit::whereIn('id', $unitIds)
+                                    ->orderBy('name')
+                                    ->pluck('name', 'id');
+                            })
+                            ->helperText(function (Forms\Get $get): string {
+                                $areaId = $get('area_id');
+                                if (!$areaId) {
+                                    return 'Önce bölge seçiniz.';
+                                }
+                                $hasSla = \App\Models\SlaPolicy::where('area_id', $areaId)->exists();
+                                return $hasSla
+                                    ? 'Sadece bu bölge için SLA tanımlanmış birimler listelenir.'
+                                    : 'Bu bölge için henüz SLA tanımlanmamış.';
+                            })
                             ->searchable()
                             ->required()
                             ->live()
+                            ->afterStateUpdated(function (Forms\Set $set) {
+                                $set('group_id', null);
+                                $set('employee_id', null);
+                            })
                             ->validationMessages(['required' => __('ui.required')]),
 
                         \Filament\Forms\Components\Placeholder::make('sla_preview')
@@ -264,11 +292,16 @@ class TicketResource extends Resource
                     ->schema([
                         Forms\Components\Select::make('group_id')
                             ->label(__('ui.group'))
-                            ->placeholder('Sorumlu ekibi seçiniz')
+                            ->placeholder('Önce bölge seçiniz')
                             ->prefixIcon('heroicon-o-user-group')
-                            ->options(function (): array {
+                            ->options(function (Forms\Get $get): array {
+                                $areaId = $get('area_id');
+                                if (!$areaId) {
+                                    return [];
+                                }
                                 $companyIds = auth()->user()?->scopedCompanyIds() ?? [];
                                 return Group::query()
+                                    ->where('area_id', $areaId)
                                     ->when(!empty($companyIds), fn (\Illuminate\Database\Eloquent\Builder $query)
                                         => $query->whereIn('company_id', $companyIds))
                                     ->where('status', ActiveStatusEnum::ACTIVE)
@@ -276,24 +309,35 @@ class TicketResource extends Resource
                                     ->pluck('name', 'id')
                                     ->toArray();
                             })
+                            ->helperText(fn (Forms\Get $get): ?string =>
+                                $get('area_id') ? null : 'Önce bölge seçiniz.')
                             ->searchable()
                             ->live()
-                            ->afterStateUpdated(fn (callable $set) => $set('employee_id', null)),
+                            ->afterStateUpdated(fn (Forms\Set $set) => $set('employee_id', null)),
 
                         Forms\Components\Select::make('employee_id')
                             ->label(__('ui.assigned_employee'))
-                            ->placeholder('Atanan kişiyi seçiniz')
+                            ->placeholder('Önce grup seçiniz')
                             ->prefixIcon('heroicon-o-user')
-                            ->options(function (): array {
-                                $companyIds = auth()->user()?->scopedCompanyIds() ?? [];
+                            ->options(function (Forms\Get $get): array {
+                                $groupId = $get('group_id');
+                                if (!$groupId) {
+                                    // No group selected → no employees. Don't fall back
+                                    // to "all employees of company" — assignment must
+                                    // resolve through the group → member chain, otherwise
+                                    // ticket.assign loses its area/unit context.
+                                    return [];
+                                }
                                 return Employee::query()
-                                    ->when(!empty($companyIds), fn (\Illuminate\Database\Eloquent\Builder $query)
-                                        => $query->whereIn('company_id', $companyIds))
+                                    ->whereHas('groupMemberships', fn (\Illuminate\Database\Eloquent\Builder $q)
+                                        => $q->where('group_id', $groupId))
                                     ->where('status', \App\Enums\ActiveStatusEnum::ACTIVE->value)
                                     ->orderBy('name')
                                     ->pluck('name', 'id')
                                     ->toArray();
                             })
+                            ->helperText(fn (Forms\Get $get): ?string =>
+                                $get('group_id') ? null : 'Önce grup seçiniz.')
                             ->searchable(),
                     ]),
 
@@ -306,10 +350,13 @@ class TicketResource extends Resource
                             ->rows(4)
                             ->columnSpanFull(),
 
+                        // Resolution notes only on edit — on create the ticket has no
+                        // resolution yet. Comments / status notes belong on ViewTicket.
                         Forms\Components\Textarea::make('resolution_notes')
                             ->label(__('ui.resolution_notes'))
                             ->placeholder('Çözüm sırasında yapılan işlemleri buraya yazınız...')
                             ->rows(3)
+                            ->visible(fn ($livewire) => !($livewire instanceof \App\Filament\Resources\TicketResource\Pages\CreateTicket))
                             ->columnSpanFull(),
 
                         \Filament\Forms\Components\SpatieMediaLibraryFileUpload::make('task_attachments')

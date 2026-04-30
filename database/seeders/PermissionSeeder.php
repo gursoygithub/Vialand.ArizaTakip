@@ -176,6 +176,10 @@ class PermissionSeeder extends Seeder
         'manager' => [
             // BM and other managers were missing row-level ticket visibility.
             'ticket.view.own',
+            // Managers must also be able to open new tickets — without this
+            // the "Arıza Talebi Oluştur" button is hidden by TicketPolicy::create
+            // (which gates on ticket.create) even though they can see the resource.
+            'ticket.create',
         ],
     ];
 

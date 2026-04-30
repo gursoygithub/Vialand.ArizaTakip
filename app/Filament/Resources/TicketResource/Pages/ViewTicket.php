@@ -159,8 +159,10 @@ class ViewTicket extends ViewRecord
                         ]),
                     ]),
 
-                // ── STATUS TIMELINE + COMMENTS (combined feed) ──
-                Section::make(__('ui.status_history'))
+                // ── TALEP GEÇMİŞİ — always visible, not collapsible ──
+                Section::make('Talep Geçmişi')
+                    ->icon('heroicon-o-clock')
+                    ->description('Bu talep üzerinde yapılan tüm durum değişiklikleri ve yorumlar (eskiden yeniye).')
                     ->schema([
                         TextEntry::make('timeline')
                             ->label('')
@@ -379,46 +381,64 @@ class ViewTicket extends ViewRecord
     }
 
     /**
-     * Render combined timeline + comments. Each ticket_status_histories row
-     * is one entry. Pure comments (from_status === to_status) styled differently.
+     * Vertical timeline of status transitions + comments for a ticket.
+     * Order is oldest → newest so the reader follows the lifecycle top-down.
+     * Comments (where from_status === to_status) get the 💬 styling and an
+     * "X dakika içinde düzenlenebilir" hint when within the edit window for
+     * the comment's own author.
      */
     private static function renderTimeline(Ticket $record): HtmlString
     {
         $service = app(TicketService::class);
         $entries = TicketStatusHistory::where('ticket_id', $record->id)
             ->with('changedBy')
-            ->orderByDesc('created_at')
+            ->orderBy('created_at', 'asc')
             ->get();
 
         if ($entries->isEmpty()) {
-            return new HtmlString('<p class="text-gray-400">—</p>');
+            return new HtmlString(
+                '<div style="padding:16px;text-align:center;color:#6b7280;font-size:0.9em;">'
+                . 'Henüz geçmiş kaydı bulunmuyor.'
+                . '</div>'
+            );
         }
 
-        $html = '<div class="space-y-4">';
         $user = auth()->user();
+        $html = '<div style="position:relative;padding-left:28px;">';
+        // Vertical guide line for the whole timeline column.
+        $html .= '<div style="position:absolute;left:11px;top:6px;bottom:6px;width:2px;background:#e5e7eb;border-radius:1px;"></div>';
 
         foreach ($entries as $entry) {
             $isComment = $entry->from_status?->value === $entry->to_status?->value
                 && $entry->from_status !== null;
             $author    = e($entry->changedBy?->name ?? '—');
-            $when      = $entry->created_at?->format('d.m.Y H:i') ?? '';
-            $note      = $entry->note ? '<p style="margin-top:4px;color:#374151;">' . e($entry->note) . '</p>' : '';
+            $when      = $entry->created_at?->format('d M Y H:i') ?? '';
+            $note      = $entry->note ? '<div style="margin-top:6px;color:#374151;line-height:1.5;">' . e($entry->note) . '</div>' : '';
 
             if ($isComment) {
-                $editable = $user && $service->canEditComment($entry, $user);
-                $editTag  = $editable
-                    ? ' <span style="font-size:0.75em;color:#6b7280;">(düzenlenebilir)</span>'
+                $editable    = $user && $service->canEditComment($entry, $user);
+                $minutesLeft = null;
+                if ($editable && $entry->created_at) {
+                    $minutesLeft = max(0, 10 - (int) $entry->created_at->diffInMinutes(now()));
+                }
+                $editTag = $editable && $minutesLeft !== null && $minutesLeft > 0
+                    ? '<span style="font-size:0.75em;color:#6b7280;margin-left:6px;">' . $minutesLeft . ' dakika içinde düzenlenebilir</span>'
                     : '';
+
+                $dotColor = '#9ca3af';
                 $html .= <<<HTML
-                    <div style="border-left:3px solid #9ca3af;padding-left:12px;">
-                        <div style="font-weight:600;color:#111827;">💬 {$author} <span style="font-weight:400;color:#6b7280;font-size:0.85em;">• {$when}{$editTag}</span></div>
-                        {$note}
+                    <div style="position:relative;margin-bottom:18px;">
+                        <div style="position:absolute;left:-22px;top:2px;width:20px;height:20px;border-radius:50%;background:#fff;border:2px solid {$dotColor};display:flex;align-items:center;justify-content:center;font-size:11px;">💬</div>
+                        <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px;">
+                            <div style="font-weight:600;color:#111827;">{$author} <span style="font-weight:400;color:#6b7280;font-size:0.85em;">• {$when}</span>{$editTag}</div>
+                            {$note}
+                        </div>
                     </div>
                 HTML;
             } else {
                 $fromLabel = e($entry->from_status?->getLabel() ?? '—');
                 $toLabel   = e($entry->to_status?->getLabel() ?? '—');
-                $color     = match (true) {
+                $toColor   = match (true) {
                     $entry->to_status === TaskStatusEnum::CANCELLED => '#ef4444',
                     $entry->to_status === TaskStatusEnum::CLOSED, $entry->to_status === TaskStatusEnum::COMPLETED => '#10b981',
                     $entry->to_status === TaskStatusEnum::ON_HOLD   => '#f59e0b',
@@ -426,10 +446,17 @@ class ViewTicket extends ViewRecord
                     default => '#3b82f6',
                 };
                 $html .= <<<HTML
-                    <div style="border-left:3px solid {$color};padding-left:12px;">
-                        <div style="font-weight:600;color:#111827;">{$fromLabel} → {$toLabel}</div>
-                        <div style="font-size:0.85em;color:#6b7280;">{$author} • {$when}</div>
-                        {$note}
+                    <div style="position:relative;margin-bottom:18px;">
+                        <div style="position:absolute;left:-22px;top:2px;width:20px;height:20px;border-radius:50%;background:{$toColor};border:2px solid #fff;box-shadow:0 0 0 2px {$toColor}33;"></div>
+                        <div style="background:#fff;border:1px solid #e5e7eb;border-left:3px solid {$toColor};border-radius:8px;padding:10px 12px;">
+                            <div style="font-weight:600;color:#111827;">
+                                <span style="background:#f3f4f6;color:#6b7280;padding:2px 8px;border-radius:4px;font-size:0.85em;">{$fromLabel}</span>
+                                <span style="margin:0 6px;color:#6b7280;">→</span>
+                                <span style="background:{$toColor}22;color:{$toColor};padding:2px 8px;border-radius:4px;font-size:0.85em;font-weight:700;">{$toLabel}</span>
+                            </div>
+                            <div style="font-size:0.85em;color:#6b7280;margin-top:4px;">{$author} • {$when}</div>
+                            {$note}
+                        </div>
                     </div>
                 HTML;
             }
