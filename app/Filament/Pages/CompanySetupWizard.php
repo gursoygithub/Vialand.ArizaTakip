@@ -463,17 +463,60 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
                     return;
                 }
 
-                $hasGroups = Group::where('company_id', $companyId)->exists();
-                if ($hasGroups) {
-                    return;
+                // Three hard blocks, evaluated in dependency order so the
+                // user fixes the most fundamental issue first. No soft path —
+                // a group without supervisor or members can't actually carry
+                // tickets, so there's no useful "proceed anyway" semantic.
+
+                // HARD 1: at least one group exists for this company.
+                $groups = Group::where('company_id', $companyId)
+                    ->withCount('members')
+                    ->orderBy('name')
+                    ->get();
+
+                if ($groups->isEmpty()) {
+                    Notification::make()
+                        ->title('Grup tanımlı değil')
+                        ->body('Devam etmek için en az bir grup tanımlamanız gerekmektedir.')
+                        ->danger()
+                        ->send();
+                    throw new \Filament\Support\Exceptions\Halt;
                 }
 
-                // SOFT: groups are optional, but ticket assignment needs them.
-                $this->softGate(
-                    'groups',
-                    'Grup tanımlanmamış',
-                    'Ticket atama için grup gereklidir. Eksik tanımlamalarla devam etmek istediğinizden emin misiniz?',
-                );
+                // HARD 2: every group must have a supervisor (amir).
+                // groups.employee_id is NOT NULL at the schema level, but
+                // legacy/fixture rows may still appear with 0 — guard with
+                // an explicit emptiness check.
+                $noSupervisor = $groups
+                    ->filter(fn ($g) => empty($g->employee_id))
+                    ->pluck('name')
+                    ->all();
+
+                if (!empty($noSupervisor)) {
+                    Notification::make()
+                        ->title('Amiri olmayan gruplar')
+                        ->body('Bazı grupların amiri bulunmuyor: ' . implode(', ', $noSupervisor) . '. Her grubun bir amiri olmalıdır.')
+                        ->danger()
+                        ->persistent()
+                        ->send();
+                    throw new \Filament\Support\Exceptions\Halt;
+                }
+
+                // HARD 3: every group must have at least one member.
+                $emptyGroups = $groups
+                    ->filter(fn ($g) => (int) $g->members_count === 0)
+                    ->pluck('name')
+                    ->all();
+
+                if (!empty($emptyGroups)) {
+                    Notification::make()
+                        ->title('Üyesi olmayan gruplar')
+                        ->body('Bazı grupların üyesi bulunmuyor: ' . implode(', ', $emptyGroups) . '. Her grubun en az bir üyesi olmalıdır.')
+                        ->danger()
+                        ->persistent()
+                        ->send();
+                    throw new \Filament\Support\Exceptions\Halt;
+                }
             })
             ->schema([
                 Placeholder::make('groups_empty_company')

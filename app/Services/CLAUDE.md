@@ -73,8 +73,15 @@ enforce this chain:
    → `SlaService::resolvePolicy()` uses 3-level fallback but always needs
      `area_id` as the starting point
 
-5. **Group requires: area + unit**
-   → Cannot create group without area
+5. **Group requires: area + unit + supervisor (employee_id)**
+   → Cannot create group without area, unit, or supervisor
+
+5b. **Every group must have at least one member**
+   → A group with zero members can't carry tickets
+
+5c. **`CompanySetupWizard` hard-blocks step 4 on all three conditions**
+   → No groups for company / group without supervisor / group with zero
+     members all halt step 4 with a danger notification (no soft path)
 
 6. **Ticket requires: area + SLA policy** (resolved automatically)
    → `TicketObserver` resolves SLA on `creating`
