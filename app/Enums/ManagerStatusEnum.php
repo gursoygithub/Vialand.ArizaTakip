@@ -6,16 +6,20 @@ use Filament\Support\Contracts\HasColor;
 use Filament\Support\Contracts\HasIcon;
 use Filament\Support\Contracts\HasLabel;
 
-enum ManagerStatusEnum: int implements HasLabel, HasColor, HasIcon
+enum ManagerStatusEnum: int implements HasLabel, HasColor
 {
     case ACTIVE     = 1;
     case INACTIVE   = 0;
+    case BANNED    = 2;
+    case SUSPENDED  = 3;
 
     public function getLabel(): string
     {
         return match ($this) {
             self::ACTIVE    => __('ui.active'),
             self::INACTIVE  => __('ui.inactive'),
+            self::BANNED    => __('ui.banned'),
+            self::SUSPENDED => __('ui.suspended'),
         };
     }
 
@@ -24,16 +28,18 @@ enum ManagerStatusEnum: int implements HasLabel, HasColor, HasIcon
         return match ($this) {
             self::ACTIVE    => 'success',
             self::INACTIVE  => 'danger',
+            self::BANNED    => 'warning',
+            self::SUSPENDED => 'info',
         };
     }
 
-    public function getIcon(): string
-    {
-        return match ($this) {
-            self::ACTIVE    => 'heroicon-o-check-circle',
-            self::INACTIVE  => 'heroicon-o-x-circle',
-        };
-    }
+//    public function getIcon(): string
+//    {
+//        return match ($this) {
+//            self::ACTIVE    => 'heroicon-o-check-circle',
+//            self::INACTIVE  => 'heroicon-o-x-circle',
+//        };
+//    }
 
     public function is($status): bool
     {

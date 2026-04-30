@@ -24,6 +24,13 @@ class TaskExporter extends Exporter
         $columns = array_merge($columns, [
 //            ExportColumn::make('title')
 //                ->label(__('ui.task_title')),
+            ExportColumn::make('priority')
+                ->label(__('ui.priority'))
+                ->formatStateUsing(fn ($state): ?string =>
+                $state instanceof \App\Enums\TaskPriorityEnum
+                    ? $state->getLabel()
+                    : (string) $state
+                ),
             ExportColumn::make('type_id')
                 ->label(__('ui.type'))
                 ->formatStateUsing(fn ($state): ?string =>
@@ -37,6 +44,9 @@ class TaskExporter extends Exporter
                 ->label(__('ui.sub_area')),
             ExportColumn::make('unit.name')
                 ->label(__('ui.unit')),
+            // related_person
+            ExportColumn::make('employee.name')
+                ->label(__('ui.related_person')),
             ExportColumn::make('task_date')
                 ->label(__('ui.task_date'))
                 ->formatStateUsing(fn ($state) => DateHelper::formatForExport($state, 'd F Y')),

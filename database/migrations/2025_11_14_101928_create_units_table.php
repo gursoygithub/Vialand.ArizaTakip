@@ -13,7 +13,11 @@ return new class extends Migration
     {
         Schema::create('units', function (Blueprint $table) {
             $table->id();
+
             $table->string('name');
+            $table->foreignId('company_id')
+                ->nullable()
+                ->constrained()->onDelete('cascade');
 
             $table->unsignedBigInteger('created_by');
             $table->unsignedBigInteger('updated_by')->nullable();

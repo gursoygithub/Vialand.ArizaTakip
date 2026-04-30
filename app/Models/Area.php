@@ -13,6 +13,7 @@ class Area extends Model
 {
     use Notifiable, SoftDeletes, LogsActivity;
     protected $fillable = [
+        'company_id',
         'name',
         'status',
         'created_by',
@@ -45,16 +46,37 @@ class Area extends Model
         return $this->belongsTo(User::class, 'deleted_by');
     }
 
-    public static function query()
+    public function scopeAccessibleByUser($query, $user)
     {
-        $hasPermission = auth()->user()->hasRole('super_admin') || auth()->user()->can('view_all_areas');
-
-        if ($hasPermission) {
-            return parent::query();
-        } else {
-            return parent::query()->where('created_by', auth()->id());
+        if ($user->hasRole('super_admin') || $user->can('view_all_areas')) {
+            return $query;
         }
+
+        $employee = $user->employee;
+
+        if (!$employee) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        $areaIds = $employee->accessibleAreaIds();
+
+        if ($areaIds->isEmpty()) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        return $query->whereIn('id', $areaIds);
     }
+
+//    public static function query()
+//    {
+//        $hasPermission = auth()->user()->hasRole('super_admin') || auth()->user()->can('view_all_areas');
+//
+//        if ($hasPermission) {
+//            return parent::query();
+//        } else {
+//            return parent::query()->where('created_by', auth()->id());
+//        }
+//    }
 
     // Activity Log Options
     protected static $logName = 'areas';
@@ -65,5 +87,22 @@ class Area extends Model
             ->logAll()
             ->logOnlyDirty()
             ->useLogName(static::$logName);
+    }
+
+    // relation with company
+    public function company()
+    {
+        return $this->belongsTo(Company::class);
+    }
+
+    // relation with group
+    public function groups()
+    {
+        return $this->hasMany(Group::class);
+    }
+
+    public function slaPolicies()
+    {
+        return $this->hasMany(SlaPolicy::class, 'area_id');
     }
 }

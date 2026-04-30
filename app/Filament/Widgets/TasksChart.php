@@ -15,7 +15,7 @@
             return __('ui.tasks_by_type');
         }
 
-        protected static ?int $sort = 2;
+        protected static ?int $sort = 999;
 
         protected int | string | array $columnSpan = 'full';
 

@@ -14,6 +14,7 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class TasksRelationManager extends RelationManager
@@ -47,7 +48,12 @@ class TasksRelationManager extends RelationManager
 
     public function table(Table $table): Table
     {
+        $user = auth()->user();
+
+        $hasPermission = $user->hasRole('super_admin') || $user->can('view_all_tasks');
+
         return $table
+            ->modifyQueryUsing(fn (Builder $query) => $this->applyTaskPermissionFilter($query))
             ->defaultSort('updated_at', 'desc')
             ->paginated([5, 10, 25, 50])
             ->columns([
@@ -74,6 +80,15 @@ class TasksRelationManager extends RelationManager
                 Tables\Columns\TextColumn::make('unit.name')
                     ->label(__('ui.unit'))
                     ->icon('heroicon-o-building-office')
+                    ->badge()
+                    ->color('primary')
+                    ->searchable()
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('employee.name')
+                    ->label(__('ui.related_person'))
+                    ->placeholder(__('ui.not_assigned'))
+                    ->alignCenter()
+                    ->icon('heroicon-o-user')
                     ->badge()
                     ->color('primary')
                     ->searchable()
@@ -191,49 +206,82 @@ class TasksRelationManager extends RelationManager
         return false;
     }
 
-    public function getTabs(): array
-    {
-        $tabs = [];
+    protected function applyTaskPermissionFilter(Builder|Relation $query): Builder {
+        // Relation geldiyse Builder’a çevir
+        if ($query instanceof Relation) {
+            $query = $query->getQuery();
+        }
 
-        $allQuery = Task::query()->where('unit_id', $this->ownerRecord->id);
+        $user = auth()->user();
 
-        $tabs['all'] = Tab::make(__('ui.all'))
-            ->badge($allQuery->count())
-            ->modifyQueryUsing(function ($query) {
-                return $query;
+        $hasPermission =
+            $user->hasRole('super_admin') ||
+            $user->can('view_all_tasks');
+
+        if (! $hasPermission) {
+            $query->where(function ($query) use ($user) {
+                $query
+                    ->where('created_by', $user->id)
+                    ->orWhere('employee_id', function ($subQuery) use ($user) {
+                        $subQuery->select('id')
+                            ->from('employees')
+                            ->where('email', $user->email);
+                    });
             });
+        }
 
-        $tabs['pending'] = Tab::make(__('ui.pending'))
-            ->badge((clone $allQuery)->where('status', TaskStatusEnum::PENDING)->count())
-            ->badgeIcon('heroicon-o-clock')
-            ->badgeColor('warning')
-            ->modifyQueryUsing(function ($query) {
-                return $query->where('status', TaskStatusEnum::PENDING);
-            });
-
-        $tabs['completed'] = Tab::make(__('ui.completed'))
-            ->badge((clone $allQuery)->where('status', TaskStatusEnum::COMPLETED)->count())
-            ->badgeIcon('heroicon-o-check-circle')
-            ->badgeColor('success')
-            ->modifyQueryUsing(function ($query) {
-                return $query->where('status', TaskStatusEnum::COMPLETED);
-            });
-
-        $tabs['winter_maintenance'] = Tab::make(__('ui.winter_maintenance'))
-            ->badge((clone $allQuery)->where('status', TaskStatusEnum::WINTER_MAINTENANCE)->count())
-            ->badgeIcon('heroicon-o-lifebuoy')
-            ->badgeColor('info')
-            ->modifyQueryUsing(function ($query) {
-                return $query->where('status', TaskStatusEnum::WINTER_MAINTENANCE);
-            });
-
-        return $tabs;
+        return $query;
     }
 
-//    protected function canView(Model $record): bool
-//    {
-//        return auth()->user()->hasRole('super_admin') || auth()->user()->can('view_all_tasks') || $record->created_by == auth()->id();
-//    }
+    public function getTabs(): array
+    {
+        $owner = $this->getOwnerRecord();
+
+        return [
+            'all' => Tab::make(__('ui.all'))
+                ->badge(fn () =>
+                $this->applyTaskPermissionFilter(
+                    $owner->tasks()
+                )->count()
+                ),
+
+            'pending' => Tab::make(__('ui.pending'))
+                ->badge(fn () =>
+                $this->applyTaskPermissionFilter(
+                    $owner->tasks()->where('status', TaskStatusEnum::PENDING)
+                )->count()
+                )
+                ->badgeIcon('heroicon-o-clock')
+                ->badgeColor('warning')
+                ->modifyQueryUsing(fn (Builder $query) =>
+                $query->where('status', TaskStatusEnum::PENDING)
+                ),
+
+            'winter_maintenance' => Tab::make(__('ui.winter_maintenance'))
+                ->badge(fn () =>
+                $this->applyTaskPermissionFilter(
+                    $owner->tasks()->where('status', TaskStatusEnum::WINTER_MAINTENANCE)
+                )->count()
+                )
+                ->badgeIcon('heroicon-o-lifebuoy')
+                ->badgeColor('info')
+                ->modifyQueryUsing(fn (Builder $query) =>
+                $query->where('status', TaskStatusEnum::WINTER_MAINTENANCE)
+                ),
+
+            'completed' => Tab::make(__('ui.completed'))
+                ->badge(fn () =>
+                $this->applyTaskPermissionFilter(
+                    $owner->tasks()->where('status', TaskStatusEnum::COMPLETED)
+                )->count()
+                )
+                ->badgeIcon('heroicon-o-check-circle')
+                ->badgeColor('success')
+                ->modifyQueryUsing(fn (Builder $query) =>
+                $query->where('status', TaskStatusEnum::COMPLETED)
+                ),
+        ];
+    }
 
     protected function canCreate(): bool
     {
@@ -247,6 +295,11 @@ class TasksRelationManager extends RelationManager
 
     protected function canDelete(Model $record): bool
     {
-        return $record->status !== TaskStatusEnum::COMPLETED && (auth()->user()->hasRole('super_admin') || auth()->user()->can('delete_tasks') || $record->created_by == auth()->id());
+        return $record->status->isNot(TaskStatusEnum::COMPLETED) && (auth()->user()->hasRole('super_admin') || $record->created_by == auth()->id());
+    }
+
+    protected function canEdit(Model $record): bool
+    {
+        return $record->status->isNot(TaskStatusEnum::COMPLETED) && (auth()->user()->hasRole('super_admin') || $record->created_by == auth()->id());
     }
 }

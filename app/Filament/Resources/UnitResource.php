@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources;
 
+use App\Enums\TaskStatusEnum;
 use App\Filament\Resources\UnitResource\Pages;
 use App\Filament\Resources\UnitResource\RelationManagers;
 use App\Models\Unit;
@@ -22,7 +23,7 @@ class UnitResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-building-office';
 
-    protected static ?int $navigationSort = -100;
+    protected static ?int $navigationSort = -1000;
 
     public static function getModelLabel(): string
     {
@@ -39,13 +40,29 @@ class UnitResource extends Resource
         return __('ui.unit_management');
     }
 
-    public static function getNavigationBadge(): ?string
+    public static function getEloquentQuery(): Builder
     {
-        if (auth()->user()?->hasRole('super_admin') || auth()->user()?->can('view_all_units')) {
-            return static::getModel()::count();
+        $user = auth()->user();
+
+        if ($user->hasRole('super_admin') || $user->can('view_all_units')) {
+            return parent::getEloquentQuery();
         }
 
-        return static::getModel()::where('created_by', auth()->id())->count();
+        $employeeId = $user->employee?->id;
+
+        $unitIds = \App\Models\Group::query()
+            ->where('employee_id', $employeeId)
+            ->whereNull('deleted_at')
+            ->pluck('unit_id')
+            ->filter()
+            ->unique();
+
+        return parent::getEloquentQuery()->whereIn('id', $unitIds);
+    }
+
+    public static function getNavigationBadge(): ?string
+    {
+        return static::getEloquentQuery()->count();
     }
 
     public static function form(Form $form): Form
@@ -72,7 +89,30 @@ class UnitResource extends Resource
 
     public static function table(Table $table): Table
     {
+        $user = auth()->user();
+        $hasTaskPermission = $user->hasRole('super_admin') || $user->can('view_all_tasks');
+
         return $table
+            ->modifyQueryUsing(fn (Builder $query) => $query->withCount([
+                'tasks as pending_tasks_count' => fn($q) => $q
+                    ->where('status', TaskStatusEnum::PENDING)
+                    ->when(!$hasTaskPermission, fn($q) => $q->where(fn($q) => $q
+                        ->where('created_by', $user->id)
+                        ->orWhere('employee_id', $user->employee?->id)
+                    )),
+                'tasks as completed_tasks_count' => fn($q) => $q
+                    ->where('status', TaskStatusEnum::COMPLETED)
+                    ->when(!$hasTaskPermission, fn($q) => $q->where(fn($q) => $q
+                        ->where('created_by', $user->id)
+                        ->orWhere('employee_id', $user->employee?->id)
+                    )),
+                'tasks as winter_maintenance_tasks_count' => fn($q) => $q
+                    ->where('status', TaskStatusEnum::WINTER_MAINTENANCE)
+                    ->when(!$hasTaskPermission, fn($q) => $q->where(fn($q) => $q
+                        ->where('created_by', $user->id)
+                        ->orWhere('employee_id', $user->employee?->id)
+                    )),
+            ]))
             ->defaultSort('updated_at', 'desc')
             ->paginated([5, 10, 25, 50])
             ->columns([
@@ -86,23 +126,41 @@ class UnitResource extends Resource
                 Tables\Columns\TextColumn::make('pending_tasks_count')
                     ->label(__('ui.pending'))
                     ->icon('heroicon-o-clock')
-                    ->getStateUsing(fn ($record) => $record->tasks()->where('status', \App\Enums\TaskStatusEnum::PENDING)->count())
                     ->badge()
                     ->color(\App\Enums\TaskStatusEnum::PENDING->getColor()),
+
                 Tables\Columns\TextColumn::make('completed_tasks_count')
                     ->label(__('ui.completed'))
                     ->icon('heroicon-o-check-circle')
-                    ->getStateUsing(fn ($record) => $record->tasks()->where('status', \App\Enums\TaskStatusEnum::COMPLETED)->count())
                     ->badge()
                     ->color(\App\Enums\TaskStatusEnum::COMPLETED->getColor()),
+
                 Tables\Columns\TextColumn::make('winter_maintenance_tasks_count')
                     ->label(__('ui.winter_maintenance'))
                     ->icon('heroicon-o-lifebuoy')
-                    ->getStateUsing(fn ($record) => $record->tasks()->where('status', \App\Enums\TaskStatusEnum::WINTER_MAINTENANCE)->count())
                     ->badge()
                     ->color(\App\Enums\TaskStatusEnum::WINTER_MAINTENANCE->getColor()),
+//                Tables\Columns\TextColumn::make('pending_tasks_count')
+//                    ->label(__('ui.pending'))
+//                    ->icon('heroicon-o-clock')
+//                    ->getStateUsing(fn ($record) => $record->tasks()
+//                        ->where('status', \App\Enums\TaskStatusEnum::PENDING)->count())
+//                    ->badge()
+//                    ->color(\App\Enums\TaskStatusEnum::PENDING->getColor()),
+//                Tables\Columns\TextColumn::make('completed_tasks_count')
+//                    ->label(__('ui.completed'))
+//                    ->icon('heroicon-o-check-circle')
+//                    ->getStateUsing(fn ($record) => $record->tasks()->where('status', \App\Enums\TaskStatusEnum::COMPLETED)->count())
+//                    ->badge()
+//                    ->color(\App\Enums\TaskStatusEnum::COMPLETED->getColor()),
+//                Tables\Columns\TextColumn::make('winter_maintenance_tasks_count')
+//                    ->label(__('ui.winter_maintenance'))
+//                    ->icon('heroicon-o-lifebuoy')
+//                    ->getStateUsing(fn ($record) => $record->tasks()->where('status', \App\Enums\TaskStatusEnum::WINTER_MAINTENANCE)->count())
+//                    ->badge()
+//                    ->color(\App\Enums\TaskStatusEnum::WINTER_MAINTENANCE->getColor()),
                 Tables\Columns\TextColumn::make('createdBy.name')
-                    ->visible(fn () => auth()->user()->hasRole('super_admin') || auth()->user()->can('view_all_areas'))
+                    ->visible(fn () => auth()->user()->hasRole('super_admin') || auth()->user()->can('view_all_units'))
                     ->label(__('ui.created_by'))
                     ->icon('heroicon-o-user')
                     ->searchable()

@@ -40,7 +40,7 @@ class SubAreaResource extends Resource
 
     public static function getNavigationGroup(): ?string
     {
-        return __('ui.task_management');
+        return __('ui.panel_management');
     }
 
     public static function getNavigationBadge(): ?string
@@ -91,11 +91,18 @@ class SubAreaResource extends Resource
                 Tables\Columns\TextColumn::make('name')
                     ->label(__('ui.name'))
                     ->icon('heroicon-o-map-pin')
+                    ->badge()
                     ->sortable()
                     ->searchable(),
                 Tables\Columns\TextColumn::make('area.name')
                     ->label(__('ui.area'))
                     ->icon('heroicon-o-map')
+                    ->sortable()
+                    ->searchable(),
+                Tables\Columns\TextColumn::make('area.company.name')
+                    ->label(__('ui.company'))
+                    ->placeholder('-')
+                    ->icon('heroicon-o-building-office-2')
                     ->sortable()
                     ->searchable(),
                 Tables\Columns\TextColumn::make('createdBy.name')

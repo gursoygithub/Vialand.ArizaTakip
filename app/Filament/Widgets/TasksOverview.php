@@ -41,17 +41,17 @@ class TasksOverview extends BaseWidget
                 ->descriptionIcon('heroicon-o-clock')
                 ->descriptionColor('warning'),
 
+            Stat::make(__('ui.tasks'), $winterMaintenanceCount)
+                ->icon('heroicon-o-wrench-screwdriver')
+                ->description(__('ui.winter_maintenance'))
+                ->descriptionIcon('heroicon-o-lifebuoy')
+                ->descriptionColor('info'),
+
             Stat::make(__('ui.tasks'), $completedCount)
                 ->icon('heroicon-o-wrench-screwdriver')
                 ->description(__('ui.completed'))
                 ->descriptionIcon('heroicon-o-check-circle')
                 ->descriptionColor('success'),
-
-            Stat::make(__('ui.tasks'), $winterMaintenanceCount)
-                ->icon('heroicon-o-wrench-screwdriver')
-                ->description(__('ui.winter_maintenance'))
-                ->descriptionIcon('heroicon-o-lifebuoy')
-                ->descriptionColor('info')
         ];
     }
 

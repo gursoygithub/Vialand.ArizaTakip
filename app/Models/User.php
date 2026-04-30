@@ -5,11 +5,13 @@ namespace App\Models;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Enums\BooleanStatusEnum;
 use App\Enums\ManagerStatusEnum;
+use App\Enums\UserStatusEnum;
 use App\Enums\UserTypeEnum;
 use App\Mail\SendPasswordToUser;
 use App\Notifications\UserCreated;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Notifications\HasDatabaseNotifications;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Hash;
@@ -28,6 +30,7 @@ class User extends Authenticatable implements FilamentUser
     use SoftDeletes;
     use HasRoles;
     use LogsActivity;
+    use HasDatabaseNotifications;
 
     /**
      * The attributes that are mass assignable.
@@ -50,6 +53,18 @@ class User extends Authenticatable implements FilamentUser
         'created_by',
         'updated_by',
         'deleted_by',
+
+        //ldap attributes
+        'first_name',
+        'last_name',
+        'department',
+        'office',
+        'address',
+        'username',
+        'ldap_guid',
+        'ldap_dn',
+        'ldap_groups',
+        'last_ldap_sync',
     ];
 
     /**
@@ -72,14 +87,16 @@ class User extends Authenticatable implements FilamentUser
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
-            'status' => ManagerStatusEnum::class,
+            'status' => UserStatusEnum::class,
             'is_manager' => BooleanStatusEnum::class,
+            'ldap_groups' => 'array',
+            'last_ldap_sync' => 'datetime',
         ];
     }
 
     public function canAccessPanel(Panel $panel): bool
     {
-        return $this->status->is(ManagerStatusEnum::ACTIVE);
+        return $this->status->is(UserStatusEnum::ACTIVE);
     }
 
     // created_by relation
@@ -120,13 +137,15 @@ class User extends Authenticatable implements FilamentUser
 
     public static function query()
     {
-        $hasPermission = auth()->user()->hasRole('super_admin') || auth()->user()->can('view_all_users');
-
-        if ($hasPermission) {
-            return parent::query();
-        } else {
-            return parent::query()->where('created_by', auth()->id());
-        }
+        // dont return sa user
+        return parent::query()->where('username', '!=', env('APP_ADMIN_USERNAME', 'sa'));
+//        $hasPermission = auth()->user()->hasRole('super_admin') || auth()->user()->can('view_all_users');
+//
+//        if ($hasPermission) {
+//            return parent::query();
+//        } else {
+//            return parent::query()->where('created_by', auth()->id());
+//        }
     }
 
     protected static $logName = 'users';
@@ -137,6 +156,12 @@ class User extends Authenticatable implements FilamentUser
             ->logAll()
             ->logOnlyDirty()
             ->useLogName(static::$logName);
+    }
+
+    //relation with employee
+    public function employee()
+    {
+        return $this->hasOne(Employee::class, 'email', 'email');
     }
 
 

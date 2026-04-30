@@ -34,7 +34,7 @@ class AreaResource extends Resource
 
     public static function getNavigationGroup(): ?string
     {
-        return __('ui.task_management');
+        return __('ui.panel_management');
     }
 
     public static function getNavigationBadge(): ?string
@@ -53,7 +53,7 @@ class AreaResource extends Resource
                 \Filament\Forms\Components\Card::make()
                     ->schema([
                         Fieldset::make(__('ui.area_information'))
-                            ->columns(1)
+                            ->columns(2)
                             ->schema([
                                 Forms\Components\TextInput::make('name')
                                     ->label(__('ui.name'))
@@ -63,6 +63,14 @@ class AreaResource extends Resource
                                     ->validationMessages([
                                         'required' => __('ui.required'),
                                     ]),
+                                Forms\Components\Select::make('company_id')
+                                    ->label(__('ui.company'))
+                                    ->options(\App\Models\Company::pluck('name', 'id'))
+                                    ->searchable()
+                                    ->validationMessages([
+                                        'required' => __('ui.required'),
+                                    ])
+                                    ->required(),
                             ]),
                     ]),
             ]);
@@ -77,6 +85,7 @@ class AreaResource extends Resource
                 Tables\Columns\TextColumn::make('name')
                     ->label(__('ui.name'))
                     ->icon('heroicon-o-map')
+                    ->badge()
                     ->searchable()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('sub_areas_count')
@@ -84,6 +93,12 @@ class AreaResource extends Resource
                     ->badge()
                     ->color('primary')
                     ->counts('subAreas')
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('company.name')
+                    ->label(__('ui.company'))
+                    ->placeholder('-')
+                    ->icon('heroicon-o-building-library')
+                    ->searchable()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('status')
                     ->label(__('ui.status'))

@@ -22,7 +22,10 @@ class EditTask extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            Actions\DeleteAction::make(),
+            Actions\ViewAction::make()
+                ->icon('heroicon-o-eye'),
+            Actions\DeleteAction::make()
+                ->icon('heroicon-o-trash'),
         ];
     }
 
@@ -31,13 +34,13 @@ class EditTask extends EditRecord
         $data['updated_by'] = auth()->id();
 
         // if status is not completed, set completed_by to null, due_date to null, resolution_notes to null
-        if (isset($data['status']) && $data['status'] != TaskStatusEnum::COMPLETED->value) {
-            $data['completed_by'] = null;
-            $data['due_date'] = null;
-            $data['resolution_notes'] = null;
-        } else {
-            $data['completed_by'] = $this->record->completed_by ?? auth()->id();
-        }
+//        if (isset($data['status']) && $data['status'] != TaskStatusEnum::COMPLETED->value) {
+//            $data['completed_by'] = null;
+//            $data['due_date'] = null;
+//            $data['resolution_notes'] = null;
+//        } else {
+//            $data['completed_by'] = $this->record->completed_by ?? auth()->id();
+//        }
 
         return $data;
     }
