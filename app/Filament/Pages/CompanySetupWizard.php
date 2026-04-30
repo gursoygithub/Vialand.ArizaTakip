@@ -34,7 +34,6 @@ use Filament\Pages\Page;
 use Filament\Support\Enums\MaxWidth;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\HtmlString;
 use Spatie\Permission\Models\Role;
 
 /**
@@ -118,22 +117,58 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
                     $this->stepSummary(),
                 ])
                     ->persistStepInQueryString()
-                    ->submitAction(new HtmlString(
-                        '<button type="button" wire:click="finish" class="fi-btn fi-btn-color-primary inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold text-white bg-primary-600 hover:bg-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500">'
-                        . 'Tamamla'
-                        . '</button>'
-                    )),
+                    ->submitAction($this->getSubmitFormAction()),
             ]);
     }
 
-    public function finish(): void
+    /**
+     * Wizard's "Tamamla" button. Wraps the completion in a confirmation
+     * modal that surfaces the per-company configuration summary — and a
+     * warning if SLA combinations are missing — before redirecting away.
+     */
+    protected function getSubmitFormAction(): Action
     {
-        Notification::make()
-            ->title('Kurulum tamamlandı')
-            ->success()
-            ->send();
+        return Action::make('submit')
+            ->label('Tamamla')
+            ->color('primary')
+            ->requiresConfirmation()
+            ->modalHeading('Kurulumu tamamlamak istediğinizden emin misiniz?')
+            ->modalDescription(function (): string {
+                $companyId = $this->data['companyId'] ?? null;
+                if (!$companyId) {
+                    return 'Kurulum tamamlanacak.';
+                }
 
-        $this->redirect(filament()->getDefaultPanel()->getUrl());
+                $company   = Company::find($companyId);
+                $areaIds   = Area::where('company_id', $companyId)->pluck('id');
+                $unitIds   = Unit::pluck('id');
+                $totalCombos   = $areaIds->count() * $unitIds->count() * 4;
+                $definedCombos = SlaPolicy::whereIn('area_id', $areaIds)
+                    ->whereIn('unit_id', $unitIds)
+                    ->count();
+                $missingCombos = max(0, $totalCombos - $definedCombos);
+
+                $lines = [
+                    "Şirket: " . ($company?->name ?? '—'),
+                    "Bölgeler: " . $areaIds->count(),
+                    "SLA: {$definedCombos}/{$totalCombos} kombinasyon tanımlı",
+                ];
+
+                if ($missingCombos > 0) {
+                    $lines[] = "⚠️ {$missingCombos} eksik SLA kombinasyonu var.";
+                    $lines[] = "Eksik kombinasyonlar için ticket'lar SLA'sız açılacaktır.";
+                }
+
+                return implode("\n", $lines);
+            })
+            ->modalSubmitActionLabel('Evet, kurulumu tamamla')
+            ->modalCancelActionLabel('Geri dön')
+            ->action(fn () => $this->finish());
+    }
+
+    protected function finish(): void
+    {
+        $this->redirect(filament()->getHomeUrl());
     }
 
     /**
