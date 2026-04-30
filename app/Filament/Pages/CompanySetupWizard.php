@@ -67,6 +67,15 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
      */
     public array $softConfirmedSteps = [];
 
+    /**
+     * Mirrors the area_id selection inside the addGroup modal so the unit_id
+     * options/helperText closures can read it without going through Forms\Get,
+     * which fires before the modal's Component::$container is initialized on
+     * second-open and throws. Set in area_id->afterStateUpdated, reset on
+     * mountUsing and after action runs.
+     */
+    public ?int $modalAreaId = null;
+
     public static function getNavigationLabel(): string
     {
         return 'Şirket Kurulumu';
@@ -531,6 +540,11 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
                             ->label('Yeni Grup Ekle')
                             ->icon('heroicon-o-plus')
                             ->modalHeading('Yeni Grup')
+                            // Reset modal-scoped state on every open so a previous
+                            // area selection doesn't bleed into a fresh modal.
+                            ->mountUsing(function () {
+                                $this->modalAreaId = null;
+                            })
                             ->form(fn (Forms\Get $get) => [
                                 TextInput::make('name')
                                     ->label('Grup Adı')
@@ -549,35 +563,25 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
                                     ->required()
                                     ->searchable()
                                     ->live()
-                                    // Clear the unit when the area changes so a stale
-                                    // selection from the prior area doesn't smuggle
-                                    // through the SLA-coverage filter below.
-                                    ->afterStateUpdated(fn (Forms\Set $set) => $set('unit_id', null))
+                                    // Mirror the selection into the Livewire property so
+                                    // unit_id's options/helperText closures can read it
+                                    // without Forms\Get (which throws on second-open).
+                                    // Also clear unit_id so a stale selection from the
+                                    // prior area doesn't smuggle through the SLA filter.
+                                    ->afterStateUpdated(function ($state, Forms\Set $set) {
+                                        $this->modalAreaId = $state ? (int) $state : null;
+                                        $set('unit_id', null);
+                                    })
                                     ->validationMessages(['required' => 'Bölge alanı zorunludur.']),
 
                                 Select::make('unit_id')
                                     ->label('Birim')
-                                    // Guard wrapper: when the action modal is closed and
-                                    // re-opened, Filament rebuilds the form schema and the
-                                    // options/helperText closures can fire before the new
-                                    // Component's $container has been initialized. Reading
-                                    // $get('area_id') in that window throws "Typed property
-                                    // Component::$container must not be accessed before
-                                    // initialization". Catch and fall back to the unfiltered
-                                    // unit list — once the form is fully mounted the next
-                                    // render runs the real branch.
-                                    ->options(function (Forms\Get $modalGet) {
-                                        try {
-                                            $areaId = $modalGet('area_id');
-                                        } catch (\Throwable) {
+                                    ->options(function () {
+                                        if (!$this->modalAreaId) {
                                             return Unit::orderBy('name')->pluck('name', 'id');
                                         }
 
-                                        if (!$areaId) {
-                                            return Unit::orderBy('name')->pluck('name', 'id');
-                                        }
-
-                                        $unitIds = SlaPolicy::where('area_id', (int) $areaId)
+                                        $unitIds = SlaPolicy::where('area_id', $this->modalAreaId)
                                             ->distinct()
                                             ->pluck('unit_id');
 
@@ -589,20 +593,14 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
                                             ->orderBy('name')
                                             ->pluck('name', 'id');
                                     })
-                                    ->helperText(function (Forms\Get $modalGet) {
+                                    ->helperText(function (): string {
                                         $defaultHint = 'Sadece seçilen bölgede SLA politikası tanımlı birimler listelenir.';
 
-                                        try {
-                                            $areaId = $modalGet('area_id');
-                                        } catch (\Throwable) {
+                                        if (!$this->modalAreaId) {
                                             return $defaultHint;
                                         }
 
-                                        if (!$areaId) {
-                                            return $defaultHint;
-                                        }
-
-                                        $hasAny = SlaPolicy::where('area_id', (int) $areaId)->exists();
+                                        $hasAny = SlaPolicy::where('area_id', $this->modalAreaId)->exists();
 
                                         return $hasAny
                                             ? $defaultHint
@@ -634,6 +632,7 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
                                     'status'      => ActiveStatusEnum::ACTIVE->value,
                                     'created_by'  => auth()->id(),
                                 ]);
+                                $this->modalAreaId = null;
                                 Notification::make()->title('Grup oluşturuldu')->success()->send();
                             }),
                     ])
