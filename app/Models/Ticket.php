@@ -239,36 +239,38 @@ class Ticket extends Model implements HasMedia
      */
     public function scopeVisibleBy(Builder $query, ?User $user): Builder
     {
+        // No authenticated user → fall through with no rows. Anonymous access
+        // shouldn't reach this scope in practice, but if it does we don't want
+        // to leak data.
         if (!$user) {
             return $query->whereRaw('1=0');
         }
 
-        // ticket.view.all (or legacy view_all_tasks) → no scope
+        // 1. ticket.view.all (or legacy view_all_tasks) → no scope.
         if ($user->hasPermissionTo('ticket.view.all') || $user->hasPermissionTo('view_all_tasks')) {
             return $query;
         }
 
         $employeeId = $user->employee?->id;
 
-        // ticket.view.group → tickets in user's supervised regions
+        // 2. ticket.view.group → tickets in user's supervised regions.
         if ($user->hasPermissionTo('ticket.view.group')) {
             $areaIds = Group::where('employee_id', $employeeId)->pluck('area_id');
 
             return $query->whereIn('area_id', $areaIds);
         }
 
-        // ticket.view.own → own + assigned tickets
-        if ($user->hasPermissionTo('ticket.view.own')) {
-            return $query->where(function (Builder $q) use ($user, $employeeId) {
-                $q->where('created_by', $user->id);
-                if ($employeeId) {
-                    $q->orWhere('employee_id', $employeeId);
-                }
-            });
-        }
-
-        // No relevant permission → see nothing
-        return $query->whereRaw('1=0');
+        // 3. ticket.view.own → own + assigned tickets.
+        // 4. NO relevant permission → SAME as ticket.view.own. Navigation
+        //    visibility is gated separately by Shield's view_any_ticket; this
+        //    scope is only reached when the user is already in the panel, so
+        //    fall back to a non-empty (but minimal) result instead of 1=0.
+        return $query->where(function (Builder $q) use ($user, $employeeId) {
+            $q->where('created_by', $user->id);
+            if ($employeeId) {
+                $q->orWhere('employee_id', $employeeId);
+            }
+        });
     }
 
     /**

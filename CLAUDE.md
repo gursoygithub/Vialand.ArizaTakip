@@ -49,3 +49,38 @@ Tests use SQLite in-memory (configured in `phpunit.xml`).
   - `isim` → `name` | `amir_id` → `employee_id` (supervisor FK)
 - UI: Filament 3.x only — code in `app/Filament/` (Resources, Pages, Widgets)
 - Business logic: `app/Services/` only — never in Filament Resources
+
+## Gotchas
+
+### shield:generate overwrites custom policies
+`php artisan shield:generate --all` rewrites these files with auto-generated
+stubs that use the wrong permission names (`view_ticket`, `create_ticket`)
+instead of our namespaced ones (`ticket.view.all`, `ticket.create`):
+- `app/Policies/TicketPolicy.php`
+- `app/Policies/GroupPolicy.php`
+- `app/Policies/SlaPolicyPolicy.php`
+
+If you must run `shield:generate --all` (e.g. after adding a new resource),
+restore these three policies from git immediately afterwards:
+```bash
+git checkout HEAD -- app/Policies/TicketPolicy.php
+git checkout HEAD -- app/Policies/GroupPolicy.php
+git checkout HEAD -- app/Policies/SlaPolicyPolicy.php
+```
+Each file has a header comment repeating this warning.
+
+### shield:generate inside InitSeeder prompts for panel
+`InitSeeder::run()` calls `Artisan::call('shield:generate', ['--all' => true])`
+without `--panel`, which throws `NonInteractiveValidationException` under
+`db:seed --no-interaction`. Workaround: run `shield:generate --all
+--panel=dashboard --no-interaction` manually before seeding, then run the
+remaining seeder steps.
+
+### UnitSeeder needs an authenticated user
+`Unit::booted()` sets `created_by = auth()->id()` in the `creating` hook.
+`UnitSeeder` has no auth context, so `created_by` becomes `NULL` and the
+NOT NULL constraint fails. Run it under an authenticated user:
+```php
+auth()->login(User::where('username', 'sa')->first());
+(new UnitSeeder)->run();
+```

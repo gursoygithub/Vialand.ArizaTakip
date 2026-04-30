@@ -122,6 +122,16 @@ class TicketResource extends Resource
                             ->required()
                             ->validationMessages(['required' => __('ui.required')]),
 
+                        // Hidden default on create so new tickets always start as OPEN.
+                        // The DB default is PENDING (legacy) — explicit injection here
+                        // overrides that for the ticket lifecycle.
+                        Forms\Components\Hidden::make('status')
+                            ->default(TaskStatusEnum::OPEN->value)
+                            ->visible(fn ($livewire) => $livewire instanceof \App\Filament\Resources\TicketResource\Pages\CreateTicket),
+
+                        // Edit: read-only display. Status changes happen via the
+                        // ViewTicket action buttons (transitions go through
+                        // TicketService and write to status history).
                         Forms\Components\ToggleButtons::make('status')
                             ->label(__('ui.status'))
                             ->options([
@@ -151,8 +161,11 @@ class TicketResource extends Resource
                                 TaskStatusEnum::CLOSED->value => TaskStatusEnum::CLOSED->getColor(),
                                 TaskStatusEnum::CANCELLED->value => TaskStatusEnum::CANCELLED->getColor(),
                             ])
-                            ->default(TaskStatusEnum::OPEN->value)
                             ->inline()
+                            ->disabled()
+                            ->dehydrated(false)
+                            ->helperText('Durum değişiklikleri talep detay sayfasındaki butonlardan yapılır.')
+                            ->hidden(fn ($livewire) => $livewire instanceof \App\Filament\Resources\TicketResource\Pages\CreateTicket)
                             ->columnSpanFull(),
                     ]),
 
@@ -164,13 +177,20 @@ class TicketResource extends Resource
                             ->label(__('ui.area'))
                             ->placeholder('Bölge seçiniz')
                             ->prefixIcon('heroicon-o-map')
-                            ->options(Area::with('company')
-                                ->where('status', ActiveStatusEnum::ACTIVE)
-                                ->get()
-                                ->mapWithKeys(fn ($area) => [
-                                    $area->id => $area->name . ($area->company?->name ? " ({$area->company->name})" : ''),
-                                ])
-                                ->toArray())
+                            ->options(function (): array {
+                                $companyId = auth()->user()?->scopedCompanyId();
+                                return Area::query()
+                                    ->with('company')
+                                    ->when($companyId, fn (\Illuminate\Database\Eloquent\Builder $query)
+                                        => $query->where('company_id', $companyId))
+                                    ->where('status', ActiveStatusEnum::ACTIVE)
+                                    ->orderBy('name')
+                                    ->get()
+                                    ->mapWithKeys(fn ($area) => [
+                                        $area->id => $area->name . ($area->company?->name ? " ({$area->company->name})" : ''),
+                                    ])
+                                    ->toArray();
+                            })
                             ->preload()
                             ->searchable()
                             ->required()
@@ -244,10 +264,16 @@ class TicketResource extends Resource
                             ->label(__('ui.group'))
                             ->placeholder('Sorumlu ekibi seçiniz')
                             ->prefixIcon('heroicon-o-user-group')
-                            ->options(fn (callable $get) =>
-                                Group::where('area_id', $get('area_id'))
+                            ->options(function (): array {
+                                $companyId = auth()->user()?->scopedCompanyId();
+                                return Group::query()
+                                    ->when($companyId, fn (\Illuminate\Database\Eloquent\Builder $query)
+                                        => $query->where('company_id', $companyId))
                                     ->where('status', ActiveStatusEnum::ACTIVE)
-                                    ->pluck('name', 'id'))
+                                    ->orderBy('name')
+                                    ->pluck('name', 'id')
+                                    ->toArray();
+                            })
                             ->searchable()
                             ->live()
                             ->afterStateUpdated(fn (callable $set) => $set('employee_id', null)),
@@ -256,10 +282,16 @@ class TicketResource extends Resource
                             ->label(__('ui.assigned_employee'))
                             ->placeholder('Atanan kişiyi seçiniz')
                             ->prefixIcon('heroicon-o-user')
-                            ->options(fn (callable $get) =>
-                                Employee::whereHas('groupMemberships', fn ($query) =>
-                                    $query->where('group_id', $get('group_id'))
-                                )->pluck('name', 'id'))
+                            ->options(function (): array {
+                                $companyId = auth()->user()?->scopedCompanyId();
+                                return Employee::query()
+                                    ->when($companyId, fn (\Illuminate\Database\Eloquent\Builder $query)
+                                        => $query->where('company_id', $companyId))
+                                    ->where('status', \App\Enums\ActiveStatusEnum::ACTIVE->value)
+                                    ->orderBy('name')
+                                    ->pluck('name', 'id')
+                                    ->toArray();
+                            })
                             ->searchable(),
                     ]),
 

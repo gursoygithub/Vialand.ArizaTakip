@@ -1,5 +1,12 @@
 <?php
 
+// WARNING: Do NOT run `php artisan shield:generate --all` without
+// restoring this file from git afterwards.
+// shield:generate overwrites custom policy logic with stubs.
+// Run: git checkout HEAD -- app/Policies/TicketPolicy.php
+//      git checkout HEAD -- app/Policies/GroupPolicy.php
+//      git checkout HEAD -- app/Policies/SlaPolicyPolicy.php
+
 namespace App\Policies;
 
 use App\Models\Ticket;

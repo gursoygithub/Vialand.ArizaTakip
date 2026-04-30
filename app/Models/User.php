@@ -164,6 +164,19 @@ class User extends Authenticatable implements FilamentUser
         return $this->hasOne(Employee::class, 'email', 'email');
     }
 
+    /**
+     * Company-scoping rule for forms / dropdowns.
+     * Returns null for users with global visibility (admins) so the caller
+     * skips the company filter; returns the user's company_id otherwise.
+     */
+    public function scopedCompanyId(): ?int
+    {
+        if ($this->hasPermissionTo('ticket.view.all')) {
+            return null; // admin sees all companies
+        }
+        return $this->employee?->company_id;
+    }
+
 
     // send mail to user after creation
 //    protected static function booted()

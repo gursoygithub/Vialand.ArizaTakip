@@ -47,6 +47,7 @@ class EmployeeService
                     'status'         => $data->AKTIF_MI,
                     'title'          => $data->UNVANI,
                     'profession'     => $data->MESLEGI,
+                    'company_name'   => trim($data->SGK_ISYERI_ADI ?? ''),
                     'created_by'     => 1,
                     'created_at'     => now(),
                     'updated_at'     => now(),
@@ -82,6 +83,38 @@ class EmployeeService
 
     protected function processBatch(array $buffer): void
     {
+        // 1. Collect distinct non-empty company names from the batch.
+        //    Dedupe key is upper-cased, so " ab " and "AB" collapse to one
+        //    upsert in this batch. The unique normalized_name index handles
+        //    cross-batch / cross-run idempotency.
+        $companyNames = collect($buffer)
+            ->pluck('company_name')
+            ->map(fn (?string $n) => trim((string) $n))
+            ->filter()
+            ->unique(fn (string $n) => strtoupper($n))
+            ->values();
+
+        // 2. Idempotent company upsert. Conflict target is normalized_name;
+        //    on conflict we only bump updated_at — original name/casing is
+        //    preserved, so AB and aB stay distinct (different normalized forms).
+        foreach ($companyNames as $name) {
+            $normalized = strtoupper(trim($name));
+
+            DB::table('companies')->upsert(
+                [[
+                    'name'            => $name,
+                    'normalized_name' => $normalized,
+                    'status'          => 1,
+                    'created_by'      => 1,
+                    'created_at'      => now(),
+                    'updated_at'      => now(),
+                ]],
+                ['normalized_name'],
+                ['updated_at']
+            );
+        }
+
+        // 3. Upsert employees with the new company_name / company_id columns.
         DB::table('employees')->upsert(
             $buffer,
             ['employee_id'],  // unique key
@@ -93,8 +126,23 @@ class EmployeeService
                 'status',
                 'title',
                 'profession',
+                'company_name',
+                'company_id',
                 'updated_at',
             ]
         );
+
+        // 4. Resolve company_id via normalized join. Re-running this is safe;
+        //    join is on UPPER(TRIM(...)) so casing/whitespace shifts upstream
+        //    still resolve to the canonical company row.
+        DB::statement("
+            UPDATE employees e
+            INNER JOIN companies c
+                ON c.normalized_name = UPPER(TRIM(e.company_name))
+            SET e.company_id = c.id
+            WHERE e.company_name IS NOT NULL
+              AND e.company_name != ''
+              AND e.deleted_at IS NULL
+        ");
     }
 }
