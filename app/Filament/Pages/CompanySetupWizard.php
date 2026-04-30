@@ -261,12 +261,35 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
                 // SLA grid (step 3) and group form (step 4) have nothing to
                 // bind to, and tickets can't be created against this company
                 // at all — so this is a hard block, no soft override.
-                $hasAreas = Area::where('company_id', $companyId)->exists();
-                if (!$hasAreas) {
+                $areas = Area::where('company_id', $companyId)
+                    ->withCount('subAreas')
+                    ->orderBy('name')
+                    ->get();
+
+                if ($areas->isEmpty()) {
                     Notification::make()
                         ->title('Bölge tanımlı değil')
                         ->body('Devam etmek için en az bir bölge tanımlamanız gerekmektedir.')
                         ->danger()
+                        ->send();
+                    throw new \Filament\Support\Exceptions\Halt;
+                }
+
+                // HARD: every area must have at least one sub_area. Tickets
+                // require a sub_area to be selected, so an empty area is a
+                // dead end for ticket creation — block here so the user
+                // can't reach step 3+ in a half-configured state.
+                $emptyAreas = $areas->filter(fn ($area) => (int) $area->sub_areas_count === 0)
+                    ->pluck('name')
+                    ->all();
+
+                if (!empty($emptyAreas)) {
+                    $list = implode(', ', $emptyAreas);
+                    Notification::make()
+                        ->title('Eksik lokasyonlar')
+                        ->body('Tüm bölgelerin en az bir lokasyonu olmalıdır. Lütfen eksik lokasyonları ekleyiniz: ' . $list)
+                        ->danger()
+                        ->persistent()
                         ->send();
                     throw new \Filament\Support\Exceptions\Halt;
                 }

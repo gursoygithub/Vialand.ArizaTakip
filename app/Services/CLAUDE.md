@@ -63,6 +63,11 @@ enforce this chain:
 3. **SubArea (lokasyon) requires an area**
    → `SubArea::area_id` is mandatory
 
+3b. **SubArea (lokasyon) — at least one required per area**
+   → Areas with 0 sub_areas block ticket creation (no location to select)
+   → `CompanySetupWizard` hard-blocks step 2 until all areas have at least
+     one sub_area
+
 4. **SLA Policy requires: area + unit + priority** (at minimum)
    → Cannot create SLA without at least one area
    → `SlaService::resolvePolicy()` uses 3-level fallback but always needs
