@@ -391,6 +391,7 @@ class UserResource extends Resource
     {
         return [
             //RelationManagers\StaffsRelationManager::class,
+            RelationManagers\CompanyAccessRelationManager::class,
         ];
     }
 

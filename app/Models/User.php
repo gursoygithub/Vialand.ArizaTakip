@@ -165,16 +165,65 @@ class User extends Authenticatable implements FilamentUser
     }
 
     /**
-     * Company-scoping rule for forms / dropdowns.
-     * Returns null for users with global visibility (admins) so the caller
-     * skips the company filter; returns the user's company_id otherwise.
+     * Extra companies granted to this user via user_company_access.
+     * Use scopedCompanyIds() in callers — this is the raw pivot relation.
+     */
+    public function extraCompanies(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    {
+        return $this->belongsToMany(
+            Company::class,
+            'user_company_access',
+            'user_id',
+            'company_id'
+        )->withPivot('granted_by')->withTimestamps();
+    }
+
+    /**
+     * Company IDs this user can access. The canonical company-scoping helper.
+     *
+     * - Admins (ticket.view.all): []  → caller treats as "no filter".
+     * - Normal users:              [own_company_id, ...extra_company_ids]
+     * - Multi-company users:       [id1, id2, ...]
+     *
+     * Callers should use whereIn(...) when the result is non-empty.
+     */
+    public function scopedCompanyIds(): array
+    {
+        if ($this->hasPermissionTo('ticket.view.all')) {
+            return [];
+        }
+
+        $ids = [];
+
+        if ($this->employee?->company_id) {
+            $ids[] = $this->employee->company_id;
+        }
+
+        $extras = \Illuminate\Support\Facades\DB::table('user_company_access')
+            ->where('user_id', $this->id)
+            ->pluck('company_id')
+            ->toArray();
+
+        return array_values(array_unique(array_merge($ids, $extras)));
+    }
+
+    /**
+     * Backward-compat single-id helper.
+     *
+     * Returns null when:
+     *   - The user is an admin (no filter), OR
+     *   - The user has multi-company access (single id is ambiguous —
+     *     callers in multi-company contexts should switch to scopedCompanyIds()).
+     *
+     * @deprecated Use scopedCompanyIds() in new code.
      */
     public function scopedCompanyId(): ?int
     {
-        if ($this->hasPermissionTo('ticket.view.all')) {
-            return null; // admin sees all companies
+        $ids = $this->scopedCompanyIds();
+        if (empty($ids)) {
+            return null;
         }
-        return $this->employee?->company_id;
+        return count($ids) === 1 ? $ids[0] : null;
     }
 
 

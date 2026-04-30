@@ -180,11 +180,11 @@ class TicketResource extends Resource
                             ->placeholder('Bölge seçiniz')
                             ->prefixIcon('heroicon-o-map')
                             ->options(function (): array {
-                                $companyId = auth()->user()?->scopedCompanyId();
+                                $companyIds = auth()->user()?->scopedCompanyIds() ?? [];
                                 return Area::query()
                                     ->with('company')
-                                    ->when($companyId, fn (\Illuminate\Database\Eloquent\Builder $query)
-                                        => $query->where('company_id', $companyId))
+                                    ->when(!empty($companyIds), fn (\Illuminate\Database\Eloquent\Builder $query)
+                                        => $query->whereIn('company_id', $companyIds))
                                     ->where('status', ActiveStatusEnum::ACTIVE)
                                     ->orderBy('name')
                                     ->get()
@@ -267,10 +267,10 @@ class TicketResource extends Resource
                             ->placeholder('Sorumlu ekibi seçiniz')
                             ->prefixIcon('heroicon-o-user-group')
                             ->options(function (): array {
-                                $companyId = auth()->user()?->scopedCompanyId();
+                                $companyIds = auth()->user()?->scopedCompanyIds() ?? [];
                                 return Group::query()
-                                    ->when($companyId, fn (\Illuminate\Database\Eloquent\Builder $query)
-                                        => $query->where('company_id', $companyId))
+                                    ->when(!empty($companyIds), fn (\Illuminate\Database\Eloquent\Builder $query)
+                                        => $query->whereIn('company_id', $companyIds))
                                     ->where('status', ActiveStatusEnum::ACTIVE)
                                     ->orderBy('name')
                                     ->pluck('name', 'id')
@@ -285,10 +285,10 @@ class TicketResource extends Resource
                             ->placeholder('Atanan kişiyi seçiniz')
                             ->prefixIcon('heroicon-o-user')
                             ->options(function (): array {
-                                $companyId = auth()->user()?->scopedCompanyId();
+                                $companyIds = auth()->user()?->scopedCompanyIds() ?? [];
                                 return Employee::query()
-                                    ->when($companyId, fn (\Illuminate\Database\Eloquent\Builder $query)
-                                        => $query->where('company_id', $companyId))
+                                    ->when(!empty($companyIds), fn (\Illuminate\Database\Eloquent\Builder $query)
+                                        => $query->whereIn('company_id', $companyIds))
                                     ->where('status', \App\Enums\ActiveStatusEnum::ACTIVE->value)
                                     ->orderBy('name')
                                     ->pluck('name', 'id')
@@ -585,11 +585,20 @@ class TicketResource extends Resource
 
     /**
      * Apply the permission-aware visibility scope so the table only shows
-     * tickets the current user is allowed to see (own / group / all).
+     * tickets the current user is allowed to see (own / group / all), then
+     * additionally restrict by the user's accessible companies. The company
+     * filter is a no-op for admins (scopedCompanyIds returns []).
      */
     public static function getEloquentQuery(): Builder
     {
-        return parent::getEloquentQuery()->visibleBy(auth()->user());
+        $query = parent::getEloquentQuery()->visibleBy(auth()->user());
+
+        $companyIds = auth()->user()?->scopedCompanyIds() ?? [];
+        if (!empty($companyIds)) {
+            $query->whereHas('area', fn (Builder $q) => $q->whereIn('company_id', $companyIds));
+        }
+
+        return $query;
     }
 
     public static function getPages(): array

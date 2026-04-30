@@ -50,6 +50,35 @@ Tests use SQLite in-memory (configured in `phpunit.xml`).
 - UI: Filament 3.x only — code in `app/Filament/` (Resources, Pages, Widgets)
 - Business logic: `app/Services/` only — never in Filament Resources
 
+## Company Access
+
+Users are scoped to one or more companies. The canonical helper is on the User model:
+
+```php
+$user->scopedCompanyIds(): array
+```
+
+- Returns `[]` for admins (`ticket.view.all`) — caller treats as "no filter".
+- Returns `[own_company_id]` for normal users (derived from `employee.company_id`).
+- Returns `[id1, id2, ...]` for users granted extra access via `user_company_access`.
+
+Pivot table: **`user_company_access`** (`user_id`, `company_id`, `granted_by`,
+timestamps; UNIQUE on `(user_id, company_id)`). Eloquent relation:
+`$user->extraCompanies()` (BelongsToMany with `granted_by` pivot).
+
+Managed in the panel via the `CompanyAccessRelationManager` on `UserResource`,
+gated behind `user.role.assign`.
+
+Usage rules:
+
+- **In new code, always use `scopedCompanyIds()` with `->whereIn('company_id', $ids)`**.
+- The legacy `scopedCompanyId()` (singular) is `@deprecated` — it returns `null` for
+  admins AND for multi-company users (single id is ambiguous), so callers built
+  on it silently disable scoping for multi-company users. Do not extend its use.
+- `Ticket::scopeVisibleBy` already applies the company filter to the
+  `ticket.view.group` branch. `TicketResource::getEloquentQuery` adds it on
+  top for the panel list — both are correct (idempotent for admins).
+
 ## Gotchas
 
 ### shield:generate overwrites custom policies

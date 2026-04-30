@@ -255,11 +255,21 @@ class Ticket extends Model implements HasMedia
 
         $employeeId = $user->employee?->id;
 
-        // 2. ticket.view.group → tickets in user's supervised regions.
+        // 2. ticket.view.group → tickets in user's supervised regions, AND
+        //    additionally restricted to the user's accessible companies. A
+        //    supervisor with cross-region (but single-company) access should
+        //    not see tickets from companies they don't manage.
         if ($user->hasPermissionTo('ticket.view.group')) {
             $areaIds = Group::where('employee_id', $employeeId)->pluck('area_id');
 
-            return $query->whereIn('area_id', $areaIds);
+            $companyIds = $user->scopedCompanyIds();
+
+            return $query
+                ->whereIn('area_id', $areaIds)
+                ->when(!empty($companyIds), fn (Builder $q) => $q->whereHas(
+                    'area',
+                    fn (Builder $aq) => $aq->whereIn('company_id', $companyIds)
+                ));
         }
 
         // 3. ticket.view.own → own + assigned tickets.
