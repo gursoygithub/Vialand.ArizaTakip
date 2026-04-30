@@ -4,7 +4,6 @@ namespace App\Jobs;
 
 use App\Enums\TaskStatusEnum;
 use App\Events\TicketSlaBreached;
-use App\Models\Group;
 use App\Models\Ticket;
 use App\Models\User;
 use App\Notifications\SlaBreachedNotification;
@@ -12,6 +11,7 @@ use App\Notifications\SlaWarningNotification;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 
@@ -67,56 +67,93 @@ class CheckSlaBreaches implements ShouldQueue
             return;
         }
 
-        // Avoid duplicate warnings: skip if a warning was sent after 79% mark
-        $warningAlreadySent = \Illuminate\Notifications\DatabaseNotification::where('notifiable_type', User::class)
-            ->whereRaw("JSON_EXTRACT(data, '$.ticket_id') = ?", [$ticket->id])
-            ->whereRaw("JSON_EXTRACT(data, '$.type') = 'sla_warning'")
-            ->where('created_at', '>', $ticket->created_at->addSeconds((int)($total * 0.79)))
+        // Suppress duplicate warnings: skip if a SlaWarningNotification has already
+        // been written for this ticket since the 80%-elapsed mark.
+        $warningWindowStart = $ticket->created_at->copy()->addSeconds((int) ($total * 0.79));
+
+        $warningAlreadySent = DatabaseNotification::where('notifiable_type', User::class)
+            ->where('type', SlaWarningNotification::class)
+            ->where('created_at', '>', $warningWindowStart)
+            ->whereRaw(
+                "JSON_UNQUOTE(JSON_EXTRACT(data, '$.actions[0].url')) LIKE ?",
+                ['%/tickets/' . $ticket->id]
+            )
             ->exists();
 
         if ($warningAlreadySent) {
             return;
         }
 
-        $recipients = collect();
-
-        if ($ticket->employee_id) {
-            $assignedUser = User::whereHas('employee', fn ($q) =>
-                $q->where('id', $ticket->employee_id)
-            )->first();
-
-            if ($assignedUser) {
-                $recipients->push($assignedUser);
-            }
-        }
-
-        $supervisors = User::whereHas('roles', fn ($q) => $q->where('name', 'supervisor'))
-            ->whereHas('groups', fn ($q) => $q->where('area_id', $ticket->area_id))
-            ->get();
-
-        $recipients = $recipients->merge($supervisors)->unique('id');
-
-        foreach ($recipients as $user) {
+        foreach ($this->warningRecipients($ticket) as $user) {
             $user->notify(new SlaWarningNotification($ticket));
         }
     }
 
     private function notifyBreached(Ticket $ticket): void
     {
-        $notifiables = User::whereHas('roles', fn ($q) =>
-            $q->whereIn('name', ['supervisor', 'admin', 'super_admin'])
-        )->whereHas('groups', fn ($q) =>
-            $q->where('area_id', $ticket->area_id)
-        )->get();
+        $recipients = $this->breachRecipients($ticket);
 
-        if ($notifiables->isEmpty()) {
-            $notifiables = User::whereHas('roles', fn ($q) =>
+        if ($recipients->isEmpty()) {
+            // Fallback: notify any admin / super_admin so the breach is not silent
+            $recipients = User::whereHas('roles', fn ($q) =>
                 $q->whereIn('name', ['admin', 'super_admin'])
             )->get();
         }
 
-        foreach ($notifiables as $user) {
+        foreach ($recipients as $user) {
             $user->notify(new SlaBreachedNotification($ticket));
         }
+    }
+
+    /**
+     * Recipients for the 80% warning: assigned technician + supervisor of the ticket's area.
+     */
+    private function warningRecipients(Ticket $ticket)
+    {
+        $recipients = collect();
+
+        if ($ticket->employee_id) {
+            $assigned = User::whereHas('employee', fn ($q) =>
+                $q->where('id', $ticket->employee_id)
+            )->first();
+
+            if ($assigned) {
+                $recipients->push($assigned);
+            }
+        }
+
+        $recipients = $recipients->merge($this->areaSupervisors($ticket->area_id));
+
+        return $recipients->unique('id');
+    }
+
+    /**
+     * Recipients for a breach: supervisor of the area + all admins.
+     */
+    private function breachRecipients(Ticket $ticket)
+    {
+        $supervisors = $this->areaSupervisors($ticket->area_id);
+
+        $admins = User::whereHas('roles', fn ($q) =>
+            $q->whereIn('name', ['admin', 'super_admin'])
+        )->get();
+
+        return $supervisors->merge($admins)->unique('id');
+    }
+
+    /**
+     * Find users who supervise the given area.
+     * Chain: User -> employee (hasOne by email) -> managedGroups (Group.employee_id) -> area_id.
+     * The User model has no direct `groups()` relationship, so we walk through Employee.
+     */
+    private function areaSupervisors(?int $areaId)
+    {
+        if (!$areaId) {
+            return collect();
+        }
+
+        return User::whereHas('employee.managedGroups', fn ($q) =>
+            $q->where('area_id', $areaId)
+        )->get();
     }
 }

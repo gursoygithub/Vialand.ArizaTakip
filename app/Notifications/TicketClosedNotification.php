@@ -49,7 +49,7 @@ class TicketClosedNotification extends Notification implements ShouldQueue
             ->actions([
                 Action::make('view')
                     ->label(__('ui.ticket_detail'))
-                    ->url(route('filament.dashboard.resources.tickets.view', $this->ticket))
+                    ->url(url('/tickets/' . $this->ticket->id))
                     ->markAsRead(),
             ])
             ->getDatabaseMessage();
