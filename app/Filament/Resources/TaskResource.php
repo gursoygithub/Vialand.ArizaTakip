@@ -42,6 +42,13 @@ class TaskResource extends Resource
 
     protected static ?int $navigationSort = -999;
 
+    /**
+     * Hidden from navigation: superseded by TicketResource.
+     * The class is kept (do not delete) so existing routes / model bindings
+     * continue to resolve, but the menu entry is gone.
+     */
+    protected static bool $shouldRegisterNavigation = false;
+
     public static function getModelLabel(): string
     {
         return __('ui.task');

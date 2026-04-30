@@ -3,7 +3,6 @@
 namespace App\Observers;
 
 use App\Enums\TaskStatusEnum;
-use App\Models\Employee;
 use App\Models\Ticket;
 use App\Models\TicketStatusHistory;
 use App\Models\User;
@@ -17,7 +16,8 @@ class TicketObserver
 
     public function creating(Ticket $ticket): void
     {
-        if ($ticket->area_id && $ticket->unit_id && $ticket->priority) {
+        // Resolve and snapshot the SLA deadline at creation time
+        if ($ticket->area_id && $ticket->priority) {
             $priorityValue = is_object($ticket->priority)
                 ? $ticket->priority->value
                 : $ticket->priority;
@@ -33,11 +33,23 @@ class TicketObserver
                 $ticket->sla_deadline = $this->slaService->calculateDeadline($policy, now());
             }
         }
+
+        // Default status — open if not assigned, assigned if employee set
+        if (empty($ticket->status)) {
+            $ticket->status = $ticket->employee_id
+                ? TaskStatusEnum::ASSIGNED
+                : TaskStatusEnum::OPEN;
+        }
+
+        // If created already-assigned, stamp assigned_at
+        if ($ticket->status === TaskStatusEnum::ASSIGNED && empty($ticket->assigned_at)) {
+            $ticket->assigned_at = now();
+        }
     }
 
     public function created(Ticket $ticket): void
     {
-        // Log initial status in history
+        // Initial history row
         TicketStatusHistory::create([
             'ticket_id'   => $ticket->id,
             'from_status' => null,
@@ -46,9 +58,20 @@ class TicketObserver
             'note'        => 'Ticket created',
         ]);
 
-        // If ticket was created already-assigned (form submitted with employee_id),
-        // there is no `updated` event to fire the assignment notification — do it here.
+        // Notify assignee if created already-assigned (no `updated` event in this flow)
         if ($ticket->employee_id) {
+            $this->notifyAssignedUser($ticket);
+        }
+    }
+
+    public function updated(Ticket $ticket): void
+    {
+        // Notify on direct employee_id reassignment (admin reassigns via Edit page).
+        // TicketService::transition() handles status-change notifications via the
+        // TicketStatusChanged event, so we only handle pure reassignments here.
+        if ($ticket->wasChanged('employee_id')
+            && $ticket->employee_id
+            && !$ticket->wasChanged('status')) {
             $this->notifyAssignedUser($ticket);
         }
     }
@@ -61,70 +84,6 @@ class TicketObserver
 
         if ($assignedUser) {
             $assignedUser->notify(new TicketAssignedNotification($ticket));
-        }
-    }
-
-    public function updating(Ticket $ticket): void
-    {
-        if (!$ticket->isDirty('status')) {
-            return;
-        }
-
-        $newStatus = $ticket->status;
-
-        if ($newStatus === TaskStatusEnum::ASSIGNED && !$ticket->assigned_at) {
-            $ticket->assigned_at = now();
-        }
-
-        if ($newStatus === TaskStatusEnum::RESOLVED && !$ticket->resolved_at) {
-            $ticket->resolved_at = now();
-        }
-
-        if (in_array($newStatus, [TaskStatusEnum::CLOSED, TaskStatusEnum::COMPLETED])) {
-            if (!$ticket->closed_at) {
-                $ticket->closed_at = now();
-                $ticket->closed_by = auth()->id() ?? $ticket->closed_by;
-            }
-
-            $ticket->sla_breached = $ticket->sla_deadline
-                ? now()->isAfter($ticket->sla_deadline)
-                : false;
-        }
-    }
-
-    public function updated(Ticket $ticket): void
-    {
-        if ($ticket->wasChanged('status')) {
-            TicketStatusHistory::create([
-                'ticket_id'   => $ticket->id,
-                'from_status' => $ticket->getOriginal('status'),
-                'to_status'   => $ticket->status?->value,
-                'changed_by'  => auth()->id(),
-                'note'        => null,
-            ]);
-
-            $newStatus = $ticket->status;
-
-            // Notify assigned technician when ticket is assigned
-            if ($newStatus === TaskStatusEnum::ASSIGNED && $ticket->employee_id) {
-                $this->notifyAssignedUser($ticket);
-            }
-
-            // Notify ticket creator when ticket is closed
-            if (in_array($newStatus, [TaskStatusEnum::CLOSED, TaskStatusEnum::COMPLETED])) {
-                $creator = User::find($ticket->created_by);
-                if ($creator) {
-                    $creator->notify(new TicketClosedNotification($ticket));
-                }
-            }
-        }
-
-        // Notify if employee changed (re-assignment) — but skip if status also went
-        // to ASSIGNED in the same update, the branch above already handled it.
-        if ($ticket->wasChanged('employee_id')
-            && $ticket->employee_id
-            && $ticket->status !== TaskStatusEnum::ASSIGNED) {
-            $this->notifyAssignedUser($ticket);
         }
     }
 }

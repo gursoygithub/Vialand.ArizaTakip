@@ -50,6 +50,8 @@ class Ticket extends Model implements HasMedia
         'resolved_at',
         'closed_at',
         'closed_by',
+        'on_hold_since',
+        'total_on_hold_minutes',
         'created_by',
         'updated_by',
         'deleted_by',
@@ -63,6 +65,8 @@ class Ticket extends Model implements HasMedia
         'assigned_at'  => 'datetime',
         'resolved_at'  => 'datetime',
         'closed_at'    => 'datetime',
+        'on_hold_since' => 'datetime',
+        'total_on_hold_minutes' => 'integer',
         'reopened_at'  => 'datetime',
         'sla_breached' => 'boolean',
         'type_id'      => \App\Enums\TaskTypeEnum::class,
@@ -281,7 +285,12 @@ class Ticket extends Model implements HasMedia
     protected static function booted(): void
     {
         static::creating(function (Ticket $ticket) {
-            $ticket->created_by = auth()->id();
+            // Only auto-fill created_by if the caller didn't set one explicitly.
+            // Lets factories and admin tools provide the real author while still
+            // defaulting to the authenticated user in normal flows.
+            if (empty($ticket->created_by)) {
+                $ticket->created_by = auth()->id();
+            }
 
             if (empty($ticket->ticket_no)) {
                 $year  = now()->year;

@@ -3,9 +3,12 @@
 namespace App\Filament\Resources\TicketResource\Pages;
 
 use App\Enums\TaskStatusEnum;
+use App\Exceptions\TicketTransitionException;
 use App\Filament\Resources\TicketResource;
+use App\Models\Employee;
 use App\Models\Ticket;
 use App\Models\TicketStatusHistory;
+use App\Services\SlaService;
 use App\Services\TicketService;
 use Filament\Actions;
 use Filament\Forms\Components\Select;
@@ -22,47 +25,95 @@ class ViewTicket extends ViewRecord
 {
     protected static string $resource = TicketResource::class;
 
+    /**
+     * Permissions required by each action button.
+     * Per spec:
+     *   Ata          → ticket.assign
+     *   Kapat        → ticket.close
+     *   Yeniden Aç   → ticket.reopen
+     *   İptal Et     → ticket.close
+     *   Beklemede    → ticket.assign
+     *   İşleme Al    → assigned employee OR ticket.assign
+     */
+    private const ACTION_PERMISSION = [
+        TaskStatusEnum::ASSIGNED->value    => 'ticket.assign',
+        TaskStatusEnum::IN_PROGRESS->value => null, // open to assigned employee or ticket.assign
+        TaskStatusEnum::ON_HOLD->value     => 'ticket.assign',
+        TaskStatusEnum::RESOLVED->value    => null, // assigned employee can resolve
+        TaskStatusEnum::CLOSED->value      => 'ticket.close',
+        TaskStatusEnum::CANCELLED->value   => 'ticket.close',
+        TaskStatusEnum::COMPLETED->value   => 'ticket.close',
+    ];
+
+    private const ACTION_LABEL = [
+        TaskStatusEnum::ASSIGNED->value    => 'Ata',
+        TaskStatusEnum::IN_PROGRESS->value => 'İşleme Al',
+        TaskStatusEnum::ON_HOLD->value     => 'Beklemede',
+        TaskStatusEnum::RESOLVED->value    => 'Çözüldü',
+        TaskStatusEnum::CLOSED->value      => 'Kapat',
+        TaskStatusEnum::CANCELLED->value   => 'İptal Et',
+        TaskStatusEnum::COMPLETED->value   => 'Tamamla',
+    ];
+
     public function infolist(Infolist $infolist): Infolist
     {
         return $infolist
             ->schema([
-                Section::make(__('ui.ticket_information'))
+                // ── HEADER ──
+                Section::make()
                     ->schema([
-                        Grid::make(3)->schema([
+                        Grid::make(4)->schema([
                             TextEntry::make('ticket_no')
                                 ->label(__('ui.ticket_no'))
+                                ->size(TextEntry\TextEntrySize::Large)
                                 ->weight('bold')
                                 ->copyable(),
 
                             TextEntry::make('status')
                                 ->label(__('ui.status'))
                                 ->badge()
-                                ->color(fn (TaskStatusEnum $state) => $state->getColor()),
+                                ->color(fn (TaskStatusEnum $state) => $state->getColor())
+                                ->icon(fn (TaskStatusEnum $state) => $state->getIcon()),
 
                             TextEntry::make('priority')
                                 ->label(__('ui.priority'))
                                 ->badge()
-                                ->color(fn ($state) => $state->getColor()),
+                                ->color(fn ($state) => $state->getColor())
+                                ->icon(fn ($state) => $state->getIcon()),
 
-                            TextEntry::make('type_id')
-                                ->label(__('ui.type'))
-                                ->badge(),
+                            TextEntry::make('sla_progress')
+                                ->label(__('ui.sla_indicator'))
+                                ->formatStateUsing(fn (Ticket $record) => self::renderSlaProgress($record))
+                                ->html(),
+                        ]),
 
-                            TextEntry::make('area.name')
-                                ->label(__('ui.area')),
+                        Grid::make(3)->schema([
+                            TextEntry::make('createdBy.name')
+                                ->label(__('ui.created_by')),
 
-                            TextEntry::make('subArea.name')
-                                ->label(__('ui.sub_area')),
-
-                            TextEntry::make('unit.name')
-                                ->label(__('ui.unit')),
+                            TextEntry::make('created_at')
+                                ->label(__('ui.created_at'))
+                                ->dateTime(),
 
                             TextEntry::make('employee.name')
-                                ->label(__('ui.assigned_employee')),
+                                ->label(__('ui.assigned_employee'))
+                                ->placeholder('—')
+                                ->badge()
+                                ->color('warning'),
+                        ]),
+                    ]),
 
-                            TextEntry::make('task_date')
-                                ->label(__('ui.task_date'))
-                                ->date(),
+                // ── TICKET DETAIL ──
+                Section::make(__('ui.ticket_information'))
+                    ->collapsible()
+                    ->schema([
+                        Grid::make(3)->schema([
+                            TextEntry::make('type_id')->label(__('ui.type'))->badge(),
+                            TextEntry::make('area.name')->label(__('ui.area')),
+                            TextEntry::make('subArea.name')->label(__('ui.sub_area'))->placeholder('—'),
+                            TextEntry::make('unit.name')->label(__('ui.unit')),
+                            TextEntry::make('group.name')->label(__('ui.group'))->placeholder('—'),
+                            TextEntry::make('task_date')->label(__('ui.task_date'))->date(),
                         ]),
 
                         TextEntry::make('description')
@@ -70,211 +121,294 @@ class ViewTicket extends ViewRecord
                             ->columnSpanFull(),
                     ]),
 
-                // SLA Section
+                // ── SLA & TIMESTAMPS ──
                 Section::make(__('ui.sla_information'))
+                    ->collapsible()
+                    ->visible(fn (Ticket $r) => $r->sla_deadline !== null
+                        || $r->assigned_at || $r->resolved_at || $r->closed_at)
                     ->schema([
-                        Grid::make(3)->schema([
-                            TextEntry::make('sla_deadline')
-                                ->label(__('ui.sla_deadline'))
-                                ->dateTime()
-                                ->color(fn (Ticket $record): string =>
-                                    !$record->sla_deadline ? 'gray' :
-                                    ($record->sla_breached ? 'danger' :
-                                    (($record->sla_percent_remaining ?? 100) > 50 ? 'success' : 'warning'))
-                                ),
+                        Grid::make(4)->schema([
+                            TextEntry::make('sla_deadline')->label(__('ui.sla_deadline'))->dateTime()->placeholder('—'),
+                            TextEntry::make('assigned_at')->label(__('ui.assigned_at'))->dateTime()->placeholder('—'),
+                            TextEntry::make('resolved_at')->label(__('ui.resolved_at'))->dateTime()->placeholder('—'),
+                            TextEntry::make('closed_at')->label(__('ui.closed_at'))->dateTime()->placeholder('—'),
+                        ]),
+
+                        Grid::make(2)->schema([
+                            TextEntry::make('total_on_hold_minutes')
+                                ->label('Toplam Bekleme Süresi')
+                                ->formatStateUsing(fn ($state) => ((int) $state) . ' dk')
+                                ->visible(fn (Ticket $r) => (int) $r->total_on_hold_minutes > 0),
 
                             TextEntry::make('sla_breached')
                                 ->label(__('ui.sla_breached'))
                                 ->badge()
-                                ->formatStateUsing(fn (bool $state) => $state ? __('ui.sla_breached') : __('ui.on_time'))
-                                ->color(fn (bool $state) => $state ? 'danger' : 'success'),
-
-                            TextEntry::make('sla_percent_remaining')
-                                ->label(__('ui.sla_remaining'))
-                                ->formatStateUsing(fn (Ticket $record): string => self::renderSlaBar($record))
-                                ->html(),
+                                ->formatStateUsing(fn (?bool $s) => $s ? __('ui.sla_breached') : __('ui.on_time'))
+                                ->color(fn (?bool $s) => $s ? 'danger' : 'success')
+                                ->visible(fn (Ticket $r) => $r->status?->isClosed()),
                         ]),
-                    ])
-                    ->visible(fn (Ticket $record) => $record->sla_deadline !== null),
+                    ]),
 
-                // Status Timeline
+                // ── STATUS TIMELINE + COMMENTS (combined feed) ──
                 Section::make(__('ui.status_history'))
                     ->schema([
-                        TextEntry::make('statusHistories')
+                        TextEntry::make('timeline')
                             ->label('')
-                            ->formatStateUsing(fn (Ticket $record): HtmlString => self::renderTimeline($record))
+                            ->formatStateUsing(fn (Ticket $r) => self::renderTimeline($r))
                             ->html()
                             ->columnSpanFull(),
                     ]),
 
-                // Closure info
-                Section::make(__('ui.closure_info'))
+                // ── ATTACHMENTS ──
+                Section::make(__('ui.images'))
+                    ->collapsible()
+                    ->collapsed()
                     ->schema([
-                        Grid::make(3)->schema([
-                            TextEntry::make('assigned_at')->label(__('ui.assigned_at'))->dateTime(),
-                            TextEntry::make('resolved_at')->label(__('ui.resolved_at'))->dateTime(),
-                            TextEntry::make('closed_at')->label(__('ui.closed_at'))->dateTime(),
-                        ]),
-                    ])
-                    ->visible(fn (Ticket $r) => $r->assigned_at || $r->resolved_at || $r->closed_at),
+                        \Filament\Infolists\Components\SpatieMediaLibraryImageEntry::make('task_attachments')
+                            ->label('')
+                            ->collection('task_attachments')
+                            ->disk('s3')
+                            ->columnSpanFull()
+                            ->placeholder('Henüz dosya eklenmemiş'),
+                    ]),
             ]);
     }
 
     protected function getHeaderActions(): array
     {
-        $record = $this->getRecord();
+        $ticket = $this->getRecord();
 
         return [
-            Actions\EditAction::make()
-                ->visible(fn () => auth()->user()->can('update', $this->getRecord())),
+            // STATUS TRANSITION ACTIONS — one button per allowed next status
+            ...$this->buildTransitionActions($ticket),
 
-            // Status change action (permission-gated)
-            Actions\Action::make('change_status')
-                ->label(__('ui.change_status'))
-                ->icon('heroicon-o-arrow-path')
-                ->color('warning')
-                ->visible(fn () =>
-                    auth()->user()->can('update', $this->getRecord())
-                    && !$this->getRecord()->status?->isClosed()
-                )
-                ->form([
-                    Select::make('status')
-                        ->label(__('ui.to_status'))
-                        ->options(fn () => $this->getAllowedTransitions())
-                        ->required(),
-
-                    Textarea::make('note')
-                        ->label(__('ui.note'))
-                        ->rows(2),
-                ])
-                ->action(function (array $data) {
-                    $ticket  = $this->getRecord();
-                    $service = app(TicketService::class);
-                    $newStatus = TaskStatusEnum::from((int) $data['status']);
-
-                    try {
-                        $service->transition($ticket, $newStatus, auth()->user(), $data['note'] ?? null);
-
-                        Notification::make()
-                            ->title(__('ui.status_change'))
-                            ->success()
-                            ->send();
-
-                        $this->refreshFormData(['status', 'closed_at', 'assigned_at', 'resolved_at', 'sla_breached']);
-                    } catch (\Illuminate\Validation\ValidationException $e) {
-                        Notification::make()
-                            ->title(collect($e->errors())->flatten()->first())
-                            ->danger()
-                            ->send();
-                    }
-                }),
-
-            // Add note without status change
-            Actions\Action::make('add_note')
+            // ADD COMMENT
+            Actions\Action::make('add_comment')
                 ->label(__('ui.add_note'))
                 ->icon('heroicon-o-chat-bubble-left')
                 ->color('gray')
                 ->form([
-                    Textarea::make('note')
-                        ->label(__('ui.note'))
-                        ->required()
-                        ->rows(3),
+                    Textarea::make('note')->label(__('ui.note'))->rows(3)->required(),
                 ])
-                ->action(function (array $data) {
-                    $service = app(TicketService::class);
-                    $service->addNote($this->getRecord(), auth()->user(), $data['note']);
-
-                    Notification::make()
-                        ->title(__('ui.add_note'))
-                        ->success()
-                        ->send();
+                ->action(function (array $data) use ($ticket) {
+                    app(TicketService::class)->addComment($ticket, auth()->user(), $data['note']);
+                    Notification::make()->title('Yorum eklendi')->success()->send();
                 }),
 
+            // REASSIGN
+            Actions\Action::make('reassign')
+                ->label('Yeniden Ata')
+                ->icon('heroicon-o-user-plus')
+                ->color('warning')
+                ->visible(fn () => auth()->user()?->can('ticket.assign')
+                    && !$ticket->status?->isClosed())
+                ->form([
+                    Select::make('employee_id')
+                        ->label(__('ui.assigned_employee'))
+                        ->options(function () use ($ticket) {
+                            return Employee::query()
+                                ->whereHas('groupMemberships.group', fn ($q) =>
+                                    $q->where('area_id', $ticket->area_id)
+                                      ->when($ticket->unit_id, fn ($q2, $u) => $q2->where('unit_id', $u))
+                                )
+                                ->pluck('name', 'id');
+                        })
+                        ->searchable()
+                        ->required(),
+                    Textarea::make('note')->label(__('ui.note'))->rows(2),
+                ])
+                ->action(function (array $data) use ($ticket) {
+                    $ticket->update(['employee_id' => $data['employee_id']]);
+                    if ($ticket->status === TaskStatusEnum::OPEN) {
+                        try {
+                            app(TicketService::class)->transition(
+                                $ticket->fresh(),
+                                TaskStatusEnum::ASSIGNED,
+                                auth()->user(),
+                                $data['note'] ?? null
+                            );
+                        } catch (TicketTransitionException $e) {
+                            // already not open — fine
+                        }
+                    }
+                    Notification::make()->title('Bilet yeniden atandı')->success()->send();
+                }),
+
+            Actions\EditAction::make()
+                ->visible(fn () => auth()->user()?->can('update', $ticket)),
+
             Actions\DeleteAction::make()
-                ->visible(fn () => auth()->user()->can('delete', $this->getRecord())),
+                ->visible(fn () => auth()->user()?->can('delete', $ticket)),
         ];
     }
 
-    private function getAllowedTransitions(): array
+    /**
+     * Build one Filament Action per allowed next status, gated by the
+     * permission required for that status type.
+     */
+    private function buildTransitionActions(Ticket $ticket): array
     {
-        $current = $this->getRecord()->status?->value;
+        $service = app(TicketService::class);
+        $next    = $service->allowedNextStatuses($ticket->status);
+        $actions = [];
 
-        $map = [
-            TaskStatusEnum::OPEN->value        => [TaskStatusEnum::ASSIGNED, TaskStatusEnum::CANCELLED],
-            TaskStatusEnum::ASSIGNED->value    => [TaskStatusEnum::IN_PROGRESS, TaskStatusEnum::ON_HOLD, TaskStatusEnum::CANCELLED],
-            TaskStatusEnum::IN_PROGRESS->value => [TaskStatusEnum::RESOLVED, TaskStatusEnum::ON_HOLD, TaskStatusEnum::CANCELLED],
-            TaskStatusEnum::ON_HOLD->value     => [TaskStatusEnum::IN_PROGRESS, TaskStatusEnum::CANCELLED],
-            TaskStatusEnum::RESOLVED->value    => [TaskStatusEnum::CLOSED, TaskStatusEnum::IN_PROGRESS],
-            TaskStatusEnum::PENDING->value     => [TaskStatusEnum::COMPLETED, TaskStatusEnum::OPEN],
-        ];
+        foreach ($next as $to) {
+            $required = self::ACTION_PERMISSION[$to->value] ?? null;
+            $label    = self::ACTION_LABEL[$to->value] ?? $to->getLabel();
 
-        $allowed = $map[$current] ?? [];
+            // "İşleme Al" / "Çözüldü" — open to assigned employee or anyone with ticket.assign
+            $allowedFn = function () use ($required, $to, $ticket) {
+                $user = auth()->user();
+                if (!$user) return false;
+                if ($required && $user->can($required)) return true;
 
-        // Close action requires ticket.close permission
-        if (!auth()->user()->can('ticket.close')) {
-            $allowed = array_filter($allowed, fn ($s) =>
-                !in_array($s, [TaskStatusEnum::CLOSED, TaskStatusEnum::COMPLETED])
-            );
+                // Re-open special-case: ticket.reopen permission
+                if ($to === TaskStatusEnum::IN_PROGRESS
+                    && in_array($ticket->status, [
+                        TaskStatusEnum::CLOSED, TaskStatusEnum::COMPLETED, TaskStatusEnum::RESOLVED
+                    ], true)) {
+                    return $user->can('ticket.reopen') || $user->can('can_reopen_task');
+                }
+
+                // assigned employee can move to in_progress / resolved
+                if (in_array($to, [TaskStatusEnum::IN_PROGRESS, TaskStatusEnum::RESOLVED], true)) {
+                    if ($user->can('ticket.assign')) return true;
+                    return $ticket->employee?->email === $user->email;
+                }
+
+                return false;
+            };
+
+            // Override label for reopen
+            if ($to === TaskStatusEnum::IN_PROGRESS
+                && in_array($ticket->status, [TaskStatusEnum::CLOSED, TaskStatusEnum::COMPLETED], true)) {
+                $label = 'Yeniden Aç';
+            }
+
+            $actions[] = Actions\Action::make('to_' . $to->value)
+                ->label($label)
+                ->icon($to->getIcon())
+                ->color($to->getColor())
+                ->visible($allowedFn)
+                ->form([
+                    Textarea::make('note')->label(__('ui.note'))->rows(2),
+                ])
+                ->requiresConfirmation()
+                ->action(function (array $data) use ($ticket, $to) {
+                    try {
+                        app(TicketService::class)->transition(
+                            $ticket,
+                            $to,
+                            auth()->user(),
+                            $data['note'] ?? null
+                        );
+                        Notification::make()
+                            ->title($ticket->ticket_no . ' → ' . $to->getLabel())
+                            ->success()
+                            ->send();
+                    } catch (TicketTransitionException $e) {
+                        Notification::make()
+                            ->title($e->getMessage())
+                            ->danger()
+                            ->send();
+                    }
+                });
         }
 
-        return collect($allowed)
-            ->mapWithKeys(fn (TaskStatusEnum $s) => [$s->value => $s->getLabel()])
-            ->toArray();
+        return $actions;
     }
 
-    private static function renderSlaBar(Ticket $record): string
+    /**
+     * Render the SLA progress bar — green / yellow / red based on remaining time.
+     */
+    private static function renderSlaProgress(Ticket $record): HtmlString
     {
-        $pct = $record->sla_percent_remaining;
+        $sla = app(SlaService::class);
 
-        if ($pct === null) {
-            return '—';
+        if (!$record->sla_deadline) {
+            return new HtmlString('<span class="text-gray-400">SLA tanımlı değil</span>');
         }
 
-        $color = $record->sla_breached || $pct <= 0 ? '#ef4444'
-            : ($pct <= 50 ? '#f59e0b' : '#22c55e');
+        $elapsedPct = $sla->getElapsedPercentage($record);
+        $remaining  = $sla->getRemainingMinutes($record);
+        $breached   = $record->sla_breached || ($remaining !== null && $remaining < 0);
 
-        $display = max(0, round($pct));
+        $widthPct = (int) round(min(100, max(0, ($elapsedPct ?? 0) * 100)));
+        $color    = $breached ? '#ef4444'
+            : (($elapsedPct ?? 0) >= 0.5 ? '#f59e0b' : '#22c55e');
 
-        return <<<HTML
-            <div style="width:100%;background:#e5e7eb;border-radius:4px;height:10px;">
-                <div style="width:{$display}%;background:{$color};height:10px;border-radius:4px;transition:width 0.3s;"></div>
+        if ($breached) {
+            $absMins = abs((int) $remaining);
+            $h = intdiv($absMins, 60); $m = $absMins % 60;
+            $label = "{$h}s {$m}d gecikmiş";
+        } elseif ($remaining !== null) {
+            $h = intdiv($remaining, 60); $m = $remaining % 60;
+            $label = "{$h}s {$m}d kaldı";
+        } else {
+            $label = '—';
+        }
+
+        return new HtmlString(<<<HTML
+            <div style="width:100%">
+                <div style="background:#e5e7eb;border-radius:6px;height:10px;overflow:hidden;">
+                    <div style="width:{$widthPct}%;background:{$color};height:10px;transition:width 0.3s;"></div>
+                </div>
+                <div style="margin-top:4px;color:{$color};font-size:0.85em;font-weight:500;">{$label}</div>
             </div>
-            <small style="color:{$color};">{$display}% remaining</small>
-        HTML;
+        HTML);
     }
 
+    /**
+     * Render combined timeline + comments. Each ticket_status_histories row
+     * is one entry. Pure comments (from_status === to_status) styled differently.
+     */
     private static function renderTimeline(Ticket $record): HtmlString
     {
-        $histories = TicketStatusHistory::where('ticket_id', $record->id)
+        $service = app(TicketService::class);
+        $entries = TicketStatusHistory::where('ticket_id', $record->id)
             ->with('changedBy')
-            ->orderBy('created_at', 'asc')
+            ->orderByDesc('created_at')
             ->get();
 
-        if ($histories->isEmpty()) {
+        if ($entries->isEmpty()) {
             return new HtmlString('<p class="text-gray-400">—</p>');
         }
 
-        $html = '<div class="space-y-3">';
+        $html = '<div class="space-y-4">';
+        $user = auth()->user();
 
-        foreach ($histories as $h) {
-            $from = $h->from_status?->getLabel() ?? '—';
-            $to   = $h->to_status?->getLabel() ?? '—';
-            $by   = $h->changedBy?->name ?? '—';
-            $at   = $h->created_at?->format('d M Y H:i') ?? '—';
-            $note = $h->note ? '<p class="text-xs text-gray-500 mt-1">' . e($h->note) . '</p>' : '';
+        foreach ($entries as $entry) {
+            $isComment = $entry->from_status?->value === $entry->to_status?->value
+                && $entry->from_status !== null;
+            $author    = e($entry->changedBy?->name ?? '—');
+            $when      = $entry->created_at?->format('d.m.Y H:i') ?? '';
+            $note      = $entry->note ? '<p style="margin-top:4px;color:#374151;">' . e($entry->note) . '</p>' : '';
 
-            if ($h->to_status === null) {
-                // Comment-only entry
+            if ($isComment) {
+                $editable = $user && $service->canEditComment($entry, $user);
+                $editTag  = $editable
+                    ? ' <span style="font-size:0.75em;color:#6b7280;">(düzenlenebilir)</span>'
+                    : '';
                 $html .= <<<HTML
-                    <div class="border-l-2 border-gray-300 pl-3">
-                        <p class="text-sm font-medium">💬 {$by} <span class="text-xs text-gray-400">{$at}</span></p>
+                    <div style="border-left:3px solid #9ca3af;padding-left:12px;">
+                        <div style="font-weight:600;color:#111827;">💬 {$author} <span style="font-weight:400;color:#6b7280;font-size:0.85em;">• {$when}{$editTag}</span></div>
                         {$note}
                     </div>
                 HTML;
             } else {
+                $fromLabel = e($entry->from_status?->getLabel() ?? '—');
+                $toLabel   = e($entry->to_status?->getLabel() ?? '—');
+                $color     = match (true) {
+                    $entry->to_status === TaskStatusEnum::CANCELLED => '#ef4444',
+                    $entry->to_status === TaskStatusEnum::CLOSED, $entry->to_status === TaskStatusEnum::COMPLETED => '#10b981',
+                    $entry->to_status === TaskStatusEnum::ON_HOLD   => '#f59e0b',
+                    $entry->to_status === TaskStatusEnum::RESOLVED  => '#22c55e',
+                    default => '#3b82f6',
+                };
                 $html .= <<<HTML
-                    <div class="border-l-2 border-blue-400 pl-3">
-                        <p class="text-sm font-medium">{$from} → {$to} <span class="text-xs text-gray-400">by {$by} • {$at}</span></p>
+                    <div style="border-left:3px solid {$color};padding-left:12px;">
+                        <div style="font-weight:600;color:#111827;">{$fromLabel} → {$toLabel}</div>
+                        <div style="font-size:0.85em;color:#6b7280;">{$author} • {$when}</div>
                         {$note}
                     </div>
                 HTML;
@@ -282,7 +416,6 @@ class ViewTicket extends ViewRecord
         }
 
         $html .= '</div>';
-
         return new HtmlString($html);
     }
 }

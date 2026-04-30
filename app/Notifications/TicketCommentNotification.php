@@ -3,6 +3,7 @@
 namespace App\Notifications;
 
 use App\Models\Ticket;
+use App\Models\User;
 use Filament\Notifications\Actions\Action;
 use Filament\Notifications\Notification as FilamentNotification;
 use Illuminate\Bus\Queueable;
@@ -10,11 +11,15 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
-class TicketAssignedNotification extends Notification implements ShouldQueue
+class TicketCommentNotification extends Notification implements ShouldQueue
 {
     use Queueable;
 
-    public function __construct(public readonly Ticket $ticket) {}
+    public function __construct(
+        public readonly Ticket $ticket,
+        public readonly User $author,
+        public readonly string $body,
+    ) {}
 
     public function via(object $notifiable): array
     {
@@ -30,28 +35,17 @@ class TicketAssignedNotification extends Notification implements ShouldQueue
     public function toMail(object $notifiable): MailMessage
     {
         return (new MailMessage)
-            ->subject(__('ui.task_assigned') . ': ' . $this->ticket->ticket_no)
-            ->line(__('ui.task_assigned') . ': ' . $this->ticket->ticket_no)
-            ->line(__('ui.priority') . ': ' . $this->ticket->priority?->getLabel())
-            ->line(__('ui.area') . ': ' . $this->ticket->area?->name);
+            ->subject($this->ticket->ticket_no . ' — ' . __('ui.add_note') . ': ' . $this->author->name)
+            ->line($this->author->name . ': ' . \Illuminate\Support\Str::limit($this->body, 200));
     }
 
-    /**
-     * Filament-compatible payload — the database notifications bell renders
-     * the result of FilamentNotification::getDatabaseMessage() directly.
-     */
     public function toDatabase(object $notifiable): array
     {
-        $deadline = $this->ticket->sla_deadline?->format('d.m.Y H:i');
-        $body = ($this->ticket->area?->name ?? '—')
-            . ' • ' . ($this->ticket->priority?->getLabel() ?? '')
-            . ($deadline ? ' • SLA: ' . $deadline : '');
-
         return FilamentNotification::make()
-            ->title($this->ticket->ticket_no . ' — size atandı')
-            ->body($body)
-            ->icon('heroicon-o-user-circle')
-            ->iconColor('warning')
+            ->title($this->ticket->ticket_no . ' — ' . $this->author->name)
+            ->body(\Illuminate\Support\Str::limit($this->body, 140))
+            ->icon('heroicon-o-chat-bubble-left')
+            ->iconColor('primary')
             ->actions([
                 Action::make('view')
                     ->label(__('ui.ticket_detail'))

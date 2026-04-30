@@ -12,6 +12,7 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Notifications\DatabaseNotification;
+use Illuminate\Notifications\Notification;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 
@@ -21,11 +22,11 @@ class CheckSlaBreaches implements ShouldQueue
 
     public function handle(): void
     {
+        // Tickets eligible for SLA tracking: open lifecycle, NOT on_hold (paused), NOT cancelled.
         $openStatuses = [
             TaskStatusEnum::OPEN->value,
             TaskStatusEnum::ASSIGNED->value,
             TaskStatusEnum::IN_PROGRESS->value,
-            TaskStatusEnum::ON_HOLD->value,
             TaskStatusEnum::PENDING->value,
         ];
 
@@ -67,20 +68,8 @@ class CheckSlaBreaches implements ShouldQueue
             return;
         }
 
-        // Suppress duplicate warnings: skip if a SlaWarningNotification has already
-        // been written for this ticket since the 80%-elapsed mark.
-        $warningWindowStart = $ticket->created_at->copy()->addSeconds((int) ($total * 0.79));
-
-        $warningAlreadySent = DatabaseNotification::where('notifiable_type', User::class)
-            ->where('type', SlaWarningNotification::class)
-            ->where('created_at', '>', $warningWindowStart)
-            ->whereRaw(
-                "JSON_UNQUOTE(JSON_EXTRACT(data, '$.actions[0].url')) LIKE ?",
-                ['%/tickets/' . $ticket->id]
-            )
-            ->exists();
-
-        if ($warningAlreadySent) {
+        // Daily de-dupe: don't repeat the same notification type for the same ticket today.
+        if ($this->alreadySentToday($ticket, SlaWarningNotification::class)) {
             return;
         }
 
@@ -91,6 +80,10 @@ class CheckSlaBreaches implements ShouldQueue
 
     private function notifyBreached(Ticket $ticket): void
     {
+        if ($this->alreadySentToday($ticket, SlaBreachedNotification::class)) {
+            return;
+        }
+
         $recipients = $this->breachRecipients($ticket);
 
         if ($recipients->isEmpty()) {
@@ -103,6 +96,32 @@ class CheckSlaBreaches implements ShouldQueue
         foreach ($recipients as $user) {
             $user->notify(new SlaBreachedNotification($ticket));
         }
+    }
+
+    /**
+     * Has a notification of this type already been sent today for this ticket?
+     * Pulls today's matching notifications and inspects their data in PHP — no
+     * JSON-extraction SQL functions, so portable across MySQL/SQLite.
+     */
+    private function alreadySentToday(Ticket $ticket, string $notificationClass): bool
+    {
+        $rows = DatabaseNotification::where('notifiable_type', User::class)
+            ->where('type', $notificationClass)
+            ->whereDate('created_at', today())
+            ->pluck('data');
+
+        foreach ($rows as $data) {
+            $arr = is_array($data) ? $data : (json_decode((string) $data, true) ?? []);
+            foreach ($arr['actions'] ?? [] as $action) {
+                $url = $action['url'] ?? '';
+                if (preg_match('#/tickets/(\d+)$#', (string) $url, $m)
+                    && (int) $m[1] === (int) $ticket->id) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**

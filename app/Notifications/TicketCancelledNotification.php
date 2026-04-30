@@ -10,7 +10,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
-class TicketAssignedNotification extends Notification implements ShouldQueue
+class TicketCancelledNotification extends Notification implements ShouldQueue
 {
     use Queueable;
 
@@ -30,28 +30,17 @@ class TicketAssignedNotification extends Notification implements ShouldQueue
     public function toMail(object $notifiable): MailMessage
     {
         return (new MailMessage)
-            ->subject(__('ui.task_assigned') . ': ' . $this->ticket->ticket_no)
-            ->line(__('ui.task_assigned') . ': ' . $this->ticket->ticket_no)
-            ->line(__('ui.priority') . ': ' . $this->ticket->priority?->getLabel())
-            ->line(__('ui.area') . ': ' . $this->ticket->area?->name);
+            ->subject($this->ticket->ticket_no . ' — iptal edildi')
+            ->line($this->ticket->ticket_no . ' iptal edildi.');
     }
 
-    /**
-     * Filament-compatible payload — the database notifications bell renders
-     * the result of FilamentNotification::getDatabaseMessage() directly.
-     */
     public function toDatabase(object $notifiable): array
     {
-        $deadline = $this->ticket->sla_deadline?->format('d.m.Y H:i');
-        $body = ($this->ticket->area?->name ?? '—')
-            . ' • ' . ($this->ticket->priority?->getLabel() ?? '')
-            . ($deadline ? ' • SLA: ' . $deadline : '');
-
         return FilamentNotification::make()
-            ->title($this->ticket->ticket_no . ' — size atandı')
-            ->body($body)
-            ->icon('heroicon-o-user-circle')
-            ->iconColor('warning')
+            ->title($this->ticket->ticket_no . ' — iptal edildi')
+            ->body($this->ticket->area?->name ?? '—')
+            ->icon('heroicon-o-x-circle')
+            ->iconColor('danger')
             ->actions([
                 Action::make('view')
                     ->label(__('ui.ticket_detail'))

@@ -50,12 +50,31 @@ class TicketResource extends Resource
 
     public static function getNavigationBadge(): ?string
     {
-        return (string) Ticket::query()->count();
+        // Only show open/assigned/in_progress in the badge — closed/cancelled are noise.
+        $count = Ticket::query()
+            ->whereIn('status', [
+                TaskStatusEnum::OPEN->value,
+                TaskStatusEnum::ASSIGNED->value,
+                TaskStatusEnum::IN_PROGRESS->value,
+                TaskStatusEnum::PENDING->value,
+            ])
+            ->count();
+
+        return $count > 0 ? (string) $count : null;
     }
 
     public static function getNavigationBadgeColor(): string
     {
-        $breached = Ticket::query()->where('sla_breached', true)->count();
+        $breached = Ticket::query()
+            ->where('sla_breached', true)
+            ->whereIn('status', [
+                TaskStatusEnum::OPEN->value,
+                TaskStatusEnum::ASSIGNED->value,
+                TaskStatusEnum::IN_PROGRESS->value,
+                TaskStatusEnum::PENDING->value,
+            ])
+            ->count();
+
         return $breached > 0 ? 'danger' : 'primary';
     }
 
@@ -88,7 +107,24 @@ class TicketResource extends Resource
                                             ->default(TaskPriorityEnum::Medium->value)
                                             ->required()
                                             ->live()
-                                            ->validationMessages(['required' => __('ui.required')]),
+                                            ->validationMessages(['required' => __('ui.required')])
+                                            ->helperText(function (callable $get) {
+                                                $areaId   = $get('area_id');
+                                                $unitId   = $get('unit_id');
+                                                $priority = $get('priority');
+                                                if (!$areaId || !$priority) {
+                                                    return null;
+                                                }
+                                                $policy = app(\App\Services\SlaService::class)->resolvePolicy(
+                                                    (int) $areaId,
+                                                    $get('sub_area_id') ? (int) $get('sub_area_id') : null,
+                                                    $unitId ? (int) $unitId : null,
+                                                    $priority
+                                                );
+                                                return $policy
+                                                    ? 'SLA: ' . $policy->deadline_minutes . ' dakika çözüm süresi'
+                                                    : 'Bu bölge/öncelik için tanımlı SLA yok.';
+                                            }),
 
                                         Forms\Components\ToggleButtons::make('status')
                                             ->hiddenLabel(__('ui.status'))
@@ -261,6 +297,11 @@ class TicketResource extends Resource
                     ->sortable()
                     ->toggleable(),
 
+                Tables\Columns\TextColumn::make('subArea.name')
+                    ->label(__('ui.sub_area'))
+                    ->sortable()
+                    ->toggleable(),
+
                 Tables\Columns\TextColumn::make('employee.name')
                     ->label(__('ui.assigned_employee'))
                     ->sortable()
@@ -307,23 +348,61 @@ class TicketResource extends Resource
             ->filters([
                 Tables\Filters\SelectFilter::make('area_id')
                     ->label(__('ui.area'))
-                    ->relationship('area', 'name'),
+                    ->relationship('area', 'name')
+                    ->searchable()
+                    ->preload(),
 
                 Tables\Filters\SelectFilter::make('status')
                     ->label(__('ui.status'))
+                    ->multiple()
                     ->options(collect(TaskStatusEnum::cases())
                         ->mapWithKeys(fn ($c) => [$c->value => $c->getLabel()])
                         ->toArray()),
 
                 Tables\Filters\SelectFilter::make('priority')
                     ->label(__('ui.priority'))
+                    ->multiple()
                     ->options(collect(TaskPriorityEnum::cases())
                         ->mapWithKeys(fn ($c) => [$c->value => $c->getLabel()])
                         ->toArray()),
 
-                Tables\Filters\Filter::make('sla_breached')
-                    ->label(__('ui.sla_breached'))
-                    ->query(fn (Builder $q) => $q->where('sla_breached', true)),
+                Tables\Filters\SelectFilter::make('employee_id')
+                    ->label(__('ui.assigned_employee'))
+                    ->relationship('employee', 'name')
+                    ->searchable()
+                    ->preload(),
+
+                Tables\Filters\Filter::make('created_at')
+                    ->form([
+                        \Filament\Forms\Components\DatePicker::make('from')->label(__('ui.date_from')),
+                        \Filament\Forms\Components\DatePicker::make('to')->label(__('ui.date_to')),
+                    ])
+                    ->query(fn (Builder $q, array $data) => $q
+                        ->when($data['from'] ?? null, fn ($q, $v) => $q->whereDate('created_at', '>=', $v))
+                        ->when($data['to'] ?? null, fn ($q, $v) => $q->whereDate('created_at', '<=', $v))
+                    ),
+
+                Tables\Filters\SelectFilter::make('sla_status')
+                    ->label(__('ui.sla_indicator'))
+                    ->options([
+                        'on_time'  => __('ui.on_time'),
+                        'warning'  => __('ui.warning_threshold'),
+                        'breached' => __('ui.sla_breached'),
+                        'no_sla'   => 'SLA yok',
+                    ])
+                    ->query(function (Builder $q, array $data) {
+                        return match ($data['value'] ?? null) {
+                            'breached' => $q->where('sla_breached', true),
+                            'no_sla'   => $q->whereNull('sla_deadline'),
+                            'warning'  => $q->whereNotNull('sla_deadline')
+                                ->where('sla_breached', false)
+                                ->whereRaw('TIMESTAMPDIFF(SECOND, created_at, NOW()) / GREATEST(TIMESTAMPDIFF(SECOND, created_at, sla_deadline), 1) >= 0.5'),
+                            'on_time'  => $q->whereNotNull('sla_deadline')
+                                ->where('sla_breached', false)
+                                ->whereRaw('TIMESTAMPDIFF(SECOND, created_at, NOW()) / GREATEST(TIMESTAMPDIFF(SECOND, created_at, sla_deadline), 1) < 0.5'),
+                            default    => $q,
+                        };
+                    }),
             ])
             ->actions([
                 Tables\Actions\ViewAction::make(),
@@ -331,6 +410,70 @@ class TicketResource extends Resource
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
+                    // Bulk assign — supervisor/admin only
+                    Tables\Actions\BulkAction::make('bulk_assign')
+                        ->label('Toplu Ata')
+                        ->icon('heroicon-o-user-plus')
+                        ->color('warning')
+                        ->visible(fn () => auth()->user()?->can('ticket.assign'))
+                        ->form([
+                            \Filament\Forms\Components\Select::make('employee_id')
+                                ->label(__('ui.assigned_employee'))
+                                ->relationship('employee', 'name')
+                                ->searchable()
+                                ->required(),
+                        ])
+                        ->action(function (\Illuminate\Database\Eloquent\Collection $records, array $data) {
+                            $service = app(\App\Services\TicketService::class);
+                            foreach ($records as $ticket) {
+                                $ticket->update(['employee_id' => $data['employee_id']]);
+                                if ($ticket->status === TaskStatusEnum::OPEN) {
+                                    try {
+                                        $service->transition($ticket, TaskStatusEnum::ASSIGNED, auth()->user(), 'Bulk assign');
+                                    } catch (\Throwable $e) {
+                                        // skip invalid transitions silently
+                                    }
+                                }
+                            }
+                            \Filament\Notifications\Notification::make()
+                                ->title($records->count() . ' bilet atandı')
+                                ->success()->send();
+                        }),
+
+                    // Bulk status change — supervisor/admin only
+                    Tables\Actions\BulkAction::make('bulk_status')
+                        ->label('Toplu Durum Değiştir')
+                        ->icon('heroicon-o-arrow-path')
+                        ->color('primary')
+                        ->visible(fn () => auth()->user()?->can('ticket.assign'))
+                        ->form([
+                            \Filament\Forms\Components\Select::make('status')
+                                ->label(__('ui.to_status'))
+                                ->options([
+                                    TaskStatusEnum::IN_PROGRESS->value => TaskStatusEnum::IN_PROGRESS->getLabel(),
+                                    TaskStatusEnum::ON_HOLD->value     => TaskStatusEnum::ON_HOLD->getLabel(),
+                                    TaskStatusEnum::CANCELLED->value   => TaskStatusEnum::CANCELLED->getLabel(),
+                                ])
+                                ->required(),
+                            \Filament\Forms\Components\Textarea::make('note')->label(__('ui.note'))->rows(2),
+                        ])
+                        ->action(function (\Illuminate\Database\Eloquent\Collection $records, array $data) {
+                            $service = app(\App\Services\TicketService::class);
+                            $to = TaskStatusEnum::from((int) $data['status']);
+                            $ok = 0; $skip = 0;
+                            foreach ($records as $ticket) {
+                                try {
+                                    $service->transition($ticket, $to, auth()->user(), $data['note'] ?? null);
+                                    $ok++;
+                                } catch (\Throwable $e) {
+                                    $skip++;
+                                }
+                            }
+                            \Filament\Notifications\Notification::make()
+                                ->title("Güncellendi: {$ok}, atlandı: {$skip}")
+                                ->success()->send();
+                        }),
+
                     Tables\Actions\DeleteBulkAction::make(),
                 ]),
             ])

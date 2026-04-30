@@ -2,40 +2,80 @@
 
 namespace App\Services;
 
+use App\Enums\TaskStatusEnum;
 use App\Models\SlaPolicy;
 use App\Models\Ticket;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Log;
 
 class SlaService
 {
     /**
-     * Resolve the most specific SLA policy for a ticket.
-     * Lookup order: (area + subArea + unit + priority) → (area + unit + priority).
-     * The sub_area column is currently NOT NULL in the schema, so the fallback
-     * matches any policy at area+unit+priority regardless of sub_area.
+     * Resolve the most specific SLA policy. 3-level fallback:
+     *   1) area + unit + priority (exact match, optionally with sub_area)
+     *   2) area + priority         (any unit/sub_area in that area)
+     *   3) priority only           (global fallback for that priority)
+     * Each match level is logged for diagnostics.
      */
-    public function resolvePolicy(int $areaId, ?int $subAreaId, int $unitId, int|string $priority): ?SlaPolicy
+    public function resolvePolicy(int $areaId, ?int $subAreaId, ?int $unitId, int|string $priority): ?SlaPolicy
     {
-        if ($subAreaId) {
-            $policy = SlaPolicy::where('area_id', $areaId)
-                ->where('sub_area_id', $subAreaId)
+        // Level 1: most specific
+        if ($unitId) {
+            $q = SlaPolicy::where('area_id', $areaId)
                 ->where('unit_id', $unitId)
-                ->where('priority', $priority)
-                ->first();
+                ->where('priority', $priority);
 
-            if ($policy) {
-                return $policy;
+            if ($subAreaId) {
+                $exact = (clone $q)->where('sub_area_id', $subAreaId)->first();
+                if ($exact) {
+                    Log::debug('SLA matched L1 (area+sub_area+unit+priority)', [
+                        'policy_id' => $exact->id, 'area_id' => $areaId,
+                    ]);
+                    return $exact;
+                }
+            }
+
+            $any = $q->first();
+            if ($any) {
+                Log::debug('SLA matched L1 (area+unit+priority)', [
+                    'policy_id' => $any->id, 'area_id' => $areaId,
+                ]);
+                return $any;
             }
         }
 
-        return SlaPolicy::where('area_id', $areaId)
-            ->where('unit_id', $unitId)
+        // Level 2: area + priority (any unit)
+        $byArea = SlaPolicy::where('area_id', $areaId)
             ->where('priority', $priority)
             ->first();
+
+        if ($byArea) {
+            Log::debug('SLA matched L2 (area+priority)', [
+                'policy_id' => $byArea->id, 'area_id' => $areaId,
+            ]);
+            return $byArea;
+        }
+
+        // Level 3: priority only
+        $byPriority = SlaPolicy::where('priority', $priority)->first();
+
+        if ($byPriority) {
+            Log::debug('SLA matched L3 (priority only)', [
+                'policy_id' => $byPriority->id, 'priority' => $priority,
+            ]);
+            return $byPriority;
+        }
+
+        Log::debug('SLA no match', [
+            'area_id' => $areaId, 'unit_id' => $unitId, 'priority' => $priority,
+        ]);
+
+        return null;
     }
 
     /**
-     * Calculate the SLA deadline from a given start time.
+     * Initial deadline = $from + policy.deadline_minutes.
+     * The on-hold extension is applied separately via extendDeadlineForOnHold().
      */
     public function calculateDeadline(SlaPolicy $policy, Carbon $from): Carbon
     {
@@ -43,8 +83,27 @@ class SlaService
     }
 
     /**
-     * Check whether a ticket has breached its SLA.
-     * Returns true if sla_deadline is set, is in the past, and ticket is not closed.
+     * Extend a ticket's sla_deadline by the duration it just spent on hold.
+     * Returns the number of minutes added.
+     */
+    public function extendDeadlineForOnHold(Ticket $ticket): int
+    {
+        if (!$ticket->on_hold_since || !$ticket->sla_deadline) {
+            return 0;
+        }
+
+        $minutes = $ticket->on_hold_since->diffInMinutes(now());
+
+        $ticket->sla_deadline           = $ticket->sla_deadline->copy()->addMinutes($minutes);
+        $ticket->total_on_hold_minutes  = ((int) $ticket->total_on_hold_minutes) + $minutes;
+        $ticket->on_hold_since          = null;
+
+        return (int) $minutes;
+    }
+
+    /**
+     * Check if a ticket has breached SLA. Cancelled tickets never breach.
+     * Tickets currently on_hold are paused — not counted as breached.
      */
     public function checkBreach(Ticket $ticket): bool
     {
@@ -52,7 +111,12 @@ class SlaService
             return false;
         }
 
-        if ($ticket->status?->isClosed()) {
+        $status = $ticket->status;
+        if ($status?->isClosed() || $status === TaskStatusEnum::CANCELLED) {
+            return false;
+        }
+
+        if ($status === TaskStatusEnum::ON_HOLD) {
             return false;
         }
 
@@ -60,22 +124,53 @@ class SlaService
     }
 
     /**
-     * Calculate percentage of SLA time elapsed (0–100).
-     * Returns null if no SLA deadline is set.
+     * Minutes left until deadline. Negative when breached.
+     * Null when no SLA policy applies. Pauses while on_hold.
      */
-    public function percentElapsed(Ticket $ticket): ?float
+    public function getRemainingMinutes(Ticket $ticket): ?int
+    {
+        if (!$ticket->sla_deadline) {
+            return null;
+        }
+
+        $reference = $ticket->status === TaskStatusEnum::ON_HOLD && $ticket->on_hold_since
+            ? $ticket->on_hold_since
+            : now();
+
+        return (int) $reference->diffInMinutes($ticket->sla_deadline, false);
+    }
+
+    /**
+     * Elapsed time as a fraction of the SLA window.
+     * 0.0 = just created, 1.0 = exactly at deadline, >1.0 = breached.
+     * Null when no SLA policy applies.
+     */
+    public function getElapsedPercentage(Ticket $ticket): ?float
     {
         if (!$ticket->sla_deadline || !$ticket->created_at) {
             return null;
         }
 
-        $total     = $ticket->created_at->diffInSeconds($ticket->sla_deadline);
-        $elapsed   = $ticket->created_at->diffInSeconds(now());
-
-        if ($total <= 0) {
-            return 100;
+        $totalSeconds = $ticket->created_at->diffInSeconds($ticket->sla_deadline);
+        if ($totalSeconds <= 0) {
+            return 1.0;
         }
 
-        return min(100, max(0, ($elapsed / $total) * 100));
+        $reference = $ticket->status === TaskStatusEnum::ON_HOLD && $ticket->on_hold_since
+            ? $ticket->on_hold_since
+            : now();
+
+        $elapsedSeconds = $ticket->created_at->diffInSeconds($reference);
+
+        return max(0.0, $elapsedSeconds / $totalSeconds);
+    }
+
+    /**
+     * Backwards-compat alias. Deprecated — use getElapsedPercentage.
+     */
+    public function percentElapsed(Ticket $ticket): ?float
+    {
+        $pct = $this->getElapsedPercentage($ticket);
+        return $pct === null ? null : min(100.0, max(0.0, $pct * 100.0));
     }
 }

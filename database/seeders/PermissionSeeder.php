@@ -36,6 +36,7 @@ class PermissionSeeder extends Seeder
         'ticket.assign',
         'ticket.close',
         'ticket.delete',
+        'ticket.reopen',
         'sla.manage',
         'group.manage',
         'user.role.assign',
@@ -70,7 +71,7 @@ class PermissionSeeder extends Seeder
     ];
 
     private const ROLES = [
-        'super_admin', 'admin', 'supervisor', 'technician', 'viewer', 'default',
+        'super_admin', 'admin', 'supervisor', 'manager', 'technician', 'viewer', 'default',
     ];
 
     /**
@@ -84,6 +85,7 @@ class PermissionSeeder extends Seeder
             'ticket.assign',
             'ticket.close',
             'ticket.delete',
+            'ticket.reopen',
             'sla.manage',
             'group.manage',
             'user.role.assign',
@@ -117,6 +119,7 @@ class PermissionSeeder extends Seeder
             'ticket.view.group',
             'ticket.assign',
             'ticket.close',
+            'ticket.reopen',
             'report.view',
             'can_close_task',
             'can_assign_task',
@@ -143,6 +146,18 @@ class PermissionSeeder extends Seeder
         ],
     ];
 
+    /**
+     * Roles configured outside this seeder (e.g. via Shield UI) where we only
+     * want to ATTACH custom permissions, not overwrite the role's existing set.
+     * Using givePermissionTo() — additive only.
+     */
+    private const ADDITIVE_ROLE_PERMISSIONS = [
+        'manager' => [
+            // BM and other managers were missing row-level ticket visibility.
+            'ticket.view.own',
+        ],
+    ];
+
     public function run(): void
     {
         // 1. Custom permissions (idempotent)
@@ -162,9 +177,23 @@ class PermissionSeeder extends Seeder
         Role::where('name', 'super_admin')->first()
             ->syncPermissions(Permission::pluck('name')->all());
 
-        // 4. Other roles → scoped permissions
+        // 4. Roles owned by this seeder → sync (replace) permissions
         foreach (self::ROLE_PERMISSIONS as $roleName => $permissions) {
             Role::where('name', $roleName)->first()->syncPermissions($permissions);
+        }
+
+        // 5. Roles managed elsewhere → only ATTACH the listed custom permissions,
+        //    leaving everything else (e.g. Shield-UI-assigned perms) intact.
+        foreach (self::ADDITIVE_ROLE_PERMISSIONS as $roleName => $permissions) {
+            $role = Role::where('name', $roleName)->first();
+            if (!$role) {
+                continue;
+            }
+            foreach ($permissions as $perm) {
+                if (!$role->hasPermissionTo($perm)) {
+                    $role->givePermissionTo($perm);
+                }
+            }
         }
     }
 }

@@ -41,9 +41,16 @@ class TicketClosedNotification extends Notification implements ShouldQueue
     {
         $breached = (bool) $this->ticket->sla_breached;
 
+        $resolutionMins = $this->ticket->assigned_at && $this->ticket->closed_at
+            ? (int) $this->ticket->assigned_at->diffInMinutes($this->ticket->closed_at)
+            : null;
+
+        $body = ($breached ? __('ui.sla_breached') : __('ui.on_time'))
+            . ($resolutionMins !== null ? ' • Çözüm: ' . $resolutionMins . ' dk' : '');
+
         return FilamentNotification::make()
             ->title($this->ticket->ticket_no . ' — ' . __('ui.closed'))
-            ->body($breached ? __('ui.sla_breached') : __('ui.on_time'))
+            ->body($body)
             ->icon($breached ? 'heroicon-o-exclamation-triangle' : 'heroicon-o-check-circle')
             ->iconColor($breached ? 'danger' : 'success')
             ->actions([

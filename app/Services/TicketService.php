@@ -3,81 +3,239 @@
 namespace App\Services;
 
 use App\Enums\TaskStatusEnum;
+use App\Events\TicketStatusChanged;
+use App\Exceptions\TicketTransitionException;
 use App\Models\Ticket;
 use App\Models\TicketStatusHistory;
 use App\Models\User;
-use Illuminate\Validation\ValidationException;
+use App\Notifications\TicketAssignedNotification;
+use App\Notifications\TicketCancelledNotification;
+use App\Notifications\TicketClosedNotification;
+use App\Notifications\TicketCommentNotification;
+use App\Notifications\TicketReopenedNotification;
+use Illuminate\Support\Facades\DB;
 
 class TicketService
 {
-    private const ALLOWED_TRANSITIONS = [
-        TaskStatusEnum::OPEN->value        => [TaskStatusEnum::ASSIGNED->value, TaskStatusEnum::CANCELLED->value],
-        TaskStatusEnum::ASSIGNED->value    => [TaskStatusEnum::IN_PROGRESS->value, TaskStatusEnum::ON_HOLD->value, TaskStatusEnum::CANCELLED->value],
-        TaskStatusEnum::IN_PROGRESS->value => [TaskStatusEnum::RESOLVED->value, TaskStatusEnum::ON_HOLD->value, TaskStatusEnum::CANCELLED->value],
-        TaskStatusEnum::ON_HOLD->value     => [TaskStatusEnum::IN_PROGRESS->value, TaskStatusEnum::CANCELLED->value],
-        TaskStatusEnum::RESOLVED->value    => [TaskStatusEnum::CLOSED->value, TaskStatusEnum::IN_PROGRESS->value],
-        // Legacy statuses can transition to the new closed state
-        TaskStatusEnum::PENDING->value     => [TaskStatusEnum::COMPLETED->value, TaskStatusEnum::OPEN->value, TaskStatusEnum::CANCELLED->value],
-        TaskStatusEnum::COMPLETED->value   => [TaskStatusEnum::CLOSED->value],
+    /**
+     * Allowed transitions: from → [to, …].
+     * The legacy PENDING/COMPLETED/WINTER_MAINTENANCE statuses are mapped
+     * onto the new lifecycle (PENDING ≈ open, COMPLETED ≈ closed).
+     */
+    private const TRANSITIONS = [
+        // Reform lifecycle
+        TaskStatusEnum::OPEN->value        => [TaskStatusEnum::ASSIGNED, TaskStatusEnum::IN_PROGRESS, TaskStatusEnum::CANCELLED],
+        TaskStatusEnum::ASSIGNED->value    => [TaskStatusEnum::IN_PROGRESS, TaskStatusEnum::ON_HOLD, TaskStatusEnum::CANCELLED],
+        TaskStatusEnum::IN_PROGRESS->value => [TaskStatusEnum::RESOLVED, TaskStatusEnum::ON_HOLD, TaskStatusEnum::CANCELLED],
+        TaskStatusEnum::ON_HOLD->value     => [TaskStatusEnum::IN_PROGRESS, TaskStatusEnum::CANCELLED],
+        TaskStatusEnum::RESOLVED->value    => [TaskStatusEnum::CLOSED, TaskStatusEnum::IN_PROGRESS],
+        TaskStatusEnum::CLOSED->value      => [TaskStatusEnum::IN_PROGRESS], // reopen — permission gated separately
+        TaskStatusEnum::CANCELLED->value   => [], // terminal
+
+        // Legacy
+        TaskStatusEnum::PENDING->value     => [TaskStatusEnum::ASSIGNED, TaskStatusEnum::IN_PROGRESS, TaskStatusEnum::COMPLETED, TaskStatusEnum::CANCELLED],
+        TaskStatusEnum::COMPLETED->value   => [TaskStatusEnum::IN_PROGRESS],
     ];
 
-    /**
-     * Transition a ticket to a new status, logging the history.
-     */
-    public function transition(Ticket $ticket, TaskStatusEnum $newStatus, User $by, ?string $note = null): Ticket
-    {
-        $fromValue = $ticket->status?->value;
-        $toValue   = $newStatus->value;
+    public function __construct(private SlaService $slaService) {}
 
-        $allowed = self::ALLOWED_TRANSITIONS[$fromValue] ?? [];
-        if (!in_array($toValue, $allowed)) {
-            throw ValidationException::withMessages([
-                'status' => "Transition from {$ticket->status?->getLabel()} to {$newStatus->getLabel()} is not allowed.",
-            ]);
+    /**
+     * Transition a ticket to a new status. Validates against the matrix,
+     * sets lifecycle timestamps, pauses/resumes the SLA clock for on_hold,
+     * writes a ticket_status_histories row, and dispatches TicketStatusChanged.
+     *
+     * @throws TicketTransitionException when the transition is not allowed.
+     */
+    public function transition(
+        Ticket $ticket,
+        TaskStatusEnum $toStatus,
+        User $by,
+        ?string $note = null,
+    ): Ticket {
+        $from = $ticket->status;
+
+        if (!$this->isAllowed($from, $toStatus)) {
+            throw TicketTransitionException::invalid($from, $toStatus);
         }
 
-        $ticket->status = $newStatus;
+        return DB::transaction(function () use ($ticket, $from, $toStatus, $by, $note) {
+            // Resume SLA clock if leaving on_hold
+            if ($from === TaskStatusEnum::ON_HOLD && $toStatus !== TaskStatusEnum::ON_HOLD) {
+                $this->slaService->extendDeadlineForOnHold($ticket);
+            }
 
-        // Set lifecycle timestamps
-        match ($newStatus) {
-            TaskStatusEnum::ASSIGNED    => $ticket->assigned_at  = now(),
-            TaskStatusEnum::RESOLVED    => $ticket->resolved_at  = now(),
-            TaskStatusEnum::CLOSED,
-            TaskStatusEnum::COMPLETED   => $this->handleClose($ticket, $by),
-            default                     => null,
-        };
+            // Apply transition timestamps
+            match ($toStatus) {
+                TaskStatusEnum::ASSIGNED    => $ticket->assigned_at  = $ticket->assigned_at  ?? now(),
+                TaskStatusEnum::IN_PROGRESS => null, // no dedicated timestamp; reopens cleared on close
+                TaskStatusEnum::RESOLVED    => $ticket->resolved_at  = now(),
+                TaskStatusEnum::ON_HOLD     => $ticket->on_hold_since = now(),
+                TaskStatusEnum::CLOSED, TaskStatusEnum::COMPLETED => $this->markClosed($ticket, $by),
+                TaskStatusEnum::CANCELLED   => $this->markCancelled($ticket, $by),
+                default                     => null,
+            };
 
-        $ticket->save();
+            // Reopen path — clear closed_at so future closes record new timestamp
+            if (in_array($from, [TaskStatusEnum::CLOSED, TaskStatusEnum::COMPLETED, TaskStatusEnum::RESOLVED], true)
+                && $toStatus === TaskStatusEnum::IN_PROGRESS) {
+                $ticket->closed_at    = null;
+                $ticket->closed_by    = null;
+                $ticket->resolved_at  = null;
+                $ticket->sla_breached = $ticket->sla_deadline ? now()->isAfter($ticket->sla_deadline) : false;
+            }
 
-        TicketStatusHistory::create([
-            'ticket_id'  => $ticket->id,
-            'from_status' => $fromValue,
-            'to_status'   => $toValue,
-            'changed_by'  => $by->id,
-            'note'        => $note,
-        ]);
+            $ticket->status = $toStatus;
+            $ticket->save();
 
-        return $ticket->fresh();
+            TicketStatusHistory::create([
+                'ticket_id'   => $ticket->id,
+                'from_status' => $from?->value,
+                'to_status'   => $toStatus->value,
+                'changed_by'  => $by->id,
+                'note'        => $note,
+            ]);
+
+            $fresh = $ticket->fresh();
+
+            $this->dispatchTransitionNotifications($fresh, $from, $toStatus);
+
+            event(new TicketStatusChanged($fresh, $from, $toStatus, $by, $note));
+
+            return $fresh;
+        });
     }
 
     /**
-     * Add a comment/note without changing status.
+     * Fire the right notification(s) for a given status transition.
      */
-    public function addNote(Ticket $ticket, User $by, string $note): TicketStatusHistory
+    private function dispatchTransitionNotifications(Ticket $ticket, ?TaskStatusEnum $from, TaskStatusEnum $to): void
     {
-        return TicketStatusHistory::create([
+        // → ASSIGNED: notify the technician
+        if ($to === TaskStatusEnum::ASSIGNED && $ticket->employee_id) {
+            $assignee = $this->userForEmployee($ticket->employee_id);
+            $assignee?->notify(new TicketAssignedNotification($ticket));
+        }
+
+        // → CLOSED / COMPLETED: notify the creator
+        if (in_array($to, [TaskStatusEnum::CLOSED, TaskStatusEnum::COMPLETED], true)) {
+            $creator = User::find($ticket->created_by);
+            $creator?->notify(new TicketClosedNotification($ticket));
+        }
+
+        // → CANCELLED: notify the creator
+        if ($to === TaskStatusEnum::CANCELLED) {
+            $creator = User::find($ticket->created_by);
+            $creator?->notify(new TicketCancelledNotification($ticket));
+        }
+
+        // Reopen path: was closed/resolved/completed → in_progress
+        if ($to === TaskStatusEnum::IN_PROGRESS
+            && in_array($from, [TaskStatusEnum::CLOSED, TaskStatusEnum::COMPLETED, TaskStatusEnum::RESOLVED], true)) {
+            // Notify previous assignee + supervisor of the area
+            $recipients = collect();
+            if ($ticket->employee_id) {
+                $assignee = $this->userForEmployee($ticket->employee_id);
+                if ($assignee) {
+                    $recipients->push($assignee);
+                }
+            }
+
+            if ($ticket->area_id) {
+                $supervisors = User::whereHas('employee.managedGroups', fn ($q) =>
+                    $q->where('area_id', $ticket->area_id)
+                )->get();
+                $recipients = $recipients->merge($supervisors);
+            }
+
+            foreach ($recipients->unique('id') as $user) {
+                $user->notify(new TicketReopenedNotification($ticket));
+            }
+        }
+    }
+
+    private function userForEmployee(int $employeeId): ?User
+    {
+        return User::whereHas('employee', fn ($q) => $q->where('id', $employeeId))->first();
+    }
+
+    /**
+     * Add a comment without changing status.
+     * Stored in ticket_status_histories with from_status = to_status = current.
+     */
+    public function addComment(Ticket $ticket, User $by, string $note): TicketStatusHistory
+    {
+        $current = $ticket->status?->value;
+
+        $history = TicketStatusHistory::create([
             'ticket_id'   => $ticket->id,
-            'from_status' => $ticket->status?->value,
-            'to_status'   => null,
+            'from_status' => $current,
+            'to_status'   => $current,
             'changed_by'  => $by->id,
             'note'        => $note,
         ]);
+
+        // Notify the assigned employee, but never notify the commenter themselves.
+        if ($ticket->employee_id) {
+            $assignee = $this->userForEmployee($ticket->employee_id);
+            if ($assignee && $assignee->id !== $by->id) {
+                $assignee->notify(new TicketCommentNotification($ticket, $by, $note));
+            }
+        }
+
+        return $history;
     }
 
-    private function handleClose(Ticket $ticket, User $by): void
+    /**
+     * Whether a comment may be edited by the given user.
+     * Authors may edit their own comments within 10 minutes of posting.
+     */
+    public function canEditComment(TicketStatusHistory $entry, User $user): bool
+    {
+        if ($entry->changed_by !== $user->id) {
+            return false;
+        }
+
+        if ($entry->from_status?->value !== $entry->to_status?->value) {
+            return false; // it's a status change, not a pure comment
+        }
+
+        return $entry->created_at?->diffInMinutes(now()) < 10;
+    }
+
+    public function isAllowed(?TaskStatusEnum $from, TaskStatusEnum $to): bool
+    {
+        if ($from === null) {
+            return $to === TaskStatusEnum::OPEN || $to === TaskStatusEnum::ASSIGNED;
+        }
+
+        return in_array($to, self::TRANSITIONS[$from->value] ?? [], true);
+    }
+
+    /**
+     * Allowed next statuses from the current one (for action-button rendering).
+     *
+     * @return list<TaskStatusEnum>
+     */
+    public function allowedNextStatuses(?TaskStatusEnum $from): array
+    {
+        if ($from === null) {
+            return [];
+        }
+        return self::TRANSITIONS[$from->value] ?? [];
+    }
+
+    private function markClosed(Ticket $ticket, User $by): void
     {
         $ticket->closed_at    = now();
         $ticket->closed_by    = $by->id;
         $ticket->sla_breached = $ticket->sla_deadline && now()->isAfter($ticket->sla_deadline);
+    }
+
+    private function markCancelled(Ticket $ticket, User $by): void
+    {
+        $ticket->closed_at    = $ticket->closed_at ?? now();
+        $ticket->closed_by    = $ticket->closed_by ?? $by->id;
+        // Cancelled tickets are excluded from SLA — clear breach flag
+        $ticket->sla_breached = false;
     }
 }

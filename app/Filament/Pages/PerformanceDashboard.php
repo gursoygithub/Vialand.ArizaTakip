@@ -34,6 +34,7 @@ class PerformanceDashboard extends Page implements HasForms, HasTable
 
     public array $overview   = [];
     public Collection $teamStats;
+    public Collection $regionBreakdown;
 
     public static function getNavigationGroup(): ?string
     {
@@ -52,9 +53,10 @@ class PerformanceDashboard extends Page implements HasForms, HasTable
 
     public function mount(): void
     {
-        $this->teamStats = collect();
-        $this->dateFrom  = now()->startOfMonth()->toDateString();
-        $this->dateTo    = now()->endOfMonth()->toDateString();
+        $this->teamStats       = collect();
+        $this->regionBreakdown = collect();
+        $this->dateFrom        = now()->startOfMonth()->toDateString();
+        $this->dateTo          = now()->endOfMonth()->toDateString();
         $this->loadStats();
     }
 
@@ -68,7 +70,8 @@ class PerformanceDashboard extends Page implements HasForms, HasTable
         $from    = Carbon::parse($this->dateFrom)->startOfDay();
         $to      = Carbon::parse($this->dateTo)->endOfDay();
 
-        $this->overview = $service->getOverview($from, $to);
+        $this->overview        = $service->getOverview($from, $to);
+        $this->regionBreakdown = $service->getRegionBreakdown($from, $to);
 
         if ($this->areaId && auth()->user()?->can('ticket.view.all')) {
             $this->teamStats = $service->getTeamStats($this->areaId, $from, $to);

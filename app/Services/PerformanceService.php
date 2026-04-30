@@ -12,11 +12,15 @@ use Illuminate\Support\Collection;
 class PerformanceService
 {
     /**
-     * Get SLA performance stats for a single user within a date range.
+     * Per-user SLA & resolution statistics.
      *
-     * Visibility: results are scoped by the *viewer's* permissions
-     * (Ticket::scopeVisibleBy). A supervisor querying stats for a technician
-     * outside their region will get zeroes — they can't see those tickets.
+     * Returns 8 metrics:
+     *   total_assigned, closed_on_time, closed_breached, currently_open,
+     *   currently_on_hold, avg_resolution_minutes, sla_compliance_rate,
+     *   avg_response_time_minutes
+     *
+     * Visibility: scoped by the *viewer's* permissions (Ticket::scopeVisibleBy).
+     * A supervisor querying stats for a tech outside their region gets zeroes.
      */
     public function getStats(User $user, Carbon $from, Carbon $to, ?User $viewer = null): array
     {
@@ -34,33 +38,11 @@ class PerformanceService
             ->whereBetween('created_at', [$from, $to])
             ->get();
 
-        $total  = $tickets->count();
-        $closed = $tickets->filter(fn ($t) => $t->closed_at !== null);
-        $onTime = $closed->filter(fn ($t) =>
-            $t->sla_deadline && $t->closed_at->lte($t->sla_deadline)
-        )->count();
-
-        $breachCount    = $tickets->where('sla_breached', true)->count();
-        $complianceRate = $closed->count() > 0 ? round(($onTime / $closed->count()) * 100, 1) : 0;
-
-        $avgResolutionMinutes = $closed->filter(fn ($t) => $t->assigned_at)
-            ->map(fn ($t) => $t->assigned_at->diffInMinutes($t->closed_at))
-            ->avg() ?? 0;
-
-        return [
-            'user'                   => $user,
-            'total'                  => $total,
-            'closed'                 => $closed->count(),
-            'on_time'                => $onTime,
-            'breach_count'           => $breachCount,
-            'compliance_rate'        => $complianceRate,
-            'avg_resolution_minutes' => round($avgResolutionMinutes, 0),
-        ];
+        return $this->aggregate($user, $tickets);
     }
 
     /**
-     * Get per-person performance for all employees in an area.
-     * Each person's stats are filtered by the viewer's visibility scope.
+     * Per-person stats for everyone in an area.
      */
     public function getTeamStats(int $areaId, Carbon $from, Carbon $to, ?User $viewer = null): Collection
     {
@@ -74,19 +56,13 @@ class PerformanceService
             ->unique('id');
 
         return $employees->map(function (Employee $employee) use ($from, $to, $viewer) {
-            $user = $employee->user;
-
-            if (!$user) {
-                return null;
-            }
-
-            return $this->getStats($user, $from, $to, $viewer);
+            $u = $employee->user;
+            return $u ? $this->getStats($u, $from, $to, $viewer) : null;
         })->filter()->values();
     }
 
     /**
-     * Get summary stats across all visible tickets for the dashboard overview.
-     * The viewer's visibility scope decides which tickets are aggregated.
+     * Dashboard overview totals — same metrics aggregated across visible tickets.
      */
     public function getOverview(Carbon $from, Carbon $to, ?User $viewer = null): array
     {
@@ -97,49 +73,112 @@ class PerformanceService
             ->whereBetween('created_at', [$from, $to])
             ->get();
 
-        $openStatuses = [
-            TaskStatusEnum::OPEN->value,
-            TaskStatusEnum::ASSIGNED->value,
-            TaskStatusEnum::IN_PROGRESS->value,
-            TaskStatusEnum::ON_HOLD->value,
-            TaskStatusEnum::PENDING->value,
-        ];
+        return $this->aggregate(null, $tickets);
+    }
 
-        $open    = $tickets->whereIn('status', array_map(fn ($s) => TaskStatusEnum::from($s), $openStatuses))->count();
-        $breached = $tickets->where('sla_breached', true)->count();
-        $closed   = $tickets->filter(fn ($t) => $t->closed_at !== null);
+    /**
+     * Region/unit breakdown — counts grouped by area.
+     */
+    public function getRegionBreakdown(Carbon $from, Carbon $to, ?User $viewer = null): Collection
+    {
+        $viewer ??= auth()->user();
+
+        return Ticket::query()
+            ->visibleBy($viewer)
+            ->whereBetween('created_at', [$from, $to])
+            ->with('area:id,name')
+            ->get()
+            ->groupBy('area_id')
+            ->map(function ($group) {
+                $first   = $group->first();
+                $closed  = $group->filter(fn ($t) => $t->closed_at !== null);
+                $onTime  = $closed->filter(fn ($t) => $t->sla_deadline && $t->closed_at?->lte($t->sla_deadline))->count();
+
+                return [
+                    'area_name'  => $first->area?->name ?? '—',
+                    'total'      => $group->count(),
+                    'closed'     => $closed->count(),
+                    'on_time'    => $onTime,
+                    'breached'   => $group->where('sla_breached', true)->count(),
+                    'compliance' => $closed->count() > 0 ? round(($onTime / $closed->count()) * 100, 1) : 0,
+                ];
+            })
+            ->values();
+    }
+
+    /**
+     * Aggregate a Ticket collection into the 8 metrics. Excludes cancelled.
+     */
+    private function aggregate(?User $user, $tickets): array
+    {
+        $tickets = collect($tickets)->reject(fn ($t) => $t->status === TaskStatusEnum::CANCELLED);
+
+        $closed       = $tickets->filter(fn ($t) => $t->closed_at !== null);
+        $onTime       = $closed->filter(fn ($t) =>
+            $t->sla_deadline && $t->closed_at?->lte($t->sla_deadline)
+        );
+        $breached     = $tickets->where('sla_breached', true);
+        $currentlyOpen = $tickets->whereIn('status', [
+            TaskStatusEnum::OPEN, TaskStatusEnum::ASSIGNED, TaskStatusEnum::IN_PROGRESS,
+        ])->count();
+        $onHold       = $tickets->where('status', TaskStatusEnum::ON_HOLD)->count();
 
         $avgResolution = $closed->filter(fn ($t) => $t->assigned_at)
             ->map(fn ($t) => $t->assigned_at->diffInMinutes($t->closed_at))
             ->avg() ?? 0;
 
-        $onTime = $closed->filter(fn ($t) =>
-            $t->sla_deadline && $t->closed_at?->lte($t->sla_deadline)
-        )->count();
+        $avgResponse = $tickets->filter(fn ($t) => $t->assigned_at)
+            ->map(fn ($t) => $t->created_at->diffInMinutes($t->assigned_at))
+            ->avg() ?? 0;
 
         $compliance = $closed->count() > 0
-            ? round(($onTime / $closed->count()) * 100, 1)
+            ? round(($onTime->count() / $closed->count()) * 100, 1)
             : 0;
 
-        return [
-            'total'                  => $tickets->count(),
-            'open'                   => $open,
-            'breached'               => $breached,
-            'avg_resolution_minutes' => round($avgResolution, 0),
-            'compliance_rate'        => $compliance,
+        $base = [
+            'total_assigned'           => $tickets->count(),
+            'closed_on_time'           => $onTime->count(),
+            'closed_breached'          => $breached->count(),
+            'currently_open'           => $currentlyOpen,
+            'currently_on_hold'        => $onHold,
+            'avg_resolution_minutes'   => (int) round($avgResolution),
+            'sla_compliance_rate'      => $compliance,
+            'avg_response_time_minutes' => (int) round($avgResponse),
+            // Backward compat keys used by older blades:
+            'total'                    => $tickets->count(),
+            'closed'                   => $closed->count(),
+            'on_time'                  => $onTime->count(),
+            'breach_count'             => $breached->count(),
+            'compliance_rate'          => $compliance,
+            'open'                     => $currentlyOpen,
+            'breached'                 => $breached->count(),
         ];
+
+        if ($user) {
+            $base['user'] = $user;
+        }
+
+        return $base;
     }
 
     private function emptyStats(User $user): array
     {
         return [
-            'user'                   => $user,
-            'total'                  => 0,
-            'closed'                 => 0,
-            'on_time'                => 0,
-            'breach_count'           => 0,
-            'compliance_rate'        => 0,
-            'avg_resolution_minutes' => 0,
+            'user'                      => $user,
+            'total_assigned'            => 0,
+            'closed_on_time'            => 0,
+            'closed_breached'           => 0,
+            'currently_open'            => 0,
+            'currently_on_hold'         => 0,
+            'avg_resolution_minutes'    => 0,
+            'sla_compliance_rate'       => 0,
+            'avg_response_time_minutes' => 0,
+            // Backward compat
+            'total'                     => 0,
+            'closed'                    => 0,
+            'on_time'                   => 0,
+            'breach_count'              => 0,
+            'compliance_rate'           => 0,
         ];
     }
 }
