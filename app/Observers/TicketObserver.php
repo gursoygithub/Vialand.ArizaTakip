@@ -45,6 +45,23 @@ class TicketObserver
             'changed_by'  => auth()->id(),
             'note'        => 'Ticket created',
         ]);
+
+        // If ticket was created already-assigned (form submitted with employee_id),
+        // there is no `updated` event to fire the assignment notification — do it here.
+        if ($ticket->employee_id) {
+            $this->notifyAssignedUser($ticket);
+        }
+    }
+
+    private function notifyAssignedUser(Ticket $ticket): void
+    {
+        $assignedUser = User::whereHas('employee', fn ($q) =>
+            $q->where('id', $ticket->employee_id)
+        )->first();
+
+        if ($assignedUser) {
+            $assignedUser->notify(new TicketAssignedNotification($ticket));
+        }
     }
 
     public function updating(Ticket $ticket): void
@@ -90,13 +107,7 @@ class TicketObserver
 
             // Notify assigned technician when ticket is assigned
             if ($newStatus === TaskStatusEnum::ASSIGNED && $ticket->employee_id) {
-                $assignedUser = User::whereHas('employee', fn ($q) =>
-                    $q->where('id', $ticket->employee_id)
-                )->first();
-
-                if ($assignedUser) {
-                    $assignedUser->notify(new TicketAssignedNotification($ticket));
-                }
+                $this->notifyAssignedUser($ticket);
             }
 
             // Notify ticket creator when ticket is closed
@@ -108,15 +119,12 @@ class TicketObserver
             }
         }
 
-        // Notify if employee changed (re-assignment)
-        if ($ticket->wasChanged('employee_id') && $ticket->employee_id) {
-            $assignedUser = User::whereHas('employee', fn ($q) =>
-                $q->where('id', $ticket->employee_id)
-            )->first();
-
-            if ($assignedUser) {
-                $assignedUser->notify(new TicketAssignedNotification($ticket));
-            }
+        // Notify if employee changed (re-assignment) — but skip if status also went
+        // to ASSIGNED in the same update, the branch above already handled it.
+        if ($ticket->wasChanged('employee_id')
+            && $ticket->employee_id
+            && $ticket->status !== TaskStatusEnum::ASSIGNED) {
+            $this->notifyAssignedUser($ticket);
         }
     }
 }
