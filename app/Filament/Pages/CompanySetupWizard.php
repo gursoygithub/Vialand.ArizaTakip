@@ -108,6 +108,12 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
         return $form
             ->statePath('data')
             ->schema([
+                // Wizard renders its own header tabs and prev/İleri buttons,
+                // but the Tamamla submit lives in the page footer (see
+                // getFooterActions). Passing an Action object to
+                // ->submitAction() doesn't wire requiresConfirmation()
+                // correctly — modal infra needs to be registered as a page
+                // action, not a form-component action.
                 Wizard::make([
                     $this->stepCompany(),
                     $this->stepAreas(),
@@ -117,19 +123,23 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
                     $this->stepSummary(),
                 ])
                     ->persistStepInQueryString()
-                    ->submitAction($this->getSubmitFormAction()),
+                    ->submitAction(null),
             ]);
     }
 
     /**
-     * Wizard's "Tamamla" button. Wraps the completion in a confirmation
-     * modal that surfaces the per-company configuration summary — and a
-     * warning if SLA combinations are missing — before redirecting away.
+     * "Tamamla" page action — registered by HasActions because the method
+     * name ends with "Action". Mountable from the blade via
+     * wire:click="mountAction('submit')". Confirmation modal mounts through
+     * Filament's standard page-action lifecycle, where requiresConfirmation()
+     * actually triggers a modal (it's silently dropped if the action object
+     * is passed to Wizard::submitAction()).
      */
-    protected function getSubmitFormAction(): Action
+    public function submitAction(): Action
     {
         return Action::make('submit')
             ->label('Tamamla')
+            ->icon('heroicon-o-check-circle')
             ->color('primary')
             ->requiresConfirmation()
             ->modalHeading('Kurulumu tamamlamak istediğinizden emin misiniz?')
