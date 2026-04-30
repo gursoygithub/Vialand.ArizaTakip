@@ -15,7 +15,7 @@ class TaskReopened extends Notification
      * Create a new notification instance.
      */
     public function __construct(
-        public \App\Models\Task $task,
+        public \App\Models\Ticket $task,
     )
     {
         //
