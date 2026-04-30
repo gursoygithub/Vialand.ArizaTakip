@@ -548,11 +548,38 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
                                         ->pluck('name', 'id'))
                                     ->required()
                                     ->searchable()
+                                    ->live()
+                                    // Clear the unit when the area changes so a stale
+                                    // selection from the prior area doesn't smuggle
+                                    // through the SLA-coverage filter below.
+                                    ->afterStateUpdated(fn (Forms\Set $set) => $set('unit_id', null))
                                     ->validationMessages(['required' => 'Bölge alanı zorunludur.']),
 
                                 Select::make('unit_id')
                                     ->label('Birim')
-                                    ->options(fn () => Unit::orderBy('name')->pluck('name', 'id'))
+                                    ->options(function (Forms\Get $modalGet) {
+                                        $areaId = $modalGet('area_id');
+                                        if (!$areaId) {
+                                            return Unit::orderBy('name')->pluck('name', 'id');
+                                        }
+                                        $unitIds = SlaPolicy::where('area_id', (int) $areaId)
+                                            ->distinct()
+                                            ->pluck('unit_id');
+                                        return Unit::whereIn('id', $unitIds)
+                                            ->orderBy('name')
+                                            ->pluck('name', 'id');
+                                    })
+                                    ->helperText(function (Forms\Get $modalGet) {
+                                        $areaId = $modalGet('area_id');
+                                        $defaultHint = 'Sadece seçilen bölgede SLA politikası tanımlı birimler listelenir.';
+                                        if (!$areaId) {
+                                            return $defaultHint;
+                                        }
+                                        $hasAny = SlaPolicy::where('area_id', (int) $areaId)->exists();
+                                        return $hasAny
+                                            ? $defaultHint
+                                            : 'Bu bölge için henüz hiçbir birime SLA tanımlanmamış. Lütfen önce SLA Politikaları adımına dönün.';
+                                    })
                                     ->required()
                                     ->searchable()
                                     ->validationMessages(['required' => 'Birim alanı zorunludur.']),
