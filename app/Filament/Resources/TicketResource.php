@@ -84,170 +84,199 @@ class TicketResource extends Resource
     {
         return $form
             ->schema([
-                \Filament\Forms\Components\Card::make()
+                \Filament\Forms\Components\Section::make('Talep Bilgileri')
+                    ->icon('heroicon-o-clipboard-document-list')
+                    ->columns(2)
                     ->schema([
-                        Fieldset::make(__('ui.ticket_information'))
-                            ->columns(3)
-                            ->schema([
-                                Fieldset::make(__('ui.priority_level_and_status'))
-                                    ->columns(2)
-                                    ->schema([
-                                        ToggleButtons::make('priority')
-                                            ->hiddenLabel()
-                                            ->options(collect(TaskPriorityEnum::cases())
-                                                ->mapWithKeys(fn ($c) => [$c->value => $c->getLabel()])
-                                                ->toArray())
-                                            ->icons(collect(TaskPriorityEnum::cases())
-                                                ->mapWithKeys(fn ($c) => [$c->value => $c->getIcon()])
-                                                ->toArray())
-                                            ->colors(collect(TaskPriorityEnum::cases())
-                                                ->mapWithKeys(fn ($c) => [$c->value => $c->getColor()])
-                                                ->toArray())
-                                            ->inline()
-                                            ->default(TaskPriorityEnum::Medium->value)
-                                            ->required()
-                                            ->live()
-                                            ->validationMessages(['required' => __('ui.required')])
-                                            ->helperText(function (callable $get) {
-                                                $areaId   = $get('area_id');
-                                                $unitId   = $get('unit_id');
-                                                $priority = $get('priority');
-                                                if (!$areaId || !$priority) {
-                                                    return null;
-                                                }
-                                                $policy = app(\App\Services\SlaService::class)->resolvePolicy(
-                                                    (int) $areaId,
-                                                    $get('sub_area_id') ? (int) $get('sub_area_id') : null,
-                                                    $unitId ? (int) $unitId : null,
-                                                    $priority
-                                                );
-                                                return $policy
-                                                    ? 'SLA: ' . $policy->deadline_minutes . ' dakika çözüm süresi'
-                                                    : 'Bu bölge/öncelik için tanımlı SLA yok.';
-                                            }),
+                        ToggleButtons::make('priority')
+                            ->label(__('ui.priority'))
+                            ->options(collect(TaskPriorityEnum::cases())
+                                ->mapWithKeys(fn ($case) => [$case->value => $case->getLabel()])
+                                ->toArray())
+                            ->icons(collect(TaskPriorityEnum::cases())
+                                ->mapWithKeys(fn ($case) => [$case->value => $case->getIcon()])
+                                ->toArray())
+                            ->colors(collect(TaskPriorityEnum::cases())
+                                ->mapWithKeys(fn ($case) => [$case->value => $case->getColor()])
+                                ->toArray())
+                            ->inline()
+                            ->default(TaskPriorityEnum::Medium->value)
+                            ->required()
+                            ->live()
+                            ->validationMessages(['required' => __('ui.required')])
+                            ->columnSpanFull(),
 
-                                        Forms\Components\ToggleButtons::make('status')
-                                            ->hiddenLabel(__('ui.status'))
-                                            ->options([
-                                                TaskStatusEnum::OPEN->value => TaskStatusEnum::OPEN->getLabel(),
-                                                TaskStatusEnum::ASSIGNED->value => TaskStatusEnum::ASSIGNED->getLabel(),
-                                                TaskStatusEnum::IN_PROGRESS->value => TaskStatusEnum::IN_PROGRESS->getLabel(),
-                                                TaskStatusEnum::ON_HOLD->value => TaskStatusEnum::ON_HOLD->getLabel(),
-                                                TaskStatusEnum::RESOLVED->value => TaskStatusEnum::RESOLVED->getLabel(),
-                                                TaskStatusEnum::CLOSED->value => TaskStatusEnum::CLOSED->getLabel(),
-                                                TaskStatusEnum::CANCELLED->value => TaskStatusEnum::CANCELLED->getLabel(),
-                                            ])
-                                            ->icons([
-                                                TaskStatusEnum::OPEN->value => TaskStatusEnum::OPEN->getIcon(),
-                                                TaskStatusEnum::ASSIGNED->value => TaskStatusEnum::ASSIGNED->getIcon(),
-                                                TaskStatusEnum::IN_PROGRESS->value => TaskStatusEnum::IN_PROGRESS->getIcon(),
-                                                TaskStatusEnum::ON_HOLD->value => TaskStatusEnum::ON_HOLD->getIcon(),
-                                                TaskStatusEnum::RESOLVED->value => TaskStatusEnum::RESOLVED->getIcon(),
-                                                TaskStatusEnum::CLOSED->value => TaskStatusEnum::CLOSED->getIcon(),
-                                                TaskStatusEnum::CANCELLED->value => TaskStatusEnum::CANCELLED->getIcon(),
-                                            ])
-                                            ->colors([
-                                                TaskStatusEnum::OPEN->value => TaskStatusEnum::OPEN->getColor(),
-                                                TaskStatusEnum::ASSIGNED->value => TaskStatusEnum::ASSIGNED->getColor(),
-                                                TaskStatusEnum::IN_PROGRESS->value => TaskStatusEnum::IN_PROGRESS->getColor(),
-                                                TaskStatusEnum::ON_HOLD->value => TaskStatusEnum::ON_HOLD->getColor(),
-                                                TaskStatusEnum::RESOLVED->value => TaskStatusEnum::RESOLVED->getColor(),
-                                                TaskStatusEnum::CLOSED->value => TaskStatusEnum::CLOSED->getColor(),
-                                                TaskStatusEnum::CANCELLED->value => TaskStatusEnum::CANCELLED->getColor(),
-                                            ])
-                                            ->default(TaskStatusEnum::OPEN->value)
-                                            ->inline(),
-                                    ]),
+                        Forms\Components\Select::make('type_id')
+                            ->label(__('ui.type'))
+                            ->placeholder('Arıza türünü seçiniz')
+                            ->options(collect(TaskTypeEnum::cases())
+                                ->mapWithKeys(fn ($case) => [$case->value => $case->getLabel()])
+                                ->toArray())
+                            ->required()
+                            ->validationMessages(['required' => __('ui.required')]),
 
-                                Fieldset::make(__('ui.fault_location_and_date_information'))
-                                    ->columns(2)
-                                    ->schema([
-                                        Forms\Components\Select::make('type_id')
-                                            ->label(__('ui.type'))
-                                            ->options(collect(TaskTypeEnum::cases())
-                                                ->mapWithKeys(fn ($c) => [$c->value => $c->getLabel()])
-                                                ->toArray())
-                                            ->required()
-                                            ->validationMessages(['required' => __('ui.required')]),
+                        Forms\Components\DatePicker::make('task_date')
+                            ->label(__('ui.task_date'))
+                            ->placeholder('Arıza tarihini seçiniz')
+                            ->default(now())
+                            ->required()
+                            ->validationMessages(['required' => __('ui.required')]),
 
-                                        Forms\Components\Select::make('area_id')
-                                            ->label(__('ui.area'))
-                                            ->prefixIcon('heroicon-o-map')
-                                            ->options(Area::with('company')
-                                                ->where('status', ActiveStatusEnum::ACTIVE)
-                                                ->get()
-                                                ->mapWithKeys(fn ($a) => [
-                                                    $a->id => $a->name . ($a->company?->name ? " ({$a->company->name})" : ''),
-                                                ])
-                                                ->toArray())
-                                            ->preload()
-                                            ->searchable()
-                                            ->required()
-                                            ->live()
-                                            ->afterStateUpdated(function (callable $set) {
-                                                $set('sub_area_id', null);
-                                                $set('group_id', null);
-                                                $set('employee_id', null);
-                                            })
-                                            ->validationMessages(['required' => __('ui.required')]),
+                        Forms\Components\ToggleButtons::make('status')
+                            ->label(__('ui.status'))
+                            ->options([
+                                TaskStatusEnum::OPEN->value => TaskStatusEnum::OPEN->getLabel(),
+                                TaskStatusEnum::ASSIGNED->value => TaskStatusEnum::ASSIGNED->getLabel(),
+                                TaskStatusEnum::IN_PROGRESS->value => TaskStatusEnum::IN_PROGRESS->getLabel(),
+                                TaskStatusEnum::ON_HOLD->value => TaskStatusEnum::ON_HOLD->getLabel(),
+                                TaskStatusEnum::RESOLVED->value => TaskStatusEnum::RESOLVED->getLabel(),
+                                TaskStatusEnum::CLOSED->value => TaskStatusEnum::CLOSED->getLabel(),
+                                TaskStatusEnum::CANCELLED->value => TaskStatusEnum::CANCELLED->getLabel(),
+                            ])
+                            ->icons([
+                                TaskStatusEnum::OPEN->value => TaskStatusEnum::OPEN->getIcon(),
+                                TaskStatusEnum::ASSIGNED->value => TaskStatusEnum::ASSIGNED->getIcon(),
+                                TaskStatusEnum::IN_PROGRESS->value => TaskStatusEnum::IN_PROGRESS->getIcon(),
+                                TaskStatusEnum::ON_HOLD->value => TaskStatusEnum::ON_HOLD->getIcon(),
+                                TaskStatusEnum::RESOLVED->value => TaskStatusEnum::RESOLVED->getIcon(),
+                                TaskStatusEnum::CLOSED->value => TaskStatusEnum::CLOSED->getIcon(),
+                                TaskStatusEnum::CANCELLED->value => TaskStatusEnum::CANCELLED->getIcon(),
+                            ])
+                            ->colors([
+                                TaskStatusEnum::OPEN->value => TaskStatusEnum::OPEN->getColor(),
+                                TaskStatusEnum::ASSIGNED->value => TaskStatusEnum::ASSIGNED->getColor(),
+                                TaskStatusEnum::IN_PROGRESS->value => TaskStatusEnum::IN_PROGRESS->getColor(),
+                                TaskStatusEnum::ON_HOLD->value => TaskStatusEnum::ON_HOLD->getColor(),
+                                TaskStatusEnum::RESOLVED->value => TaskStatusEnum::RESOLVED->getColor(),
+                                TaskStatusEnum::CLOSED->value => TaskStatusEnum::CLOSED->getColor(),
+                                TaskStatusEnum::CANCELLED->value => TaskStatusEnum::CANCELLED->getColor(),
+                            ])
+                            ->default(TaskStatusEnum::OPEN->value)
+                            ->inline()
+                            ->columnSpanFull(),
+                    ]),
 
-                                        Forms\Components\Select::make('sub_area_id')
-                                            ->label(__('ui.sub_area'))
-                                            ->prefixIcon('heroicon-o-map-pin')
-                                            ->options(fn (callable $get) => SubArea::where('area_id', $get('area_id'))->pluck('name', 'id'))
-                                            ->searchable()
-                                            ->live()
-                                            ->afterStateUpdated(fn (callable $set) => $set('employee_id', null)),
+                \Filament\Forms\Components\Section::make('Konum')
+                    ->icon('heroicon-o-map-pin')
+                    ->columns(2)
+                    ->schema([
+                        Forms\Components\Select::make('area_id')
+                            ->label(__('ui.area'))
+                            ->placeholder('Bölge seçiniz')
+                            ->prefixIcon('heroicon-o-map')
+                            ->options(Area::with('company')
+                                ->where('status', ActiveStatusEnum::ACTIVE)
+                                ->get()
+                                ->mapWithKeys(fn ($area) => [
+                                    $area->id => $area->name . ($area->company?->name ? " ({$area->company->name})" : ''),
+                                ])
+                                ->toArray())
+                            ->preload()
+                            ->searchable()
+                            ->required()
+                            ->live()
+                            ->afterStateUpdated(function (callable $set) {
+                                $set('sub_area_id', null);
+                                $set('group_id', null);
+                                $set('employee_id', null);
+                            })
+                            ->validationMessages(['required' => __('ui.required')]),
 
-                                        Forms\Components\Select::make('unit_id')
-                                            ->label(__('ui.unit'))
-                                            ->options(Unit::pluck('name', 'id'))
-                                            ->searchable()
-                                            ->required()
-                                            ->live()
-                                            ->validationMessages(['required' => __('ui.required')]),
+                        Forms\Components\Select::make('sub_area_id')
+                            ->label(__('ui.sub_area'))
+                            ->placeholder('Alt bölge seçiniz (opsiyonel)')
+                            ->prefixIcon('heroicon-o-map-pin')
+                            ->options(fn (callable $get) => SubArea::where('area_id', $get('area_id'))->pluck('name', 'id'))
+                            ->searchable()
+                            ->live()
+                            ->afterStateUpdated(fn (callable $set) => $set('employee_id', null)),
 
-                                        Forms\Components\DatePicker::make('task_date')
-                                            ->label(__('ui.task_date'))
-                                            ->required()
-                                            ->validationMessages(['required' => __('ui.required')]),
-                                    ]),
+                        Forms\Components\Select::make('unit_id')
+                            ->label(__('ui.unit'))
+                            ->placeholder('Teknik birim seçiniz')
+                            ->prefixIcon('heroicon-o-building-office')
+                            ->options(Unit::pluck('name', 'id'))
+                            ->searchable()
+                            ->required()
+                            ->live()
+                            ->validationMessages(['required' => __('ui.required')]),
 
-                                Fieldset::make(__('ui.related_person_assignment'))
-                                    ->columns(2)
-                                    ->schema([
-                                        Forms\Components\Select::make('group_id')
-                                            ->label(__('ui.group'))
-                                            ->options(fn (callable $get) =>
-                                                Group::where('area_id', $get('area_id'))
-                                                    ->where('status', ActiveStatusEnum::ACTIVE)
-                                                    ->pluck('name', 'id'))
-                                            ->searchable()
-                                            ->live()
-                                            ->afterStateUpdated(fn (callable $set) => $set('employee_id', null)),
+                        \Filament\Forms\Components\Placeholder::make('sla_preview')
+                            ->label('Tahmini SLA')
+                            ->content(function (callable $get) {
+                                $areaId   = $get('area_id');
+                                $unitId   = $get('unit_id');
+                                $priority = $get('priority');
+                                if (!$areaId || !$priority) {
+                                    return new \Illuminate\Support\HtmlString(
+                                        '<span style="color:#9ca3af;">Bölge ve öncelik seçildiğinde SLA süresi gösterilecektir.</span>'
+                                    );
+                                }
+                                $policy = app(\App\Services\SlaService::class)->resolvePolicy(
+                                    (int) $areaId,
+                                    $get('sub_area_id') ? (int) $get('sub_area_id') : null,
+                                    $unitId ? (int) $unitId : null,
+                                    $priority
+                                );
+                                if (!$policy) {
+                                    return new \Illuminate\Support\HtmlString(
+                                        '<span style="color:#dc2626;">Bu kombinasyon için tanımlı SLA yok.</span>'
+                                    );
+                                }
+                                $minutes = (int) $policy->deadline_minutes;
+                                $hours = intdiv($minutes, 60);
+                                $mins = $minutes % 60;
+                                $human = $hours > 0
+                                    ? "{$hours} saat" . ($mins > 0 ? " {$mins} dakika" : '')
+                                    : "{$mins} dakika";
+                                return new \Illuminate\Support\HtmlString(
+                                    '<span style="color:#16a34a;font-weight:600;">Bu kombinasyon için SLA: '
+                                    . $minutes . ' dakika çözüm süresi (' . $human . ')</span>'
+                                );
+                            }),
+                    ]),
 
-                                        Forms\Components\Select::make('employee_id')
-                                            ->label(__('ui.assigned_employee'))
-                                            ->options(fn (callable $get) =>
-                                                Employee::whereHas('groupMemberships', fn ($q) =>
-                                                    $q->where('group_id', $get('group_id'))
-                                                )->pluck('name', 'id'))
-                                            ->searchable(),
-                                    ]),
-                            ]),
+                \Filament\Forms\Components\Section::make('Atama')
+                    ->icon('heroicon-o-user-plus')
+                    ->columns(2)
+                    ->schema([
+                        Forms\Components\Select::make('group_id')
+                            ->label(__('ui.group'))
+                            ->placeholder('Sorumlu ekibi seçiniz')
+                            ->prefixIcon('heroicon-o-user-group')
+                            ->options(fn (callable $get) =>
+                                Group::where('area_id', $get('area_id'))
+                                    ->where('status', ActiveStatusEnum::ACTIVE)
+                                    ->pluck('name', 'id'))
+                            ->searchable()
+                            ->live()
+                            ->afterStateUpdated(fn (callable $set) => $set('employee_id', null)),
 
-                        Fieldset::make(__('ui.description_and_notes'))
-                            ->schema([
-                                Forms\Components\Textarea::make('description')
-                                    ->label(__('ui.description'))
-                                    ->rows(4)
-                                    ->columnSpanFull(),
+                        Forms\Components\Select::make('employee_id')
+                            ->label(__('ui.assigned_employee'))
+                            ->placeholder('Atanan kişiyi seçiniz')
+                            ->prefixIcon('heroicon-o-user')
+                            ->options(fn (callable $get) =>
+                                Employee::whereHas('groupMemberships', fn ($query) =>
+                                    $query->where('group_id', $get('group_id'))
+                                )->pluck('name', 'id'))
+                            ->searchable(),
+                    ]),
 
-                                Forms\Components\Textarea::make('resolution_notes')
-                                    ->label(__('ui.resolution_notes'))
-                                    ->rows(3)
-                                    ->columnSpanFull(),
-                            ]),
+                \Filament\Forms\Components\Section::make('Açıklama & Ekler')
+                    ->icon('heroicon-o-document-text')
+                    ->schema([
+                        Forms\Components\Textarea::make('description')
+                            ->label(__('ui.description'))
+                            ->placeholder('Arıza ile ilgili detayları buraya yazınız...')
+                            ->rows(4)
+                            ->columnSpanFull(),
+
+                        Forms\Components\Textarea::make('resolution_notes')
+                            ->label(__('ui.resolution_notes'))
+                            ->placeholder('Çözüm sırasında yapılan işlemleri buraya yazınız...')
+                            ->rows(3)
+                            ->columnSpanFull(),
 
                         \Filament\Forms\Components\SpatieMediaLibraryFileUpload::make('task_attachments')
                             ->label(__('ui.images'))
@@ -318,8 +347,10 @@ class TicketResource extends Resource
                 Tables\Columns\TextColumn::make('sla_deadline')
                     ->label(__('ui.sla_indicator'))
                     ->formatStateUsing(function (Ticket $record): string {
-                        // 1. on_hold — clock paused, never breached
-                        if ($record->status === TaskStatusEnum::ON_HOLD) {
+                        // 1. on_hold — clock paused, NEVER calculate or render countdown/breach.
+                        //    Compare by value so this works whether status is the cast enum or a raw int.
+                        $statusValue = is_object($record->status) ? $record->status->value : (int) $record->status;
+                        if ($statusValue === TaskStatusEnum::ON_HOLD->value) {
                             return '⏸ Duraklatıldı';
                         }
 
@@ -498,7 +529,19 @@ class TicketResource extends Resource
                     Tables\Actions\DeleteBulkAction::make(),
                 ]),
             ])
-            ->defaultSort('created_at', 'desc');
+            ->defaultSort('created_at', 'desc')
+            ->defaultPaginationPageOption(25)
+            ->paginationPageOptions([10, 25, 50, 100])
+            ->emptyStateHeading(__('ui.no_tickets_yet'))
+            ->emptyStateDescription(__('ui.no_tickets_yet_description'))
+            ->emptyStateIcon('heroicon-o-ticket')
+            ->emptyStateActions([
+                Tables\Actions\Action::make('create_ticket')
+                    ->label(__('ui.new_ticket'))
+                    ->url(fn () => static::getUrl('create'))
+                    ->icon('heroicon-o-plus')
+                    ->button(),
+            ]);
     }
 
     public static function getRelations(): array
@@ -527,8 +570,9 @@ class TicketResource extends Resource
 
     private static function slaColor(Ticket $record): string
     {
-        // on_hold tickets are paused — never red, never warning
-        if ($record->status === TaskStatusEnum::ON_HOLD) {
+        // on_hold tickets are paused — never red, never warning.
+        $statusValue = is_object($record->status) ? $record->status->value : (int) $record->status;
+        if ($statusValue === TaskStatusEnum::ON_HOLD->value) {
             return 'gray';
         }
 

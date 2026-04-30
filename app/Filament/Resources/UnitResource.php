@@ -37,7 +37,7 @@ class UnitResource extends Resource
 
     public static function getNavigationGroup(): ?string
     {
-        return __('ui.unit_management');
+        return __('ui.panel_management');
     }
 
     public static function getEloquentQuery(): Builder

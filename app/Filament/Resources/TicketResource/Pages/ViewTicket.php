@@ -25,6 +25,16 @@ class ViewTicket extends ViewRecord
 {
     protected static string $resource = TicketResource::class;
 
+    public function getTitle(): string
+    {
+        return $this->getRecord()->ticket_no ?? __('ui.ticket_detail');
+    }
+
+    public function getHeading(): string
+    {
+        return $this->getRecord()->ticket_no ?? __('ui.ticket_detail');
+    }
+
     /**
      * Permissions required by each action button.
      * Per spec:
@@ -124,8 +134,8 @@ class ViewTicket extends ViewRecord
                 // ── SLA & TIMESTAMPS ──
                 Section::make(__('ui.sla_information'))
                     ->collapsible()
-                    ->visible(fn (Ticket $r) => $r->sla_deadline !== null
-                        || $r->assigned_at || $r->resolved_at || $r->closed_at)
+                    ->visible(fn (Ticket $record) => $record->sla_deadline !== null
+                        || $record->assigned_at || $record->resolved_at || $record->closed_at)
                     ->schema([
                         Grid::make(4)->schema([
                             TextEntry::make('sla_deadline')->label(__('ui.sla_deadline'))->dateTime()->placeholder('—'),
@@ -138,14 +148,14 @@ class ViewTicket extends ViewRecord
                             TextEntry::make('total_on_hold_minutes')
                                 ->label('Toplam Bekleme Süresi')
                                 ->formatStateUsing(fn ($state) => ((int) $state) . ' dk')
-                                ->visible(fn (Ticket $r) => (int) $r->total_on_hold_minutes > 0),
+                                ->visible(fn (Ticket $record) => (int) $record->total_on_hold_minutes > 0),
 
                             TextEntry::make('sla_breached')
                                 ->label(__('ui.sla_breached'))
                                 ->badge()
-                                ->formatStateUsing(fn (?bool $s) => $s ? __('ui.sla_breached') : __('ui.on_time'))
-                                ->color(fn (?bool $s) => $s ? 'danger' : 'success')
-                                ->visible(fn (Ticket $r) => $r->status?->isClosed()),
+                                ->formatStateUsing(fn ($state) => $state ? __('ui.sla_breached') : __('ui.on_time'))
+                                ->color(fn ($state) => $state ? 'danger' : 'success')
+                                ->visible(fn (Ticket $record) => $record->status?->isClosed()),
                         ]),
                     ]),
 
@@ -154,7 +164,7 @@ class ViewTicket extends ViewRecord
                     ->schema([
                         TextEntry::make('timeline')
                             ->label('')
-                            ->formatStateUsing(fn (Ticket $r) => self::renderTimeline($r))
+                            ->formatStateUsing(fn (Ticket $record) => self::renderTimeline($record))
                             ->html()
                             ->columnSpanFull(),
                     ]),
@@ -320,15 +330,25 @@ class ViewTicket extends ViewRecord
 
     /**
      * Render the SLA progress bar — green / yellow / red based on remaining time.
+     * on_hold tickets always render as paused — never show overdue/remaining.
      */
     private static function renderSlaProgress(Ticket $record): HtmlString
     {
-        $sla = app(SlaService::class);
+        // 1. on_hold — clock paused, never show countdown or breach
+        if ($record->status === TaskStatusEnum::ON_HOLD) {
+            return new HtmlString(
+                '<div style="background:#e5e7eb;border-radius:6px;height:10px;overflow:hidden;">'
+                . '<div style="width:0;background:#9ca3af;height:10px;"></div></div>'
+                . '<div style="margin-top:4px;color:#6b7280;font-size:0.85em;font-weight:500;">⏸ Duraklatıldı</div>'
+            );
+        }
 
+        // 2. no SLA policy
         if (!$record->sla_deadline) {
             return new HtmlString('<span class="text-gray-400">SLA tanımlı değil</span>');
         }
 
+        $sla        = app(SlaService::class);
         $elapsedPct = $sla->getElapsedPercentage($record);
         $remaining  = $sla->getRemainingMinutes($record);
         $breached   = $record->sla_breached || ($remaining !== null && $remaining < 0);

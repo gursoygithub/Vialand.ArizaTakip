@@ -38,7 +38,7 @@ class PerformanceDashboard extends Page implements HasForms, HasTable
 
     public static function getNavigationGroup(): ?string
     {
-        return __('ui.report_management');
+        return __('ui.reports');
     }
 
     public static function getNavigationLabel(): string

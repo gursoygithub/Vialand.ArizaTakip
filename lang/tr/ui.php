@@ -737,4 +737,12 @@ return [
     'export_excel' => 'Excel İndir',
     'technician_performance' => 'Teknisyen Performansı',
     'avg_resolution_minutes' => 'Ort. Çözüm (dk)',
+    'system' => 'Sistem',
+    'corporate_login_hint' => 'Kurumsal hesabınızla giriş yapınız',
+    'app_name' => 'Arıza Takip Sistemi',
+    'no_tickets_yet' => 'Henüz talep bulunmuyor',
+    'no_tickets_yet_description' => 'Yeni bir arıza talebi oluşturmak için aşağıdaki butona tıklayın.',
+    'new_ticket' => 'Yeni Talep',
+    'sla_no_policy' => 'SLA Yok',
+    'sla_paused' => '⏸ Duraklatıldı',
 ];

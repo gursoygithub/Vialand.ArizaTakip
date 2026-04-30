@@ -68,6 +68,14 @@ class PermissionSeeder extends Seeder
 
         // Widget permissions Shield missed during discovery
         'widget_DailyTaskPerformance',
+
+        // New ticket dashboard widgets (manual — shield:generate has been
+        // unreliable for widget discovery in this codebase)
+        'widget_TicketStatsOverview',
+        'widget_TicketsByStatusChart',
+        'widget_TicketsByPriorityChart',
+        'widget_SlaComplianceTrendChart',
+        'widget_RecentTicketsTable',
     ];
 
     private const ROLES = [
@@ -113,6 +121,11 @@ class PermissionSeeder extends Seeder
             'view_all_groups',
             'view_all_group_members',
             'widget_DailyTaskPerformance',
+            'widget_TicketStatsOverview',
+            'widget_TicketsByStatusChart',
+            'widget_TicketsByPriorityChart',
+            'widget_SlaComplianceTrendChart',
+            'widget_RecentTicketsTable',
         ],
         'supervisor' => [
             'ticket.create',
@@ -132,11 +145,19 @@ class PermissionSeeder extends Seeder
             'view_all_group_members',
             'view_kpi_dashboard',
             'widget_DailyTaskPerformance',
+            'widget_TicketStatsOverview',
+            'widget_TicketsByStatusChart',
+            'widget_TicketsByPriorityChart',
+            'widget_SlaComplianceTrendChart',
+            'widget_RecentTicketsTable',
         ],
         'technician' => [
             'ticket.create',
             'ticket.view.own',
             'can_reopen_task',
+            'widget_TicketStatsOverview',
+            'widget_TicketsByStatusChart',
+            'widget_TicketsByPriorityChart',
         ],
         'viewer' => [
             'ticket.view.own',

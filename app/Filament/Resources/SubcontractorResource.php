@@ -35,7 +35,7 @@ class SubcontractorResource extends Resource
 
     public static function getNavigationGroup(): ?string
     {
-        return __('ui.subcontractor_management');
+        return __('ui.panel_management');
     }
 
     public static function form(Form $form): Form
