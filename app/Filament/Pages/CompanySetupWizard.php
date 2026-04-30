@@ -661,7 +661,6 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
                 SubArea::create([
                     'area_id'    => $areaId,
                     'name'       => $data['name'],
-                    'status'     => ActiveStatusEnum::ACTIVE->value,
                     'created_by' => auth()->id(),
                 ]);
                 Notification::make()->title('Lokasyon eklendi')->success()->send();
