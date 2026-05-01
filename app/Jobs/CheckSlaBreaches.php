@@ -22,7 +22,15 @@ class CheckSlaBreaches implements ShouldQueue
 
     public function handle(): void
     {
-        // Tickets eligible for SLA tracking: open lifecycle, NOT on_hold (paused), NOT cancelled.
+        // Display/filter logic now relies on Ticket::scopeSlaBreached
+        // (now() vs sla_deadline), so this job no longer writes the
+        // sla_breached column. Its only responsibility is fanning out
+        // notifications: 80% warning + on-breach alert. The persisted
+        // column is kept as the at-close-time record set by
+        // TicketService and is authoritative for historical reports
+        // (compliance metrics, SlaComplianceTrendChart, PerformanceService).
+        //
+        // Eligible: open lifecycle only — NOT on_hold (paused), NOT cancelled.
         $openStatuses = [
             TaskStatusEnum::OPEN->value,
             TaskStatusEnum::ASSIGNED->value,
@@ -30,14 +38,12 @@ class CheckSlaBreaches implements ShouldQueue
             TaskStatusEnum::PENDING->value,
         ];
 
-        // 1. Mark newly-breached tickets
+        // 1. Notify on breach (deduped per-ticket per-day)
         Ticket::whereIn('status', $openStatuses)
             ->whereNotNull('sla_deadline')
             ->where('sla_deadline', '<', now())
-            ->where('sla_breached', false)
             ->chunkById(100, function ($tickets) {
                 foreach ($tickets as $ticket) {
-                    $ticket->update(['sla_breached' => true]);
                     event(new TicketSlaBreached($ticket));
                     $this->notifyBreached($ticket);
                 }
@@ -47,7 +53,6 @@ class CheckSlaBreaches implements ShouldQueue
         Ticket::whereIn('status', $openStatuses)
             ->whereNotNull('sla_deadline')
             ->where('sla_deadline', '>', now())
-            ->where('sla_breached', false)
             ->chunkById(100, function ($tickets) {
                 foreach ($tickets as $ticket) {
                     $this->maybeSendWarning($ticket);

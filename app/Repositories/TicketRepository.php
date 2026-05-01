@@ -2,7 +2,6 @@
 
 namespace App\Repositories;
 
-use App\Enums\TaskStatusEnum;
 use App\Models\Ticket;
 use App\Repositories\Contracts\TicketRepositoryInterface;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -27,16 +26,6 @@ class TicketRepository implements TicketRepositoryInterface
 
     public function openBreached(): Collection
     {
-        return Ticket::whereNotNull('sla_deadline')
-            ->where('sla_deadline', '<', now())
-            ->where('sla_breached', false)
-            ->whereIn('status', [
-                TaskStatusEnum::OPEN->value,
-                TaskStatusEnum::ASSIGNED->value,
-                TaskStatusEnum::IN_PROGRESS->value,
-                TaskStatusEnum::ON_HOLD->value,
-                TaskStatusEnum::PENDING->value,
-            ])
-            ->get();
+        return Ticket::query()->slaBreached()->get();
     }
 }

@@ -155,12 +155,20 @@ class ViewTicket extends ViewRecord
                                 ->formatStateUsing(fn ($state) => ((int) $state) . ' dk')
                                 ->visible(fn (Ticket $record) => (int) $record->total_on_hold_minutes > 0),
 
-                            TextEntry::make('sla_breached')
+                            // Outcome derived from resolved_at vs sla_deadline
+                            // — never read the persisted column for live UI.
+                            TextEntry::make('sla_outcome')
                                 ->label(__('ui.sla_breached'))
                                 ->badge()
-                                ->formatStateUsing(fn ($state) => $state ? __('ui.sla_breached') : __('ui.on_time'))
-                                ->color(fn ($state) => $state ? 'danger' : 'success')
-                                ->visible(fn (Ticket $record) => $record->status?->isClosed()),
+                                ->state(function (Ticket $record): bool {
+                                    $finalAt = $record->resolved_at ?? $record->closed_at;
+                                    return $finalAt
+                                        ? $finalAt->gt($record->sla_deadline)
+                                        : now()->gt($record->sla_deadline);
+                                })
+                                ->formatStateUsing(fn (bool $state) => $state ? __('ui.sla_breached') : __('ui.on_time'))
+                                ->color(fn (bool $state) => $state ? 'danger' : 'success')
+                                ->visible(fn (Ticket $record) => $record->status?->isClosed() && $record->sla_deadline),
                         ]),
                     ]),
 
@@ -561,8 +569,18 @@ class ViewTicket extends ViewRecord
             return self::slaBadge('⏸ Beklemede', '#374151', '#e5e7eb');
         }
 
-        if ($record->status?->isClosed()) {
-            return $record->sla_breached
+        $terminal = in_array($record->status, [
+            TaskStatusEnum::RESOLVED,
+            TaskStatusEnum::CLOSED,
+            TaskStatusEnum::COMPLETED,
+            TaskStatusEnum::CANCELLED,
+        ], true);
+        if ($terminal) {
+            $finalAt  = $record->resolved_at ?? $record->closed_at;
+            $breached = $finalAt
+                ? $finalAt->gt($record->sla_deadline)
+                : now()->gt($record->sla_deadline);
+            return $breached
                 ? self::slaBadge('⚠️ İhlalle çözüldü', '#b91c1c', '#fee2e2')
                 : self::slaBadge('✅ Zamanında çözüldü', '#15803d', '#dcfce7');
         }
@@ -576,7 +594,7 @@ class ViewTicket extends ViewRecord
             ? intdiv($abs, 60) . 'sa ' . ($abs % 60) . 'dk'
             : $abs . 'dk';
 
-        if ($record->sla_breached || ($remaining !== null && $remaining < 0)) {
+        if ($remaining !== null && $remaining < 0) {
             return self::slaBadge('🔴 ' . $formatted . ' önce ihlal edildi', '#b91c1c', '#fee2e2');
         }
 
@@ -621,7 +639,7 @@ class ViewTicket extends ViewRecord
         $sla        = app(SlaService::class);
         $elapsedPct = $sla->getElapsedPercentage($record);
         $remaining  = $sla->getRemainingMinutes($record);
-        $breached   = $record->sla_breached || ($remaining !== null && $remaining < 0);
+        $breached   = $remaining !== null && $remaining < 0;
 
         $widthPct = (int) round(min(100, max(0, ($elapsedPct ?? 0) * 100)));
         $color    = $breached ? '#ef4444'

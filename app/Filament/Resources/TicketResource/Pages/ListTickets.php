@@ -74,15 +74,10 @@ class ListTickets extends ListRecords
                 ->modifyQueryUsing(fn (Builder $query) => $query->where('status', TaskStatusEnum::CLOSED)),
 
             'breached' => Tab::make(__('ui.sla_breached'))
-                ->badge(fn () => $scoped()
-                    ->where('sla_breached', true)
-                    ->where('status', '!=', TaskStatusEnum::ON_HOLD->value)
-                    ->count())
+                ->badge(fn () => $scoped()->slaBreached()->count())
                 ->badgeIcon('heroicon-o-exclamation-triangle')
                 ->badgeColor('danger')
-                ->modifyQueryUsing(fn (Builder $query) => $query
-                    ->where('sla_breached', true)
-                    ->where('status', '!=', TaskStatusEnum::ON_HOLD->value)),
+                ->modifyQueryUsing(fn (Builder $query) => $query->slaBreached()),
         ];
     }
 }

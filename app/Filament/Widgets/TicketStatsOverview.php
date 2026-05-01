@@ -37,10 +37,13 @@ class TicketStatsOverview extends BaseWidget
             ->whereIn('status', $openStatuses)
             ->count();
 
+        // Live "currently breaching" — uses the scope's now()-comparison so
+        // it reflects reality even when the CheckSlaBreaches job is behind.
+        // The `sla_breached` column is reserved for historical compliance
+        // metrics below.
         $breachedCount = Ticket::query()
             ->visibleBy(auth()->user())
-            ->where('sla_breached', true)
-            ->whereNotIn('status', $closedStatuses)
+            ->slaBreached()
             ->count();
 
         $resolvedToday = Ticket::query()

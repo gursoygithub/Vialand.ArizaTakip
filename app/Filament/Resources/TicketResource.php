@@ -68,13 +68,7 @@ class TicketResource extends Resource
     {
         $breached = Ticket::query()
             ->visibleBy(auth()->user())
-            ->where('sla_breached', true)
-            ->whereIn('status', [
-                TaskStatusEnum::OPEN->value,
-                TaskStatusEnum::ASSIGNED->value,
-                TaskStatusEnum::IN_PROGRESS->value,
-                TaskStatusEnum::PENDING->value,
-            ])
+            ->slaBreached()
             ->count();
 
         return $breached > 0 ? 'danger' : 'primary';
@@ -495,13 +489,16 @@ class TicketResource extends Resource
                     ])
                     ->query(function (Builder $q, array $data) {
                         return match ($data['value'] ?? null) {
-                            'breached' => $q->where('sla_breached', true),
+                            'breached' => $q->slaBreached(),
                             'no_sla'   => $q->whereNull('sla_deadline'),
+                            // Warning / on_time exclude already-breached and
+                            // closed tickets via the deadline-still-future
+                            // predicate, then split on elapsed percentage.
                             'warning'  => $q->whereNotNull('sla_deadline')
-                                ->where('sla_breached', false)
+                                ->where('sla_deadline', '>=', now())
                                 ->whereRaw('TIMESTAMPDIFF(SECOND, created_at, NOW()) / GREATEST(TIMESTAMPDIFF(SECOND, created_at, sla_deadline), 1) >= 0.5'),
                             'on_time'  => $q->whereNotNull('sla_deadline')
-                                ->where('sla_breached', false)
+                                ->where('sla_deadline', '>=', now())
                                 ->whereRaw('TIMESTAMPDIFF(SECOND, created_at, NOW()) / GREATEST(TIMESTAMPDIFF(SECOND, created_at, sla_deadline), 1) < 0.5'),
                             default    => $q,
                         };
@@ -651,12 +648,14 @@ class TicketResource extends Resource
             TaskStatusEnum::CANCELLED,
         ], true);
         if ($terminal) {
-            $breached = $record->sla_breached
-                || ($record->resolved_at && $record->resolved_at->gt($record->sla_deadline));
+            $finalAt  = $record->resolved_at ?? $record->closed_at;
+            $breached = $finalAt
+                ? $finalAt->gt($record->sla_deadline)
+                : now()->gt($record->sla_deadline);
             return $breached ? 'danger' : 'success';
         }
 
-        if ($record->sla_breached || now()->isAfter($record->sla_deadline)) {
+        if (now()->isAfter($record->sla_deadline)) {
             return 'danger';
         }
 

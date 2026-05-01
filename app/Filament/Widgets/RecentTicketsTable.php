@@ -81,7 +81,7 @@ class RecentTicketsTable extends BaseWidget
                         if (!$record->sla_deadline) {
                             return 'SLA Yok';
                         }
-                        if ($record->sla_breached || now()->isAfter($record->sla_deadline)) {
+                        if (now()->isAfter($record->sla_deadline)) {
                             return '✗ İhlal';
                         }
                         $diff = now()->diff($record->sla_deadline);
@@ -98,7 +98,7 @@ class RecentTicketsTable extends BaseWidget
                         if (!$record->sla_deadline) {
                             return 'gray';
                         }
-                        if ($record->sla_breached || now()->isAfter($record->sla_deadline)) {
+                        if (now()->isAfter($record->sla_deadline)) {
                             return 'danger';
                         }
                         $remaining = now()->diffInMinutes($record->sla_deadline, false);

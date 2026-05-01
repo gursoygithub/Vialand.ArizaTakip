@@ -44,7 +44,11 @@ class TicketClosedNotification extends Notification implements ShouldQueue
 
     public function toDatabase(object $notifiable): array
     {
-        $breached = (bool) $this->ticket->sla_breached;
+        $finalAt  = $this->ticket->resolved_at ?? $this->ticket->closed_at;
+        $breached = $this->ticket->sla_deadline
+            && ($finalAt
+                ? $finalAt->gt($this->ticket->sla_deadline)
+                : now()->gt($this->ticket->sla_deadline));
 
         $resolutionMins = $this->ticket->assigned_at && $this->ticket->closed_at
             ? (int) $this->ticket->assigned_at->diffInMinutes($this->ticket->closed_at)
