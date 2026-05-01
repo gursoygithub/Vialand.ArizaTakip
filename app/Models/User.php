@@ -169,6 +169,11 @@ class User extends Authenticatable implements FilamentUser
         return $this->hasMany(UserNotificationPreference::class);
     }
 
+    public function fcmTokens(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(FcmToken::class);
+    }
+
     /**
      * Whether this user wants the given notification type on the given channel.
      * Default is true when no preference row exists. Critical types

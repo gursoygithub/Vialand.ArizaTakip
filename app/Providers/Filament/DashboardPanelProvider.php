@@ -47,7 +47,7 @@ class DashboardPanelProvider extends PanelProvider
             ->databaseNotificationsPolling('5s')
             ->renderHook(
                 PanelsRenderHook::BODY_END,
-                fn (): string => view('filament.notifications-js')->render(),
+                fn (): string => view('filament.fcm-init')->render(),
             )
             ->navigationGroups([
                 __('ui.ticket_management'),

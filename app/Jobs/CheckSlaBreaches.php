@@ -73,9 +73,17 @@ class CheckSlaBreaches implements ShouldQueue
             return;
         }
 
-        foreach ($this->slaRecipients($ticket) as $user) {
+        $recipients = $this->slaRecipients($ticket);
+        foreach ($recipients as $user) {
             $user->notify(new SlaWarningNotification($ticket));
         }
+
+        app(\App\Services\FcmService::class)->sendToUsers(
+            $recipients,
+            $ticket->ticket_no . ' • ⚠️ SLA Uyarısı',
+            'SLA süresi dolmak üzere.',
+            url('/tickets/' . $ticket->id),
+        );
     }
 
     private function notifyBreached(Ticket $ticket): void
@@ -84,9 +92,17 @@ class CheckSlaBreaches implements ShouldQueue
             return;
         }
 
-        foreach ($this->slaRecipients($ticket) as $user) {
+        $recipients = $this->slaRecipients($ticket);
+        foreach ($recipients as $user) {
             $user->notify(new SlaBreachedNotification($ticket));
         }
+
+        app(\App\Services\FcmService::class)->sendToUsers(
+            $recipients,
+            $ticket->ticket_no . ' • 🚨 SLA İhlali',
+            'SLA süresi doldu, acil müdahale gerekli.',
+            url('/tickets/' . $ticket->id),
+        );
     }
 
     /**

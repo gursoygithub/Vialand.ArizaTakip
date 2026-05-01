@@ -32,11 +32,11 @@ Route::prefix('auth')
     });
 
 /**
- * Lightweight unread-count endpoint for the desktop-notification poller in
- * resources/views/filament/notifications-js.blade.php. Filament's Livewire
- * components don't expose unreadNotificationsCount via window.Livewire.find
- * in this build, so the JS reads the count directly from this route every
- * 5s. Auth-gated; returns 0 for guests.
+ * Lightweight unread-count endpoint kept for any client that wants to
+ * poll the bell badge count. The realtime sound + desktop notification
+ * pipeline now runs through FCM (resources/views/filament/fcm-init.blade.php)
+ * instead of polling, but Filament's own bell still updates via its
+ * databaseNotificationsPolling tick.
  */
 Route::get('/api/notifications/unread-count', function () {
     if (!auth()->check()) {
@@ -46,6 +46,27 @@ Route::get('/api/notifications/unread-count', function () {
         'count' => auth()->user()->unreadNotifications()->count(),
     ]);
 })->middleware(['web', 'auth'])->name('api.notifications.unread-count');
+
+/**
+ * FCM token registration. Frontend posts the token returned by
+ * getToken() in fcm-init.blade.php; we upsert it into fcm_tokens
+ * (idempotent on re-registration, also reactivates a previously
+ * deactivated token if the same browser reconnects).
+ */
+Route::post('/fcm/token', function (\Illuminate\Http\Request $request) {
+    if (!auth()->check()) {
+        return response()->json(['ok' => false, 'reason' => 'unauthenticated'], 401);
+    }
+
+    $token = (string) $request->input('token');
+    if ($token === '') {
+        return response()->json(['ok' => false, 'reason' => 'token required'], 422);
+    }
+
+    \App\Models\FcmToken::upsertForUser(auth()->id(), $token);
+
+    return response()->json(['ok' => true]);
+})->middleware(['web', 'auth'])->name('fcm.token.register');
 
 //Route::controller(AuthController::class)
 //    ->middleware('guest')

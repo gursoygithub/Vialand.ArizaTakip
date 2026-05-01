@@ -126,10 +126,15 @@ class TicketService
             return;
         }
 
+        $fromLabel = $from?->getLabel() ?? '—';
+        $toLabel   = $to->getLabel();
+
         $this->notifyParticipants(
             $ticket,
             $actor,
             new TicketStatusChangedNotification($ticket, $from, $to, $actor),
+            $ticket->ticket_no . ' • Durum Değişti',
+            $fromLabel . ' → ' . $toLabel,
         );
     }
 
@@ -172,11 +177,31 @@ class TicketService
      * state can't bleed across recipients. The notification's own via()
      * still consults the user's per-type preference, so this layer is the
      * "who" and via() is the "how".
+     *
+     * If $fcmTitle and $fcmBody are non-empty, also dispatches a Firebase
+     * Cloud Messaging push to the same set of recipients in one go. FCM is
+     * a no-op when credentials aren't configured, so passing the strings
+     * unconditionally is safe.
      */
-    private function notifyParticipants(Ticket $ticket, User $actor, BaseNotification $notification): void
-    {
-        $this->getTicketParticipants($ticket, $actor)
-            ->each(fn (User $user) => $user->notify(clone $notification));
+    private function notifyParticipants(
+        Ticket $ticket,
+        User $actor,
+        BaseNotification $notification,
+        string $fcmTitle = '',
+        string $fcmBody = '',
+    ): void {
+        $participants = $this->getTicketParticipants($ticket, $actor);
+
+        $participants->each(fn (User $user) => $user->notify(clone $notification));
+
+        if ($fcmTitle !== '' && $fcmBody !== '') {
+            app(\App\Services\FcmService::class)->sendToUsers(
+                $participants,
+                $fcmTitle,
+                $fcmBody,
+                url('/tickets/' . $ticket->id),
+            );
+        }
     }
 
     private function userForEmployee(int $employeeId): ?User
@@ -318,6 +343,8 @@ class TicketService
             $ticket,
             $by,
             new TicketCommentNotification($ticket, $by, $note),
+            $ticket->ticket_no . ' • Yeni Yorum',
+            mb_substr($note, 0, 100),
         );
 
         return $history;
