@@ -166,14 +166,13 @@ class ViewTicket extends ViewRecord
                     ->icon('heroicon-o-clock')
                     ->description('Bu talep üzerinde yapılan tüm durum değişiklikleri ve yorumlar (eskiden yeniye).')
                     ->schema([
-                        // getStateUsing — not formatStateUsing — because there's
-                        // no `timeline` column on tickets. formatStateUsing only
-                        // runs when state is non-null, so the closure was never
-                        // executed and the section rendered empty.
-                        TextEntry::make('timeline')
-                            ->label('')
-                            ->getStateUsing(fn (Ticket $record) => self::renderTimeline($record))
-                            ->html()
+                        // ViewEntry — not TextEntry — because TextEntry applies
+                        // `prose` typography classes to ->html() output, which
+                        // visually constrained the timeline to ~600px even with
+                        // width:100% inline. ViewEntry renders the partial blade
+                        // directly so we get true full width.
+                        \Filament\Infolists\Components\ViewEntry::make('timeline')
+                            ->view('filament.partials.ticket-timeline')
                             ->columnSpanFull(),
                     ]),
 
@@ -237,7 +236,7 @@ class ViewTicket extends ViewRecord
                 ->label($ticket->employee_id ? 'Yeniden Ata' : 'Ata')
                 ->icon('heroicon-o-user-plus')
                 ->color('warning')
-                ->visible(function () use ($ticket, $isTerminal, $isCreator): bool {
+                ->visible(function () use ($isTerminal, $isCreator): bool {
                     if ($isTerminal) {
                         return false;
                     }
@@ -245,13 +244,12 @@ class ViewTicket extends ViewRecord
                     if (!$user) {
                         return false;
                     }
-                    // Creator opens the ticket; routing it to a technician is
-                    // a supervisor/admin job — hide for the creator unless
-                    // they also carry view.all/view.group (i.e. they're an
-                    // admin/supervisor opening their own ticket).
-                    if ($isCreator
-                        && !$user->hasPermissionTo('ticket.view.all')
-                        && !$user->hasPermissionTo('ticket.view.group')) {
+                    // The creator opens the ticket; routing to a technician is
+                    // a supervisor/admin job, never the creator's. Hide for
+                    // the creator unconditionally — even if they also hold
+                    // view.all / view.group (a manager opening their own
+                    // ticket still doesn't reassign to themselves).
+                    if ($isCreator) {
                         return false;
                     }
                     return $user->can('ticket.assign')
@@ -390,9 +388,15 @@ class ViewTicket extends ViewRecord
                 return false;
             };
 
-            // Override label for reopen
+            // Reopen label: any closed-ish status going back to IN_PROGRESS
+            // is a reopen, including RESOLVED. The permission check above
+            // already requires ticket.reopen for these source statuses.
             if ($to === TaskStatusEnum::IN_PROGRESS
-                && in_array($ticket->status, [TaskStatusEnum::CLOSED, TaskStatusEnum::COMPLETED], true)) {
+                && in_array($ticket->status, [
+                    TaskStatusEnum::CLOSED,
+                    TaskStatusEnum::COMPLETED,
+                    TaskStatusEnum::RESOLVED,
+                ], true)) {
                 $label = 'Yeniden Aç';
             }
 
@@ -477,6 +481,15 @@ class ViewTicket extends ViewRecord
                 <div style="margin-top:4px;color:{$color};font-size:0.85em;font-weight:500;">{$label}</div>
             </div>
         HTML);
+    }
+
+    /**
+     * Public wrapper so the timeline partial can render the HTML.
+     * Keeps the implementation private/static while still exposing it.
+     */
+    public static function renderTimelinePublic(Ticket $record): HtmlString
+    {
+        return self::renderTimeline($record);
     }
 
     /**
