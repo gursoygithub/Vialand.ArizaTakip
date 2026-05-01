@@ -164,6 +164,37 @@ class User extends Authenticatable implements FilamentUser
         return $this->hasOne(Employee::class, 'email', 'email');
     }
 
+    public function notificationPreferences(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(UserNotificationPreference::class);
+    }
+
+    /**
+     * Whether this user wants the given notification type on the given channel.
+     * Default is true when no preference row exists. Critical types
+     * (UserNotificationPreference::ALWAYS_ON_DATABASE) ignore database opt-out
+     * — the in-app bell is mandatory for those.
+     */
+    public function wantsNotification(string $type, string $channel = 'database'): bool
+    {
+        if ($channel === 'database'
+            && in_array($type, UserNotificationPreference::ALWAYS_ON_DATABASE, true)) {
+            return true;
+        }
+
+        $pref = $this->notificationPreferences()
+            ->where('notification_type', $type)
+            ->first();
+
+        if (!$pref) {
+            return true; // default opt-in
+        }
+
+        return $channel === 'mail'
+            ? (bool) $pref->mail_enabled
+            : (bool) $pref->database_enabled;
+    }
+
     /**
      * Extra companies granted to this user via user_company_access.
      * Use scopedCompanyIds() in callers — this is the raw pivot relation.

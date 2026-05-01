@@ -21,11 +21,20 @@ class TicketCommentNotification extends Notification implements ShouldQueue
         public readonly string $body,
     ) {}
 
+    public function getNotificationType(): string
+    {
+        return 'ticket_participant';
+    }
+
     public function via(object $notifiable): array
     {
-        // Comments are database-only by policy — they happen often and the
-        // bell + desktop chime cover them. No email channel.
-        return ['database'];
+        // Comments are database-only by policy. The preference helper still
+        // honors the user's opt-out; mail is never offered for this type.
+        if (!method_exists($notifiable, 'wantsNotification')
+            || $notifiable->wantsNotification($this->getNotificationType(), 'database')) {
+            return ['database'];
+        }
+        return [];
     }
 
     public function toDatabase(object $notifiable): array

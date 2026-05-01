@@ -28,12 +28,19 @@ class TicketStatusChangedNotification extends Notification implements ShouldQueu
         public readonly User $actor,
     ) {}
 
+    public function getNotificationType(): string
+    {
+        return 'ticket_participant';
+    }
+
     public function via(object $notifiable): array
     {
-        // Status changes are database-only — the dedicated assigned/closed/
-        // reopened/cancelled notifications carry the email payload for the
-        // events that actually warrant inbox attention.
-        return ['database'];
+        // Status changes are database-only. Honor the user's database opt-out.
+        if (!method_exists($notifiable, 'wantsNotification')
+            || $notifiable->wantsNotification($this->getNotificationType(), 'database')) {
+            return ['database'];
+        }
+        return [];
     }
 
     public function toDatabase(object $notifiable): array

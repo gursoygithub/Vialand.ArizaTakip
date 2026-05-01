@@ -27,15 +27,14 @@ class TicketReassignedNotification extends Notification implements ShouldQueue
         public readonly User $actor,
     ) {}
 
+    public function getNotificationType(): string
+    {
+        return 'ticket_reassigned';
+    }
+
     public function via(object $notifiable): array
     {
-        $channels = ['database'];
-
-        if (config('notifications.mail_enabled', false)) {
-            $channels[] = 'mail';
-        }
-
-        return $channels;
+        return \App\Support\NotificationChannels::resolve($notifiable, $this->getNotificationType());
     }
 
     public function toMail(object $notifiable): MailMessage

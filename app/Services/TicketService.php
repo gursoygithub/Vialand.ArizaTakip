@@ -134,29 +134,48 @@ class TicketService
     }
 
     /**
-     * Notify the canonical "participants" of a ticket activity:
-     * created_by + employee->user, deduplicated and minus the actor.
-     * Each recipient gets one notification; clones the source so a queued
-     * notification's per-instance state can't bleed across recipients.
+     * Resolve the participant set for a ticket activity:
+     * - everyone who has touched the ticket (TicketStatusHistory.changed_by),
+     * - plus the current creator and current assignee's User,
+     * - minus the actor.
+     *
+     * Used for activity notifications (comments, status changes). SLA
+     * notifications use a narrower set — see CheckSlaBreaches::slaRecipients.
+     */
+    private function getTicketParticipants(Ticket $ticket, User $actor): \Illuminate\Support\Collection
+    {
+        $participantIds = TicketStatusHistory::where('ticket_id', $ticket->id)
+            ->whereNotNull('changed_by')
+            ->distinct()
+            ->pluck('changed_by');
+
+        $additionalIds = collect([
+            $ticket->created_by,
+            $ticket->employee?->user?->id,
+        ])->filter();
+
+        $allIds = $participantIds->merge($additionalIds)
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->reject(fn (int $id) => $id === $actor->id);
+
+        if ($allIds->isEmpty()) {
+            return collect();
+        }
+
+        return User::whereIn('id', $allIds)->get();
+    }
+
+    /**
+     * Send $notification to every participant on $ticket (minus the actor).
+     * Each notification is cloned so a queued ShouldQueue's per-instance
+     * state can't bleed across recipients. The notification's own via()
+     * still consults the user's per-type preference, so this layer is the
+     * "who" and via() is the "how".
      */
     private function notifyParticipants(Ticket $ticket, User $actor, BaseNotification $notification): void
     {
-        $recipientIds = collect([
-            $ticket->created_by,
-            $ticket->employee?->user?->id,
-        ])
-            ->filter()
-            ->map(fn ($id) => (int) $id)
-            ->unique()
-            ->reject(fn (int $id) => $id === $actor->id)
-            ->values();
-
-        if ($recipientIds->isEmpty()) {
-            return;
-        }
-
-        User::whereIn('id', $recipientIds)
-            ->get()
+        $this->getTicketParticipants($ticket, $actor)
             ->each(fn (User $user) => $user->notify(clone $notification));
     }
 

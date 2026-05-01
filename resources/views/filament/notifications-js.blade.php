@@ -63,31 +63,45 @@
         setTimeout(function () { n.close(); }, 5000);
     }
 
-    // Livewire fires 'livewire:update' after every server round-trip, including
-    // the polling tick that bumps the bell-badge. The 100ms timeout gives Alpine
-    // a moment to write the new count into the DOM before we read it.
+    // Triple-source badge polling:
+    //  - setInterval  every 5s in case Livewire isn't actively round-tripping.
+    //  - livewire:update  with a small debounce, for the polling tick that
+    //    bumps the bell badge.
+    //  - DOMContentLoaded  initial read once Filament has hydrated the bell.
+    // _prevNotifCount is module-scoped (this IIFE), not sessionStorage —
+    // sessionStorage made the first reading after navigation false-positive
+    // when the prior tab had a different value.
+    let _prevNotifCount = -1;
+
+    function checkNotificationBadge() {
+        const badge = document.querySelector('[x-text="unreadNotificationsCount"]')
+            || document.querySelector('.fi-notification-badge');
+        if (!badge) return;
+
+        const current = parseInt((badge.textContent || '').trim(), 10) || 0;
+
+        // First read primes the baseline silently — we don't sound a chime
+        // for the badge's initial render.
+        if (_prevNotifCount === -1) {
+            _prevNotifCount = current;
+            return;
+        }
+
+        if (current > _prevNotifCount) {
+            playChime();
+            showDesktopNotification(current - _prevNotifCount);
+        }
+        _prevNotifCount = current;
+    }
+
+    setInterval(checkNotificationBadge, 5000);
+
     document.addEventListener('livewire:update', function () {
-        setTimeout(function () {
-            const badge = document.querySelector('.fi-notification-badge');
-            if (!badge) return;
+        setTimeout(checkNotificationBadge, 200);
+    });
 
-            const current = parseInt((badge.textContent || '').trim(), 10) || 0;
-            const stored  = sessionStorage.getItem('ariza_notif_count');
-            const prev    = stored === null ? -1 : parseInt(stored, 10);
-
-            // First reading after a fresh tab/login: prime the storage and
-            // bail without sounding — we don't know the user's baseline yet.
-            if (prev === -1) {
-                sessionStorage.setItem('ariza_notif_count', String(current));
-                return;
-            }
-
-            if (current > prev) {
-                playChime();
-                showDesktopNotification(current - prev);
-            }
-            sessionStorage.setItem('ariza_notif_count', String(current));
-        }, 100);
+    document.addEventListener('DOMContentLoaded', function () {
+        setTimeout(checkNotificationBadge, 1500);
     });
 })();
 </script>
