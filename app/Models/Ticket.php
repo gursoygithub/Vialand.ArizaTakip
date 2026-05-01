@@ -278,50 +278,22 @@ class Ticket extends Model implements HasMedia
     }
 
     /**
-     * Real-time SLA breach scope. Returns tickets whose deadline has passed
-     * AND that are still in an active lifecycle (excludes resolved/closed/
-     * cancelled — those carry their final breach state on the row but aren't
-     * "currently" breaching anything).
+     * Filter to tickets the system has flagged as SLA-breached. Backed by the
+     * indexed `sla_breached` column, which is kept current by:
+     *   - TicketObserver::saving — flips the flag whenever a ticket is saved
+     *     and its deadline has passed (or clears it when resolved on time)
+     *   - TicketService transition path — recomputes on RESOLVED/CLOSED/
+     *     COMPLETED/CANCELLED transitions
+     *   - CheckSlaBreaches job — sweeps untouched rows and sets the flag
+     *     plus fires notifications
      *
-     * Use this everywhere display/filter logic asks "is this ticket breaching
-     * its SLA right now?" — never read the `sla_breached` column directly for
-     * live UI, since that column is only refreshed by CheckSlaBreaches' write
-     * path and at status transitions in TicketService. The column remains
-     * authoritative for *historical* reporting (what the breach state was at
-     * the moment the ticket reached a terminal status).
+     * For per-row *visual* rendering the UI still computes against now() vs
+     * sla_deadline directly (see getSlaStatusLabel + the renderSla* helpers)
+     * so countdown badges remain accurate between saves.
      */
     public function scopeSlaBreached(Builder $query): Builder
     {
-        return $query
-            ->whereNotNull('sla_deadline')
-            ->where('sla_deadline', '<', now())
-            ->whereNotIn('status', [
-                TaskStatusEnum::RESOLVED->value,
-                TaskStatusEnum::CLOSED->value,
-                TaskStatusEnum::COMPLETED->value,
-                TaskStatusEnum::CANCELLED->value,
-                TaskStatusEnum::ON_HOLD->value,
-            ]);
-    }
-
-    /**
-     * Inverse of scopeSlaBreached for active tickets — deadline still in the
-     * future, paused (on_hold), or no policy. Used by widgets/filters that
-     * want "not currently breaching" without inverting the query manually.
-     */
-    public function scopeSlaOnTime(Builder $query): Builder
-    {
-        return $query->where(function (Builder $q) {
-            $q->whereNull('sla_deadline')
-                ->orWhere('sla_deadline', '>=', now())
-                ->orWhereIn('status', [
-                    TaskStatusEnum::ON_HOLD->value,
-                    TaskStatusEnum::RESOLVED->value,
-                    TaskStatusEnum::CLOSED->value,
-                    TaskStatusEnum::COMPLETED->value,
-                    TaskStatusEnum::CANCELLED->value,
-                ]);
-        });
+        return $query->where('sla_breached', true);
     }
 
     // --- Permission-aware visibility scope ---

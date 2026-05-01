@@ -22,13 +22,12 @@ class CheckSlaBreaches implements ShouldQueue
 
     public function handle(): void
     {
-        // Display/filter logic now relies on Ticket::scopeSlaBreached
-        // (now() vs sla_deadline), so this job no longer writes the
-        // sla_breached column. Its only responsibility is fanning out
-        // notifications: 80% warning + on-breach alert. The persisted
-        // column is kept as the at-close-time record set by
-        // TicketService and is authoritative for historical reports
-        // (compliance metrics, SlaComplianceTrendChart, PerformanceService).
+        // The sla_breached column is the indexed source of truth for filters
+        // and badges. TicketObserver::saving keeps it current on every save,
+        // and this job is the periodic sweep for rows nobody touched: it
+        // finds active tickets past their deadline that still carry
+        // sla_breached=false, flips the flag, and fans out notifications
+        // (deduped per-ticket per-day).
         //
         // Eligible: open lifecycle only — NOT on_hold (paused), NOT cancelled.
         $openStatuses = [
@@ -38,12 +37,14 @@ class CheckSlaBreaches implements ShouldQueue
             TaskStatusEnum::PENDING->value,
         ];
 
-        // 1. Notify on breach (deduped per-ticket per-day)
+        // 1. Mark newly-breached tickets and notify (deduped per-day)
         Ticket::whereIn('status', $openStatuses)
             ->whereNotNull('sla_deadline')
             ->where('sla_deadline', '<', now())
+            ->where('sla_breached', false)
             ->chunkById(100, function ($tickets) {
                 foreach ($tickets as $ticket) {
+                    $ticket->update(['sla_breached' => true]);
                     event(new TicketSlaBreached($ticket));
                     $this->notifyBreached($ticket);
                 }
@@ -53,6 +54,7 @@ class CheckSlaBreaches implements ShouldQueue
         Ticket::whereIn('status', $openStatuses)
             ->whereNotNull('sla_deadline')
             ->where('sla_deadline', '>', now())
+            ->where('sla_breached', false)
             ->chunkById(100, function ($tickets) {
                 foreach ($tickets as $ticket) {
                     $this->maybeSendWarning($ticket);

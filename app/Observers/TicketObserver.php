@@ -28,6 +28,29 @@ class TicketObserver
         if ($ticket->employee_id && empty($ticket->assigned_at)) {
             $ticket->assigned_at = now();
         }
+
+        // Keep the indexed sla_breached column in sync with the live deadline
+        // on every save. This is what makes filters like the "breached" tab
+        // and the navigation badge fast and accurate without depending on
+        // CheckSlaBreaches running. Terminal statuses are excluded from the
+        // flip path because their breach state is set deterministically by
+        // TicketService::transition (markClosed / markCancelled / RESOLVED).
+        $terminalStatuses = [
+            TaskStatusEnum::RESOLVED,
+            TaskStatusEnum::CLOSED,
+            TaskStatusEnum::COMPLETED,
+            TaskStatusEnum::CANCELLED,
+        ];
+
+        $isTerminal = in_array($ticket->status, $terminalStatuses, true);
+
+        if ($ticket->sla_deadline && !$isTerminal && now()->gt($ticket->sla_deadline)) {
+            $ticket->sla_breached = true;
+        }
+
+        if ($isTerminal && $ticket->sla_deadline && now()->lte($ticket->sla_deadline)) {
+            $ticket->sla_breached = false;
+        }
     }
 
     public function creating(Ticket $ticket): void

@@ -100,15 +100,19 @@ class NotificationTest extends TestCase
         $assignee     = Employee::factory()->create(['email' => 'breach-assignee@test.com']);
         $assigneeUser = User::factory()->create(['email' => 'breach-assignee@test.com', 'username' => 'breach-assignee']);
 
-        Ticket::factory()->create([
+        // The Observer auto-flips sla_breached on save once a ticket's
+        // deadline has passed, so to exercise the job's sweep path we need
+        // to create a row that bypasses that hook (mimics a ticket whose
+        // deadline expired without any subsequent save touching it).
+        $ticket = Ticket::factory()->create([
             'area_id'      => $area->id,
             'sub_area_id'  => $sub->id,
             'unit_id'      => $unit->id,
             'employee_id'  => $assignee->id,
             'status'       => TaskStatusEnum::IN_PROGRESS,
             'sla_deadline' => Carbon::now()->subHour(),
-            'sla_breached' => false,
         ]);
+        \DB::table('tickets')->where('id', $ticket->id)->update(['sla_breached' => false]);
 
         (new CheckSlaBreaches())->handle();
 
@@ -126,15 +130,18 @@ class NotificationTest extends TestCase
         $assignee     = Employee::factory()->create(['email' => 'dedupe-assignee@test.com']);
         User::factory()->create(['email' => 'dedupe-assignee@test.com', 'username' => 'dedupe-assignee']);
 
-        Ticket::factory()->create([
+        // Same Observer caveat as the breach test — bypass the saving hook
+        // so the ticket sits in the (deadline-passed, sla_breached=false)
+        // state the job is supposed to discover.
+        $ticket = Ticket::factory()->create([
             'area_id'      => $area->id,
             'sub_area_id'  => $sub->id,
             'unit_id'      => $unit->id,
             'employee_id'  => $assignee->id,
             'status'       => TaskStatusEnum::IN_PROGRESS,
             'sla_deadline' => Carbon::now()->subHour(),
-            'sla_breached' => false,
         ]);
+        \DB::table('tickets')->where('id', $ticket->id)->update(['sla_breached' => false]);
 
         // Run job twice; second run should not duplicate (the first call leaves a
         // notification record; the second checks alreadySentToday() and skips).

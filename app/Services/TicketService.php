@@ -70,7 +70,7 @@ class TicketService
             match ($toStatus) {
                 TaskStatusEnum::ASSIGNED    => $ticket->assigned_at  = $ticket->assigned_at  ?? now(),
                 TaskStatusEnum::IN_PROGRESS => null, // no dedicated timestamp; reopens cleared on close
-                TaskStatusEnum::RESOLVED    => $ticket->resolved_at  = now(),
+                TaskStatusEnum::RESOLVED    => $this->markResolved($ticket),
                 TaskStatusEnum::ON_HOLD     => $ticket->on_hold_since = now(),
                 TaskStatusEnum::CLOSED, TaskStatusEnum::COMPLETED => $this->markClosed($ticket, $by),
                 TaskStatusEnum::CANCELLED   => $this->markCancelled($ticket, $by),
@@ -554,6 +554,16 @@ class TicketService
             return [];
         }
         return self::TRANSITIONS[$from->value] ?? [];
+    }
+
+    private function markResolved(Ticket $ticket): void
+    {
+        $ticket->resolved_at  = now();
+        // Lock in the breach outcome at the moment of resolution so the
+        // column reflects "did we resolve before the deadline?". This is the
+        // historical record consumed by SlaComplianceTrendChart and the
+        // PerformanceService 30-day metrics.
+        $ticket->sla_breached = $ticket->sla_deadline && now()->isAfter($ticket->sla_deadline);
     }
 
     private function markClosed(Ticket $ticket, User $by): void
