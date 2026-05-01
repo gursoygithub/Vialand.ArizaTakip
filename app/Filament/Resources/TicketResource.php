@@ -385,11 +385,6 @@ class TicketResource extends Resource
                     ->weight('bold')
                     ->copyable(),
 
-                Tables\Columns\TextColumn::make('type_id')
-                    ->label(__('ui.type'))
-                    ->badge()
-                    ->sortable(),
-
                 Tables\Columns\TextColumn::make('priority')
                     ->label(__('ui.priority'))
                     ->badge()
@@ -421,48 +416,32 @@ class TicketResource extends Resource
 
                 // SLA indicator with color coding.
                 // Priority order (spec):
-                //   1. status = on_hold        → gray   "Duraklatıldı"
-                //   2. no sla_deadline         → gray   "SLA Yok"
-                //   3. closed/completed        → green/red based on outcome
-                //   4. sla_breached = true     → red    "SLA İhlal Edildi"
-                //   5. <50% remaining          → yellow "Uyarı"
-                //   6. otherwise               → green  "Zamanında"
+                //   1. status = on_hold        → gray   "⏸"
+                //   2. no sla_deadline         → gray   "—"
+                //   3. closed/completed        → "✓"/"✗" by outcome
+                //   4. breached / <50% / >=50% → smart label via Ticket helper
                 Tables\Columns\TextColumn::make('sla_deadline')
                     ->label(__('ui.sla_indicator'))
                     ->formatStateUsing(function (Ticket $record): string {
-                        // 1. on_hold — clock paused, NEVER calculate or render countdown/breach.
-                        //    Compare by value so this works whether status is the cast enum or a raw int.
                         $statusValue = is_object($record->status) ? $record->status->value : (int) $record->status;
                         if ($statusValue === TaskStatusEnum::ON_HOLD->value) {
-                            return '⏸ Duraklatıldı';
+                            return '⏸';
                         }
-
-                        // 2. no policy
                         if (!$record->sla_deadline) {
-                            return '— SLA Yok';
+                            return '—';
                         }
-
-                        // 3. closed: show outcome
                         if ($record->status?->isClosed()) {
-                            return $record->sla_breached
-                                ? '✗ ' . __('ui.sla_breached')
-                                : '✓ ' . __('ui.on_time');
+                            return $record->sla_breached ? '✗' : '✓';
                         }
 
-                        // 4. breached
-                        if ($record->sla_breached || now()->isAfter($record->sla_deadline)) {
-                            $diff = now()->diff($record->sla_deadline);
-                            $h    = (int) $diff->h + ($diff->days * 24);
-                            $m    = (int) $diff->i;
-                            return "🔴 {$h}s {$m}d gecikmiş";
+                        $label     = $record->getSlaStatusLabel();
+                        $remaining = $record->getRemainingMinutes();
+                        if ($remaining < 0) {
+                            return $label;
                         }
 
-                        // 5. countdown — yellow if <50% remaining, else green
-                        $remaining = now()->diff($record->sla_deadline);
-                        $hours     = (int) $remaining->h + ($remaining->days * 24);
-                        $minutes   = (int) $remaining->i;
-
-                        return "{$hours}s {$minutes}d " . __('ui.countdown');
+                        $pct = $record->sla_percent_remaining ?? 100;
+                        return ($pct > 50 ? '✓ ' : '⚠ ') . $label;
                     })
                     ->color(fn (Ticket $record): string => self::slaColor($record))
                     ->sortable()

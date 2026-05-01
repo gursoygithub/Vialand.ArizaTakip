@@ -92,9 +92,10 @@ class ViewTicket extends ViewRecord
                                 ->color(fn ($state) => $state->getColor())
                                 ->icon(fn ($state) => $state->getIcon()),
 
-                            TextEntry::make('sla_progress')
+                            TextEntry::make('sla_badge')
                                 ->label(__('ui.sla_indicator'))
-                                ->formatStateUsing(fn (Ticket $record) => self::renderSlaProgress($record))
+                                ->formatStateUsing(fn (Ticket $record) => self::renderSlaBadge($record))
+                                ->visible(fn (Ticket $record) => $record->sla_deadline !== null)
                                 ->html(),
                         ]),
 
@@ -112,18 +113,20 @@ class ViewTicket extends ViewRecord
                                 ->badge()
                                 ->color('warning'),
                         ]),
+
+                        Grid::make(3)->schema([
+                            TextEntry::make('area.name')->label(__('ui.area')),
+                            TextEntry::make('subArea.name')->label(__('ui.sub_area'))->placeholder('—'),
+                            TextEntry::make('group.name')->label(__('ui.group'))->placeholder('—'),
+                        ]),
                     ]),
 
                 // ── TICKET DETAIL ──
                 Section::make(__('ui.ticket_information'))
                     ->collapsible()
                     ->schema([
-                        Grid::make(3)->schema([
-                            TextEntry::make('type_id')->label(__('ui.type'))->badge(),
-                            TextEntry::make('area.name')->label(__('ui.area')),
-                            TextEntry::make('subArea.name')->label(__('ui.sub_area'))->placeholder('—'),
+                        Grid::make(2)->schema([
                             TextEntry::make('unit.name')->label(__('ui.unit')),
-                            TextEntry::make('group.name')->label(__('ui.group'))->placeholder('—'),
                             TextEntry::make('task_date')->label(__('ui.task_date'))->date(),
                         ]),
 
@@ -135,8 +138,7 @@ class ViewTicket extends ViewRecord
                 // ── SLA & TIMESTAMPS ──
                 Section::make(__('ui.sla_information'))
                     ->collapsible()
-                    ->visible(fn (Ticket $record) => $record->sla_deadline !== null
-                        || $record->resolved_at || $record->closed_at)
+                    ->visible(fn (Ticket $record) => $record->sla_deadline !== null)
                     ->schema([
                         // Atanma Tarihi removed — duplicates the timeline's
                         // ASSIGNED row and is irrelevant for tickets that
@@ -546,6 +548,57 @@ class ViewTicket extends ViewRecord
     }
 
     /**
+     * Compact SLA status badge for the header card. Returns empty when the
+     * ticket has no policy (caller hides the entry).
+     */
+    private static function renderSlaBadge(Ticket $record): HtmlString
+    {
+        if (!$record->sla_deadline) {
+            return new HtmlString('');
+        }
+
+        if ($record->status === TaskStatusEnum::ON_HOLD) {
+            return self::slaBadge('⏸ Beklemede', '#374151', '#e5e7eb');
+        }
+
+        if ($record->status?->isClosed()) {
+            return $record->sla_breached
+                ? self::slaBadge('⚠️ İhlalle çözüldü', '#b91c1c', '#fee2e2')
+                : self::slaBadge('✅ Zamanında çözüldü', '#15803d', '#dcfce7');
+        }
+
+        $sla       = app(SlaService::class);
+        $remaining = $sla->getRemainingMinutes($record);
+        $elapsed   = $sla->getElapsedPercentage($record);
+
+        $abs       = abs((int) ($remaining ?? 0));
+        $formatted = $abs >= 60
+            ? intdiv($abs, 60) . 'sa ' . ($abs % 60) . 'dk'
+            : $abs . 'dk';
+
+        if ($record->sla_breached || ($remaining !== null && $remaining < 0)) {
+            return self::slaBadge('🔴 ' . $formatted . ' önce ihlal edildi', '#b91c1c', '#fee2e2');
+        }
+
+        // <50% remaining ↔ >=50% elapsed
+        if (($elapsed ?? 0) >= 0.5) {
+            return self::slaBadge('🟡 ' . $formatted . ' kaldı', '#a16207', '#fef9c3');
+        }
+
+        return self::slaBadge('🟢 ' . $formatted . ' kaldı', '#15803d', '#dcfce7');
+    }
+
+    private static function slaBadge(string $label, string $fg, string $bg): HtmlString
+    {
+        return new HtmlString(sprintf(
+            '<span style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:6px;background:%s;color:%s;font-size:0.85em;font-weight:600;line-height:1.4;">%s</span>',
+            $bg,
+            $fg,
+            e($label)
+        ));
+    }
+
+    /**
      * Render the SLA progress bar — green / yellow / red based on remaining time.
      * on_hold tickets always render as paused — never show overdue/remaining.
      */
@@ -658,7 +711,7 @@ class ViewTicket extends ViewRecord
                 ?? $entry->changedBy?->name
                 ?? '—'
             );
-            $when = $entry->created_at?->format('d M Y H:i') ?? '';
+            $when = $entry->created_at?->translatedFormat('d F Y H:i') ?? '';
 
             // Note: treat empty string the same as null. Render only if non-empty.
             // The "Ticket created" placeholder from TicketObserver is suppressed
@@ -721,7 +774,7 @@ class ViewTicket extends ViewRecord
                     && $entry->created_at
                     && $entry->updated_at->gt($entry->created_at->copy()->addSecond());
                 $editedLine = $wasEdited
-                    ? '<div style="font-size:0.8em;color:#6b7280;font-style:italic;margin-top:4px;">Son düzenleme: ' . e($entry->updated_at->format('d M Y H:i')) . '</div>'
+                    ? '<div style="font-size:0.8em;color:#6b7280;font-style:italic;margin-top:4px;">Son düzenleme: ' . e($entry->updated_at->translatedFormat('d F Y H:i')) . '</div>'
                     : '';
 
                 $editable    = $viewer && $service->canEditComment($entry, $viewer);

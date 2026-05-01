@@ -15,6 +15,7 @@ use App\Repositories\Contracts\TicketRepositoryInterface;
 use App\Repositories\TicketRepository;
 use App\Services\SlaService;
 use App\Services\TicketService;
+use Carbon\Carbon;
 use Filament\Infolists\Infolist;
 use Filament\Tables\Table;
 use Illuminate\Support\Facades\Event;
@@ -35,6 +36,9 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        Carbon::setLocale('tr');
+        setlocale(LC_TIME, 'tr_TR.UTF-8', 'tr_TR', 'tr');
+
         Table::$defaultDateTimeDisplayFormat = 'd F Y - H:i';
         Table::$defaultDateDisplayFormat = 'd F Y';
         Table::$defaultCurrency = 'TRY';

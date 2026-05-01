@@ -213,6 +213,35 @@ class Ticket extends Model implements HasMedia
         return $completedAt <= $target ? 'SUCCESS' : 'FAILED';
     }
 
+    public function getRemainingMinutes(): int
+    {
+        if (!$this->sla_deadline) {
+            return 0;
+        }
+        return (int) now()->diffInMinutes($this->sla_deadline, false);
+    }
+
+    public function getSlaStatusLabel(): string
+    {
+        if (!$this->sla_deadline) {
+            return '—';
+        }
+        if ($this->status === TaskStatusEnum::ON_HOLD) {
+            return '⏸';
+        }
+
+        $remaining = $this->getRemainingMinutes();
+        $abs = abs($remaining);
+        $formatted = $abs >= 60
+            ? floor($abs / 60) . 'sa ' . ($abs % 60) . 'dk'
+            : $abs . 'dk';
+
+        if ($remaining < 0) {
+            return 'İhlal ' . $formatted;
+        }
+        return $formatted . ' kaldı';
+    }
+
     public function getSlaPercentRemainingAttribute(): ?float
     {
         $deadline = $this->sla_deadline;
