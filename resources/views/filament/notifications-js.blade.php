@@ -191,50 +191,30 @@
         setTimeout(checkNotificationBadge, 1500);
     });
 
-    // ── One-shot debug: dump every Alpine component that looks
-    // notification-related, the indicator element, and any header
-    // element whose text is a small integer. Helps us locate where
-    // Filament is actually keeping the unread count when both
-    // Alpine.$data and Livewire.get reads come back empty. Runs
-    // 2s after script load — gives Alpine + Livewire time to hydrate.
+    // ── One-shot debug: find the leaf element whose text is exactly "5"
+    // (the user's known unread count) and dump its tag/id/class plus its
+    // parent's class. Then dump the first 2KB of header HTML so we can
+    // see the surrounding markup. Runs 2s after script load.
     function debugFindNotifCount() {
         console.log('=== NOTIF DEBUG ===');
 
-        // 1. Every [x-data] on the page; print the ones whose data
-        //    keys mention "notif" or "unread".
-        document.querySelectorAll('[x-data]').forEach(function (el, i) {
-            try {
-                const data = window.Alpine.$data(el);
-                const keys = Object.keys(data || {});
-                if (keys.some(function (k) {
-                    const lower = k.toLowerCase();
-                    return lower.includes('notif') || lower.includes('unread');
-                })) {
-                    console.log('Found Alpine el #' + i, el.tagName,
-                        (el.className || '').toString().substring(0, 50));
-                    console.log('Keys:', keys);
-                    try { console.log('Data:', JSON.stringify(data)); }
-                    catch (_) { console.log('Data: (not JSON-serialisable)', data); }
-                }
-            } catch (_) { /* element may not be Alpine-attached */ }
-        });
-
-        // 2. Filament's indicator element (the dot/number on the bell).
-        const indicator = document.querySelector('.fi-notifications-indicator');
-        console.log('fi-notifications-indicator text:',
-            indicator ? indicator.textContent : '(not found)');
-
-        // 3. Walk header text — anything that looks like a tiny integer
-        //    badge (1..20) gets logged so we can see which class wraps it.
-        document.querySelectorAll('header *').forEach(function (el) {
-            const text = (el.textContent || '').trim();
-            if (/^\d{1,2}$/.test(text) && parseInt(text, 10) <= 20) {
-                console.log('Found small-int in header:',
+        const all = document.querySelectorAll('*');
+        for (const el of all) {
+            if (el.children.length === 0
+                && (el.textContent || '').trim() === '5') {
+                console.log('FOUND "5" in:',
                     el.tagName,
-                    (el.className || '').toString().substring(0, 80),
-                    text);
+                    el.id,
+                    el.className,
+                    'parent:', el.parentElement ? el.parentElement.className : '(no parent)'
+                );
             }
-        });
+        }
+
+        const header = document.querySelector('header');
+        if (header) {
+            console.log('HEADER HTML:', (header.innerHTML || '').substring(0, 2000));
+        }
 
         console.log('=== END DEBUG ===');
     }
