@@ -10,10 +10,10 @@ use App\Models\Ticket;
 use App\Models\TicketStatusHistory;
 use App\Models\User;
 use App\Notifications\TicketAssignedNotification;
-use App\Notifications\TicketCancelledNotification;
-use App\Notifications\TicketClosedNotification;
 use App\Notifications\TicketCommentNotification;
-use App\Notifications\TicketReopenedNotification;
+use App\Notifications\TicketReassignedNotification;
+use App\Notifications\TicketStatusChangedNotification;
+use Illuminate\Notifications\Notification as BaseNotification;
 use Illuminate\Support\Facades\DB;
 
 class TicketService
@@ -98,7 +98,7 @@ class TicketService
 
             $fresh = $ticket->fresh();
 
-            $this->dispatchTransitionNotifications($fresh, $from, $toStatus);
+            $this->dispatchTransitionNotifications($fresh, $from, $toStatus, $by);
 
             event(new TicketStatusChanged($fresh, $from, $toStatus, $by, $note));
 
@@ -108,50 +108,56 @@ class TicketService
 
     /**
      * Fire the right notification(s) for a given status transition.
+     *
+     * OPEN → ASSIGNED is the only special case — the assignee gets a
+     * dedicated TicketAssignedNotification. Every other transition fires
+     * TicketStatusChangedNotification to creator + assignee minus the
+     * actor (handled by notifyParticipants).
      */
-    private function dispatchTransitionNotifications(Ticket $ticket, ?TaskStatusEnum $from, TaskStatusEnum $to): void
+    private function dispatchTransitionNotifications(Ticket $ticket, ?TaskStatusEnum $from, TaskStatusEnum $to, User $actor): void
     {
-        // → ASSIGNED: notify the technician
-        if ($to === TaskStatusEnum::ASSIGNED && $ticket->employee_id) {
+        if ($from === TaskStatusEnum::OPEN
+            && $to === TaskStatusEnum::ASSIGNED
+            && $ticket->employee_id) {
             $assignee = $this->userForEmployee($ticket->employee_id);
-            $assignee?->notify(new TicketAssignedNotification($ticket));
-        }
-
-        // → CLOSED / COMPLETED: notify the creator
-        if (in_array($to, [TaskStatusEnum::CLOSED, TaskStatusEnum::COMPLETED], true)) {
-            $creator = User::find($ticket->created_by);
-            $creator?->notify(new TicketClosedNotification($ticket));
-        }
-
-        // → CANCELLED: notify the creator
-        if ($to === TaskStatusEnum::CANCELLED) {
-            $creator = User::find($ticket->created_by);
-            $creator?->notify(new TicketCancelledNotification($ticket));
-        }
-
-        // Reopen path: was closed/resolved/completed → in_progress
-        if ($to === TaskStatusEnum::IN_PROGRESS
-            && in_array($from, [TaskStatusEnum::CLOSED, TaskStatusEnum::COMPLETED, TaskStatusEnum::RESOLVED], true)) {
-            // Notify previous assignee + supervisor of the area
-            $recipients = collect();
-            if ($ticket->employee_id) {
-                $assignee = $this->userForEmployee($ticket->employee_id);
-                if ($assignee) {
-                    $recipients->push($assignee);
-                }
+            if ($assignee && $assignee->id !== $actor->id) {
+                $assignee->notify(new TicketAssignedNotification($ticket));
             }
-
-            if ($ticket->area_id) {
-                $supervisors = User::whereHas('employee.managedGroups', fn ($q) =>
-                    $q->where('area_id', $ticket->area_id)
-                )->get();
-                $recipients = $recipients->merge($supervisors);
-            }
-
-            foreach ($recipients->unique('id') as $user) {
-                $user->notify(new TicketReopenedNotification($ticket));
-            }
+            return;
         }
+
+        $this->notifyParticipants(
+            $ticket,
+            $actor,
+            new TicketStatusChangedNotification($ticket, $from, $to, $actor),
+        );
+    }
+
+    /**
+     * Notify the canonical "participants" of a ticket activity:
+     * created_by + employee->user, deduplicated and minus the actor.
+     * Each recipient gets one notification; clones the source so a queued
+     * notification's per-instance state can't bleed across recipients.
+     */
+    private function notifyParticipants(Ticket $ticket, User $actor, BaseNotification $notification): void
+    {
+        $recipientIds = collect([
+            $ticket->created_by,
+            $ticket->employee?->user?->id,
+        ])
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->reject(fn (int $id) => $id === $actor->id)
+            ->values();
+
+        if ($recipientIds->isEmpty()) {
+            return;
+        }
+
+        User::whereIn('id', $recipientIds)
+            ->get()
+            ->each(fn (User $user) => $user->notify(clone $notification));
     }
 
     private function userForEmployee(int $employeeId): ?User
@@ -181,16 +187,17 @@ class TicketService
             throw new \InvalidArgumentException("Employee {$employeeId} not found");
         }
 
-        $oldEmployeeName = $ticket->employee?->name;
+        $oldEmployeeName = $ticket->employee?->name ?? '—';
+        $newEmployeeName = $newEmployee->name;
         $statusBefore    = $ticket->status;
 
-        $reassignLine = $oldEmployeeName
-            ? "{$oldEmployeeName} → {$newEmployee->name}"
-            : "Atandı: {$newEmployee->name}";
+        $reassignLine = $ticket->employee?->name
+            ? "{$oldEmployeeName} → {$newEmployeeName}"
+            : "Atandı: {$newEmployeeName}";
 
         $fullNote = trim($reassignLine . ($note ? "\n" . $note : ''));
 
-        return DB::transaction(function () use ($ticket, $employeeId, $by, $fullNote, $statusBefore) {
+        return DB::transaction(function () use ($ticket, $employeeId, $by, $fullNote, $statusBefore, $oldEmployeeName, $newEmployeeName) {
             $ticket->update(['employee_id' => $employeeId]);
 
             // OPEN → ASSIGNED: real status transition + history + notification
@@ -203,6 +210,7 @@ class TicketService
                     $this->logReassign($ticket->fresh(), $by, $fullNote);
                     $this->notifyAssignee($ticket->fresh(), $by);
                 }
+                $this->notifyCreatorOfReassignment($ticket->fresh(), $by, $oldEmployeeName, $newEmployeeName);
                 return $ticket->fresh();
             }
 
@@ -210,9 +218,34 @@ class TicketService
             // so the timeline still shows it (rendered same as a comment).
             $this->logReassign($ticket->fresh(), $by, $fullNote);
             $this->notifyAssignee($ticket->fresh(), $by);
+            $this->notifyCreatorOfReassignment($ticket->fresh(), $by, $oldEmployeeName, $newEmployeeName);
 
             return $ticket->fresh();
         });
+    }
+
+    /**
+     * Send TicketReassignedNotification to the ticket's creator unless the
+     * creator is also the actor or the new assignee (those people already
+     * know — actor performed the action, new assignee gets the dedicated
+     * TicketAssignedNotification).
+     */
+    private function notifyCreatorOfReassignment(Ticket $ticket, User $by, string $oldName, string $newName): void
+    {
+        $creatorId = (int) $ticket->created_by;
+        if (!$creatorId || $creatorId === $by->id) {
+            return;
+        }
+
+        // If the new assignee IS the creator, skip — they already got
+        // TicketAssignedNotification via notifyAssignee/transition.
+        $newAssigneeUserId = $ticket->employee?->user?->id;
+        if ($newAssigneeUserId && $creatorId === (int) $newAssigneeUserId) {
+            return;
+        }
+
+        $creator = User::find($creatorId);
+        $creator?->notify(new TicketReassignedNotification($ticket, $oldName, $newName, $by));
     }
 
     /**
@@ -261,13 +294,12 @@ class TicketService
             'note'        => $note,
         ]);
 
-        // Notify the assigned employee, but never notify the commenter themselves.
-        if ($ticket->employee_id) {
-            $assignee = $this->userForEmployee($ticket->employee_id);
-            if ($assignee && $assignee->id !== $by->id) {
-                $assignee->notify(new TicketCommentNotification($ticket, $by, $note));
-            }
-        }
+        // Creator + assignee minus actor — single bell entry per recipient.
+        $this->notifyParticipants(
+            $ticket,
+            $by,
+            new TicketCommentNotification($ticket, $by, $note),
+        );
 
         return $history;
     }
