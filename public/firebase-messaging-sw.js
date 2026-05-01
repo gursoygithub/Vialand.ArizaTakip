@@ -28,13 +28,24 @@ messaging.onBackgroundMessage(function (payload) {
         || '';
     const url = (payload.data && payload.data.url) || '/';
 
-    self.registration.showNotification(title, {
-        body: body,
-        icon: '/favicon.ico',
-        badge: '/favicon.ico',
-        data: { url: url },
-        requireInteraction: false,
-    });
+    // Skip if the page is already focused — the page's onMessage handler
+    // shows the Filament toast for foreground messages, and FCM SDK fires
+    // BOTH paths when the payload includes a notification block. Without
+    // this guard the user sees two popups for one push.
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+        .then(function (clientList) {
+            const hasFocus = clientList.some(function (c) { return c.focused; });
+            if (hasFocus) {
+                return;
+            }
+            self.registration.showNotification(title, {
+                body: body,
+                icon: '/favicon.ico',
+                badge: '/favicon.ico',
+                data: { url: url },
+                requireInteraction: false,
+            });
+        });
 });
 
 self.addEventListener('notificationclick', function (event) {

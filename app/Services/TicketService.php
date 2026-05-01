@@ -159,16 +159,23 @@ class TicketService
             $ticket->employee?->user?->id,
         ])->filter();
 
+        $actorId = (int) $actor->id;
+
         $allIds = $participantIds->merge($additionalIds)
             ->map(fn ($id) => (int) $id)
             ->unique()
-            ->reject(fn (int $id) => $id === $actor->id);
+            ->reject(fn (int $id) => $id === $actorId);
 
         if ($allIds->isEmpty()) {
             return collect();
         }
 
-        return User::whereIn('id', $allIds)->get();
+        // Belt-and-suspenders: also exclude the actor at the SQL layer in
+        // case the collection-side reject misses a stale id from a model
+        // override or a denormalized cache.
+        return User::whereIn('id', $allIds)
+            ->where('id', '!=', $actorId)
+            ->get();
     }
 
     /**
@@ -213,6 +220,15 @@ class TicketService
         $fcmRecipients = $type
             ? $participants->filter(fn (User $u) => $u->wantsNotification($type, 'database'))
             : $participants;
+
+        // Temporary trace — keep until FCM actor-exclusion is confirmed
+        // working in production. Drop on the next pass.
+        \Log::info('FCM participants before send', [
+            'ticket_id'  => $ticket->id,
+            'actor_id'   => $actor->id,
+            'recipients' => $fcmRecipients->pluck('id')->toArray(),
+            'exclude_id' => $actor->id,
+        ]);
 
         app(\App\Services\FcmService::class)->sendToUsers(
             $fcmRecipients,
