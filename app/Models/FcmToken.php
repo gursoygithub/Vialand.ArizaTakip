@@ -37,12 +37,30 @@ class FcmToken extends Model
     }
 
     /**
-     * Idempotent register: creates the row when new, reactivates if the
-     * same token had been deactivated previously.
+     * Idempotent register with exclusive token ownership.
+     *
+     * Firebase returns the same FCM token for a given browser regardless
+     * of which user is logged in — so a single token can end up with rows
+     * under multiple user_ids when several users log in on the same
+     * browser. When that happened, FcmService::sendToUser would deliver
+     * notifications meant for user A to the browser that's now user B's
+     * session.
+     *
+     * Each call to this method enforces "this token belongs to exactly
+     * one user right now" by deactivating the same token (matched by
+     * sha256 hash) under every OTHER user_id before upserting the row
+     * for the caller. Old rows stick around — useful for audit — but
+     * is_active=false stops sendToUser from picking them up.
      */
     public static function upsertForUser(int $userId, string $token): self
     {
         $hash = hash('sha256', $token);
+
+        // Token-takeover: deactivate this token for any other user_id.
+        self::query()
+            ->where('token_hash', $hash)
+            ->where('user_id', '!=', $userId)
+            ->update(['is_active' => false]);
 
         return self::updateOrCreate(
             ['user_id' => $userId, 'token_hash' => $hash],
