@@ -114,6 +114,16 @@ class Ticket extends Model implements HasMedia
         return $this->hasMany(TicketStatusHistory::class)->orderBy('created_at', 'asc');
     }
 
+    public function mutes()
+    {
+        return $this->hasMany(TicketMute::class);
+    }
+
+    public function isMutedBy(User $user): bool
+    {
+        return $this->mutes()->where('user_id', $user->id)->exists();
+    }
+
     public function createdBy()
     {
         return $this->belongsTo(User::class, 'created_by');

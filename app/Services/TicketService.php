@@ -7,6 +7,7 @@ use App\Events\TicketStatusChanged;
 use App\Exceptions\TicketTransitionException;
 use App\Models\Employee;
 use App\Models\Ticket;
+use App\Models\TicketMute;
 use App\Models\TicketStatusHistory;
 use App\Models\User;
 use App\Notifications\TicketAssignedNotification;
@@ -172,10 +173,18 @@ class TicketService
             return collect();
         }
 
+        // Per-ticket mutes: a user can opt out of all activity notifications
+        // on a single ticket via the toggleMute header action. Strip them
+        // from the participant set here so both DB and FCM paths are
+        // silenced without each call site needing its own check.
+        $mutedUserIds = TicketMute::where('ticket_id', $ticket->id)
+            ->pluck('user_id');
+
         // Belt-and-suspenders: also exclude the actor at the SQL layer in
         // case the collection-side reject misses a stale id from a model
         // override or a denormalized cache.
         return User::whereIn('id', $allIds)
+            ->whereNotIn('id', $mutedUserIds)
             ->where('id', '!=', $actorId)
             ->get();
     }
@@ -278,7 +287,19 @@ class TicketService
 
         $fullNote = trim($reassignLine . ($note ? "\n" . $note : ''));
 
-        return DB::transaction(function () use ($ticket, $employeeId, $by, $fullNote, $statusBefore, $oldEmployeeName, $newEmployeeName) {
+        return DB::transaction(function () use ($ticket, $employeeId, $newEmployee, $by, $fullNote, $statusBefore, $oldEmployeeName, $newEmployeeName) {
+            // Auto-unmute the new assignee BEFORE the update — TicketObserver's
+            // updated() hook fires inside $ticket->update() and consults the
+            // mute table. If the new assignee had previously muted this
+            // ticket, leaving the row in place would silence the assignment
+            // notification they need most.
+            $newAssigneeUserId = $newEmployee->user?->id;
+            if ($newAssigneeUserId) {
+                TicketMute::where('ticket_id', $ticket->id)
+                    ->where('user_id', $newAssigneeUserId)
+                    ->delete();
+            }
+
             $ticket->update(['employee_id' => $employeeId]);
 
             // OPEN → ASSIGNED: real status transition + history + notification

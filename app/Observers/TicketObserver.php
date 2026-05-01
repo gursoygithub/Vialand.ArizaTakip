@@ -102,6 +102,14 @@ class TicketObserver
             return;
         }
 
+        // Per-ticket mute. TicketService::reassign() clears the mute for a
+        // new assignee before update() runs, so reaching this branch means
+        // the user actively muted the ticket without an intervening
+        // reassignment to themselves — respect their choice.
+        if ($ticket->isMutedBy($assignedUser)) {
+            return;
+        }
+
         $assignedUser->notify(new TicketAssignedNotification($ticket));
 
         // Desktop push — same actor-name-prefixed body as the

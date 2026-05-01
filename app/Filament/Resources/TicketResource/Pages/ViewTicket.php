@@ -7,6 +7,7 @@ use App\Exceptions\TicketTransitionException;
 use App\Filament\Resources\TicketResource;
 use App\Models\Employee;
 use App\Models\Ticket;
+use App\Models\TicketMute;
 use App\Models\TicketStatusHistory;
 use App\Services\SlaService;
 use App\Services\TicketService;
@@ -306,6 +307,45 @@ class ViewTicket extends ViewRecord
                         ->title($hadEmployee ? 'Bilet yeniden atandı' : 'Bilet atandı')
                         ->success()
                         ->send();
+                }),
+
+            // PER-TICKET MUTE — toggle is_muted_by(viewer) for this ticket.
+            // Visible only to participants (creator / current assignee /
+            // anyone who has acted on the ticket via TicketStatusHistory).
+            // Non-participants wouldn't receive notifications anyway, so
+            // showing them a toggle would be misleading.
+            Actions\Action::make('toggleMute')
+                ->label(fn () => $this->getRecord()->isMutedBy(auth()->user())
+                    ? '🔔 Takibi Aç'
+                    : '🔕 Takibi Bırak')
+                ->icon(fn () => $this->getRecord()->isMutedBy(auth()->user())
+                    ? 'heroicon-o-bell'
+                    : 'heroicon-o-bell-slash')
+                ->color('gray')
+                ->action(function () {
+                    $ticket = $this->getRecord();
+                    $user   = auth()->user();
+                    $mute   = TicketMute::where('ticket_id', $ticket->id)
+                        ->where('user_id', $user->id)
+                        ->first();
+                    if ($mute) {
+                        $mute->delete();
+                        Notification::make()->title('Talep takibe alındı.')->success()->send();
+                    } else {
+                        TicketMute::create(['ticket_id' => $ticket->id, 'user_id' => $user->id]);
+                        Notification::make()->title('Talep bildirimleri kapatıldı.')->success()->send();
+                    }
+                })
+                ->visible(function () use ($ticket): bool {
+                    $user = auth()->user();
+                    if (!$user) {
+                        return false;
+                    }
+                    return (int) $ticket->created_by === (int) $user->id
+                        || (int) ($ticket->employee?->user?->id ?? 0) === (int) $user->id
+                        || TicketStatusHistory::where('ticket_id', $ticket->id)
+                            ->where('changed_by', $user->id)
+                            ->exists();
                 }),
 
             Actions\EditAction::make()
