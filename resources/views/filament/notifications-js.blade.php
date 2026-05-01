@@ -108,42 +108,64 @@
     }
 
     // ── Badge readers ─────────────────────────────────────────────────────
-    // Try Alpine.js store first; fall back to DOM selectors. The selector
-    // list covers Filament 3 markup, the older [x-text=] binding, and the
-    // generic data-attribute used by some custom badges.
+    // Filament removes the badge element when unreadCount === 0, so DOM
+    // selectors return null both for "actually zero" and "bell not mounted".
+    // Read the source of truth instead: Alpine $data on the bell button,
+    // then the Livewire component's data, then 0 as a safe baseline.
     function getUnreadCount() {
+        // 1. Alpine.$data on the bell wrapper. The bell's x-data block has
+        //    unreadNotificationsCount as a reactive property — querying it
+        //    works whether or not the badge is currently rendered.
         try {
-            if (window.Alpine && typeof window.Alpine.store === 'function') {
-                const store = window.Alpine.store('notifications');
-                if (store && typeof store.unreadCount !== 'undefined') {
-                    return parseInt(store.unreadCount, 10) || 0;
+            const bellBtn = document.querySelector(
+                '[x-data*="unreadNotificationsCount"],[x-data*="notifications"]'
+            );
+            if (bellBtn && window.Alpine && typeof window.Alpine.$data === 'function') {
+                const alpineData = window.Alpine.$data(bellBtn);
+                if (alpineData && typeof alpineData.unreadNotificationsCount !== 'undefined') {
+                    console.log('[Notif] Alpine count:', alpineData.unreadNotificationsCount);
+                    return parseInt(alpineData.unreadNotificationsCount, 10) || 0;
                 }
             }
         } catch (e) {
-            // Alpine may not be initialized yet on first reads.
+            console.log('[Notif] Alpine error:', e.message);
         }
 
-        const selectors = [
-            '[x-text="unreadNotificationsCount"]',
-            '.fi-notification-badge',
-            '[data-unread-notifications-count]',
-        ];
-        for (const sel of selectors) {
-            const el = document.querySelector(sel);
-            if (el) {
-                return parseInt((el.textContent || '').trim(), 10) || 0;
+        // 2. Livewire component's public state. Filament 3 stores the
+        //    unread count on the DatabaseNotifications Livewire component.
+        try {
+            if (window.Livewire && typeof window.Livewire.all === 'function') {
+                const components = window.Livewire.all();
+                for (const comp of components) {
+                    // Log component keys once so we can see what's available
+                    // when debugging — only on the first iteration to avoid
+                    // spam on every poll.
+                    if (comp === components[0]) {
+                        console.log('[Notif] Livewire component keys:', Object.keys(comp.data ?? {}));
+                    }
+                    let val;
+                    try { val = comp.get('unreadNotificationsCount'); } catch (_) { val = undefined; }
+                    if (typeof val !== 'undefined') {
+                        console.log('[Notif] Livewire count:', val);
+                        return parseInt(val, 10) || 0;
+                    }
+                }
             }
+        } catch (e) {
+            console.log('[Notif] Livewire error:', e.message);
         }
-        return null; // bell not in DOM yet
+
+        // 3. Final fallback: 0 (not null). Returning null here would let the
+        //    watcher reset _prevNotifCount mid-session and miss real
+        //    increments. 0 is the safest baseline when both APIs are missing.
+        return 0;
     }
 
     let _prevNotifCount = -1;
 
     function checkNotificationBadge() {
-        const current = getUnreadCount();
+        const current = getUnreadCount(); // always a number now, never null
         console.log('[Notif] check — current:', current, 'prev:', _prevNotifCount);
-
-        if (current === null) return; // bell not mounted
 
         if (_prevNotifCount === -1) {
             _prevNotifCount = current;
@@ -151,7 +173,7 @@
         }
 
         if (current > _prevNotifCount) {
-            console.log('[Notif] NEW NOTIFICATION! delta=' + (current - _prevNotifCount));
+            console.log('[Notif] NEW NOTIFICATION! delta:', current - _prevNotifCount);
             playChime();
             showDesktopNotification(current - _prevNotifCount);
         }
