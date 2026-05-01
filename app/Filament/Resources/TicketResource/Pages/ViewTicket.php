@@ -321,7 +321,10 @@ class ViewTicket extends ViewRecord
                 ->icon(fn () => $this->getRecord()->isMutedBy(auth()->user())
                     ? 'heroicon-o-bell-slash'
                     : 'heroicon-o-bell')
-                ->color('gray')
+                ->color(fn () => $this->getRecord()->isMutedBy(auth()->user())
+                    ? 'gray'
+                    : 'success')
+                ->outlined(fn () => true)
                 ->action(function () {
                     $ticket = $this->getRecord();
                     $user   = auth()->user();
