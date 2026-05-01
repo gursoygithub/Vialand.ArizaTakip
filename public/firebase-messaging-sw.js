@@ -19,6 +19,25 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
+// Page-visibility tracking via BroadcastChannel. The page posts its
+// document.hidden state on visibilitychange (and once at load); the SW
+// uses the latest value to decide whether to show the OS notification.
+// This is more reliable than client.focused — Chrome treats unfocused
+// (but visible) tabs as "focused: true" sometimes and "false" other times.
+let pageVisible = false;
+let _channel = null;
+try {
+    _channel = new BroadcastChannel('fcm-channel');
+    _channel.onmessage = function (e) {
+        if (e.data && e.data.type === 'visibility') {
+            pageVisible = !e.data.hidden;
+        }
+    };
+} catch (_) {
+    // Older browsers / private mode may not support BroadcastChannel —
+    // fall back to client.focused below.
+}
+
 messaging.onBackgroundMessage(function (payload) {
     const title = (payload.data && payload.data.title)
         || (payload.notification && payload.notification.title)
@@ -28,24 +47,37 @@ messaging.onBackgroundMessage(function (payload) {
         || '';
     const url = (payload.data && payload.data.url) || '/';
 
-    // Skip if the page is already focused — the page's onMessage handler
-    // shows the Filament toast for foreground messages, and FCM SDK fires
-    // BOTH paths when the payload includes a notification block. Without
-    // this guard the user sees two popups for one push.
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true })
-        .then(function (clientList) {
-            const hasFocus = clientList.some(function (c) { return c.focused; });
-            if (hasFocus) {
-                return;
-            }
-            self.registration.showNotification(title, {
-                body: body,
-                icon: '/favicon.ico',
-                badge: '/favicon.ico',
-                data: { url: url },
-                requireInteraction: false,
+    if (pageVisible) {
+        // Page handles foreground rendering via onMessage + Filament toast.
+        return;
+    }
+
+    // BroadcastChannel may not be wired up (older browser); fall back to
+    // client.focused as a last resort before showing the OS notification.
+    if (!_channel) {
+        self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+            .then(function (clientList) {
+                if (clientList.some(function (c) { return c.focused; })) {
+                    return;
+                }
+                self.registration.showNotification(title, {
+                    body: body,
+                    icon: '/favicon.ico',
+                    badge: '/favicon.ico',
+                    data: { url: url },
+                    requireInteraction: false,
+                });
             });
-        });
+        return;
+    }
+
+    self.registration.showNotification(title, {
+        body: body,
+        icon: '/favicon.ico',
+        badge: '/favicon.ico',
+        data: { url: url },
+        requireInteraction: false,
+    });
 });
 
 self.addEventListener('notificationclick', function (event) {

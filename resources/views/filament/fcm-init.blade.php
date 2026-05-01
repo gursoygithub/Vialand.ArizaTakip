@@ -26,6 +26,29 @@
         const app = initializeApp(firebaseConfig);
         const messaging = getMessaging(app);
 
+        // BroadcastChannel handshake with the service worker so the SW
+        // knows whether to show an OS notification. The SW skips when
+        // pageVisible === true; the page handles foreground rendering.
+        let _fcmChannel = null;
+        try {
+            _fcmChannel = new BroadcastChannel('fcm-channel');
+            const postVisibility = function () {
+                try {
+                    _fcmChannel.postMessage({
+                        type: 'visibility',
+                        hidden: document.hidden,
+                    });
+                } catch (_) {}
+            };
+            document.addEventListener('visibilitychange', postVisibility);
+            // Prime once at load so the SW has a value before the first push.
+            postVisibility();
+            // Re-prime when the page is shown after coming back from bfcache.
+            window.addEventListener('pageshow', postVisibility);
+        } catch (_) {
+            // Older browsers — SW will fall back to clients.focused checks.
+        }
+
         // Foreground audio: same two-tone chime the polling system used.
         function playChime() {
             try {
