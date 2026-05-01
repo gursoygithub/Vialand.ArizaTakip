@@ -1,3 +1,9 @@
+// SW Version: 2 — BroadcastChannel dedup + visibilityState guard.
+// Bump this comment whenever you change SW behavior; browsers cache the
+// previous SW aggressively and only re-fetch / re-install when the byte
+// content of this file changes. A version comment is the cheapest way
+// to force that.
+//
 // Firebase Cloud Messaging — background service worker.
 // Loaded by /firebase-messaging-sw.js, registered from
 // resources/views/filament/fcm-init.blade.php after permission grant.
@@ -47,37 +53,32 @@ messaging.onBackgroundMessage(function (payload) {
         || '';
     const url = (payload.data && payload.data.url) || '/';
 
-    if (pageVisible) {
-        // Page handles foreground rendering via onMessage + Filament toast.
-        return;
-    }
-
-    // BroadcastChannel may not be wired up (older browser); fall back to
-    // client.focused as a last resort before showing the OS notification.
-    if (!_channel) {
-        self.clients.matchAll({ type: 'window', includeUncontrolled: true })
-            .then(function (clientList) {
-                if (clientList.some(function (c) { return c.focused; })) {
-                    return;
-                }
-                self.registration.showNotification(title, {
-                    body: body,
-                    icon: '/favicon.ico',
-                    badge: '/favicon.ico',
-                    data: { url: url },
-                    requireInteraction: false,
-                });
+    // Multi-layer dedup. Any one signal that the page is alive in this
+    // browser suppresses the OS popup so the user never sees both the
+    // Filament toast AND a duplicate native notification:
+    //
+    //   1) pageVisible — set via the BroadcastChannel handshake from
+    //      fcm-init.blade.php on visibilitychange / pageshow.
+    //   2) clients.matchAll — at least one window scoped to this SW
+    //      reports visibilityState === 'visible'.
+    //   3) clients.focused — fallback when the browser doesn't expose
+    //      visibilityState on the Client interface (some Chromium builds).
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+        .then(function (clientList) {
+            const anyVisible = clientList.some(function (c) {
+                return c.visibilityState === 'visible' || c.focused;
             });
-        return;
-    }
-
-    self.registration.showNotification(title, {
-        body: body,
-        icon: '/favicon.ico',
-        badge: '/favicon.ico',
-        data: { url: url },
-        requireInteraction: false,
-    });
+            if (pageVisible || anyVisible) {
+                return;
+            }
+            self.registration.showNotification(title, {
+                body: body,
+                icon: '/favicon.ico',
+                badge: '/favicon.ico',
+                data: { url: url },
+                requireInteraction: false,
+            });
+        });
 });
 
 self.addEventListener('notificationclick', function (event) {

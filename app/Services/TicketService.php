@@ -128,13 +128,14 @@ class TicketService
 
         $fromLabel = $from?->getLabel() ?? '—';
         $toLabel   = $to->getLabel();
+        $actorName = $this->actorDisplayName($actor);
 
         $this->notifyParticipants(
             $ticket,
             $actor,
             new TicketStatusChangedNotification($ticket, $from, $to, $actor),
             $ticket->ticket_no . ' • Durum Değişti',
-            $fromLabel . ' → ' . $toLabel,
+            "{$actorName}: {$fromLabel} → {$toLabel}",
         );
     }
 
@@ -245,6 +246,15 @@ class TicketService
     }
 
     /**
+     * Display name for FCM body lines. Prefers the human-readable
+     * employee.name (synced from LDAP) over user.name (often a username).
+     */
+    private function actorDisplayName(User $actor): string
+    {
+        return $actor->employee?->name ?? $actor->name ?? '—';
+    }
+
+    /**
      * Assign or reassign a ticket to an employee. Always writes a history row
      * so the timeline records the change. If the ticket was OPEN we delegate
      * to transition() so the entry shows up as OPEN → ASSIGNED with its
@@ -324,7 +334,27 @@ class TicketService
         }
 
         $creator = User::find($creatorId);
-        $creator?->notify(new TicketReassignedNotification($ticket, $oldName, $newName, $by));
+        if (!$creator) {
+            return;
+        }
+
+        $creator->notify(new TicketReassignedNotification($ticket, $oldName, $newName, $by));
+
+        // Reassignment doesn't go through notifyParticipants (only creator
+        // gets a DB notification, not the whole participant set), so fire
+        // FCM directly here. Mirrors the actor-name-prefixed body used by
+        // status-change and comment FCM payloads.
+        // Gate FCM on the database preference to mirror notifyParticipants:
+        // turning off the in-app bell for this type also silences the push.
+        if ($creator->wantsNotification('ticket_reassigned', 'database')) {
+            $actorName = $this->actorDisplayName($by);
+            app(FcmService::class)->sendToUser(
+                $creator,
+                $ticket->ticket_no . ' • Personel Değişikliği',
+                $actorName . ' tarafından yeniden atandı',
+                url('/tickets/' . $ticket->id),
+            );
+        }
     }
 
     /**
@@ -374,12 +404,13 @@ class TicketService
         ]);
 
         // Creator + assignee minus actor — single bell entry per recipient.
+        $actorName = $this->actorDisplayName($by);
         $this->notifyParticipants(
             $ticket,
             $by,
             new TicketCommentNotification($ticket, $by, $note),
             $ticket->ticket_no . ' • Yeni Yorum',
-            mb_substr($note, 0, 100),
+            $actorName . ': ' . mb_substr($note, 0, 80),
         );
 
         return $history;
