@@ -222,15 +222,6 @@ class TicketService
             ? $participants->filter(fn (User $u) => $u->wantsNotification($type, 'database'))
             : $participants;
 
-        // Temporary trace — keep until FCM actor-exclusion is confirmed
-        // working in production. Drop on the next pass.
-        \Log::info('FCM participants before send', [
-            'ticket_id'  => $ticket->id,
-            'actor_id'   => $actor->id,
-            'recipients' => $fcmRecipients->pluck('id')->toArray(),
-            'exclude_id' => $actor->id,
-        ]);
-
         app(\App\Services\FcmService::class)->sendToUsers(
             $fcmRecipients,
             $fcmTitle,
