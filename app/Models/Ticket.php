@@ -158,9 +158,11 @@ class Ticket extends Model implements HasMedia
 
     public function registerMediaCollections(): void
     {
+        // The form caps uploads at 5 files via maxFiles(); the collection
+        // itself isn't constrained so historical singleFile rows continue
+        // to work and new tickets can attach a small batch.
         $this->addMediaCollection('task_attachments')
-            ->useDisk('s3')
-            ->singleFile();
+            ->useDisk('s3');
     }
 
     // --- SLA Accessors ---

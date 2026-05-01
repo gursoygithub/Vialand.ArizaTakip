@@ -102,12 +102,9 @@ class TicketResource extends Resource
                             ->validationMessages(['required' => __('ui.required')])
                             ->columnSpanFull(),
 
-                        Forms\Components\DatePicker::make('task_date')
-                            ->label(__('ui.task_date'))
-                            ->placeholder('Arıza tarihini seçiniz')
-                            ->default(now())
-                            ->required()
-                            ->validationMessages(['required' => __('ui.required')]),
+                        // task_date moved into the "Açıklama & Ekler" section so
+                        // it sits next to the description in a Grid(2). See the
+                        // entry there for placeholder + maxDate + default.
 
                         // Hidden default on create so new tickets always start as OPEN.
                         // The DB default is PENDING (legacy) — explicit injection here
@@ -338,11 +335,24 @@ class TicketResource extends Resource
                 \Filament\Forms\Components\Section::make('Açıklama & Ekler')
                     ->icon('heroicon-o-document-text')
                     ->schema([
-                        Forms\Components\Textarea::make('description')
-                            ->label(__('ui.description'))
-                            ->placeholder('Arıza ile ilgili detayları buraya yazınız...')
-                            ->rows(4)
-                            ->columnSpanFull(),
+                        Forms\Components\Grid::make(2)->schema([
+                            Forms\Components\DatePicker::make('task_date')
+                                ->label(__('ui.task_date'))
+                                ->placeholder('Arıza tarihini seçiniz')
+                                ->maxDate(now()->toDateString())
+                                ->default(now()->toDateString())
+                                ->required()
+                                ->validationMessages(['required' => __('ui.required')]),
+
+                            Forms\Components\Textarea::make('description')
+                                ->label(__('ui.description'))
+                                ->placeholder('Arıza ile ilgili detayları buraya yazınız. Ne zaman başladı, belirtiler neler, daha önce yaşandı mı?')
+                                ->required()
+                                ->minLength(10)
+                                ->helperText('En az 10 karakter giriniz.')
+                                ->rows(4)
+                                ->validationMessages(['required' => __('ui.required')]),
+                        ]),
 
                         // Resolution notes don't belong on the form — they're set via
                         // the ViewTicket "Çözüldü" transition action's note field.
@@ -358,9 +368,12 @@ class TicketResource extends Resource
                         \Filament\Forms\Components\SpatieMediaLibraryFileUpload::make('task_attachments')
                             ->label(__('ui.images'))
                             ->collection('task_attachments')
-                            ->image()
+                            ->multiple()
+                            ->maxFiles(5)
+                            ->maxSize(10240)
+                            ->acceptedFileTypes(['image/jpeg', 'image/png', 'image/webp', 'application/pdf'])
+                            ->helperText('Maksimum 5 dosya, her biri en fazla 10MB.')
                             ->imagePreviewHeight('120')
-                            ->multiple(false)
                             ->columnSpanFull(),
                     ]),
             ]);
