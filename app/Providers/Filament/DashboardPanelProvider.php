@@ -12,6 +12,7 @@ use Filament\Pages;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
+use Filament\View\PanelsRenderHook;
 use Filament\Widgets;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
@@ -39,7 +40,15 @@ class DashboardPanelProvider extends PanelProvider
                 'primary' => Color::Blue,
             ])
             ->databaseNotifications()
-            ->databaseNotificationsPolling('30s')
+            // 5s polling so the bell + browser notification fire promptly.
+            // The actual desktop notification is dispatched from the
+            // notifications-js partial (see renderHook below) by watching
+            // the badge count for increases.
+            ->databaseNotificationsPolling('5s')
+            ->renderHook(
+                PanelsRenderHook::BODY_END,
+                fn (): string => view('filament.notifications-js')->render(),
+            )
             ->navigationGroups([
                 __('ui.ticket_management'),
                 __('ui.reports'),
