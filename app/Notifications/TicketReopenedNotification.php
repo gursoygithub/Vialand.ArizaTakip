@@ -30,9 +30,17 @@ class TicketReopenedNotification extends Notification implements ShouldQueue
     public function toMail(object $notifiable): MailMessage
     {
         return (new MailMessage)
-            ->subject($this->ticket->ticket_no . ' — yeniden açıldı')
-            ->line($this->ticket->ticket_no . ' yeniden açıldı.')
-            ->line('Bölge: ' . ($this->ticket->area?->name ?? '—'));
+            ->subject($this->ticket->ticket_no . ' — Yeniden Açıldı')
+            ->view('emails.ticket-notification', [
+                'ticketNo'         => $this->ticket->ticket_no,
+                'eventDescription' => 'Talep yeniden açıldı ve size atandı.',
+                'area'             => $this->ticket->area?->name,
+                'priority'         => $this->ticket->priority?->getLabel(),
+                'status'           => $this->ticket->status?->getLabel(),
+                'assignee'         => $this->ticket->employee?->name,
+                'url'              => url('/tickets/' . $this->ticket->id),
+                'note'             => null,
+            ]);
     }
 
     public function toDatabase(object $notifiable): array

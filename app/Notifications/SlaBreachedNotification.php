@@ -29,12 +29,19 @@ class SlaBreachedNotification extends Notification implements ShouldQueue
 
     public function toMail(object $notifiable): MailMessage
     {
+        $deadline = $this->ticket->sla_deadline?->format('d.m.Y H:i');
         return (new MailMessage)
-            ->subject('🔴 ' . $this->ticket->ticket_no . ' — ' . __('ui.sla_breached'))
-            ->error()
-            ->line($this->ticket->ticket_no . ' — ' . __('ui.sla_breached'))
-            ->line(__('ui.area') . ': ' . ($this->ticket->area?->name ?? '—'))
-            ->line(__('ui.assigned_employee') . ': ' . ($this->ticket->employee?->name ?? '—'));
+            ->subject($this->ticket->ticket_no . ' — 🚨 SLA İhlali')
+            ->view('emails.ticket-notification', [
+                'ticketNo'         => $this->ticket->ticket_no,
+                'eventDescription' => '⚠️ Bu talebin SLA süresi doldu.',
+                'area'             => $this->ticket->area?->name,
+                'priority'         => $this->ticket->priority?->getLabel(),
+                'status'           => $this->ticket->status?->getLabel(),
+                'assignee'         => $this->ticket->employee?->name,
+                'url'              => url('/tickets/' . $this->ticket->id),
+                'note'             => $deadline ? 'Son tarih: ' . $deadline : null,
+            ]);
     }
 
     public function toDatabase(object $notifiable): array

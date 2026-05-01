@@ -30,10 +30,17 @@ class TicketAssignedNotification extends Notification implements ShouldQueue
     public function toMail(object $notifiable): MailMessage
     {
         return (new MailMessage)
-            ->subject(__('ui.task_assigned') . ': ' . $this->ticket->ticket_no)
-            ->line(__('ui.task_assigned') . ': ' . $this->ticket->ticket_no)
-            ->line(__('ui.priority') . ': ' . $this->ticket->priority?->getLabel())
-            ->line(__('ui.area') . ': ' . $this->ticket->area?->name);
+            ->subject($this->ticket->ticket_no . ' — Size Atandı')
+            ->view('emails.ticket-notification', [
+                'ticketNo'         => $this->ticket->ticket_no,
+                'eventDescription' => $this->ticket->ticket_no . ' size atandı.',
+                'area'             => $this->ticket->area?->name,
+                'priority'         => $this->ticket->priority?->getLabel(),
+                'status'           => $this->ticket->status?->getLabel(),
+                'assignee'         => $this->ticket->employee?->name,
+                'url'              => url('/tickets/' . $this->ticket->id),
+                'note'             => null,
+            ]);
     }
 
     /**

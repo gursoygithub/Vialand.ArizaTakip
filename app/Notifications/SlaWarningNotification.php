@@ -29,10 +29,19 @@ class SlaWarningNotification extends Notification implements ShouldQueue
 
     public function toMail(object $notifiable): MailMessage
     {
+        $deadline = $this->ticket->sla_deadline?->format('d.m.Y H:i');
         return (new MailMessage)
-            ->subject('⚠ ' . $this->ticket->ticket_no . ' — SLA %80')
-            ->line($this->ticket->ticket_no . ' SLA süresi %80 doldu.')
-            ->line(__('ui.sla_deadline') . ': ' . $this->ticket->sla_deadline?->format('d.m.Y H:i'));
+            ->subject($this->ticket->ticket_no . ' — ⚠️ SLA Uyarısı')
+            ->view('emails.ticket-notification', [
+                'ticketNo'         => $this->ticket->ticket_no,
+                'eventDescription' => 'Bu talebin SLA süresi dolmak üzere.',
+                'area'             => $this->ticket->area?->name,
+                'priority'         => $this->ticket->priority?->getLabel(),
+                'status'           => $this->ticket->status?->getLabel(),
+                'assignee'         => $this->ticket->employee?->name,
+                'url'              => url('/tickets/' . $this->ticket->id),
+                'note'             => $deadline ? 'Son tarih: ' . $deadline : null,
+            ]);
     }
 
     public function toDatabase(object $notifiable): array

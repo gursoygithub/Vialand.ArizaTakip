@@ -29,12 +29,18 @@ class TicketClosedNotification extends Notification implements ShouldQueue
 
     public function toMail(object $notifiable): MailMessage
     {
-        $slaResult = $this->ticket->sla_breached ? __('ui.sla_breached') : __('ui.on_time');
-
         return (new MailMessage)
-            ->subject($this->ticket->ticket_no . ' — ' . __('ui.closed'))
-            ->line($this->ticket->ticket_no . ' — ' . __('ui.closed'))
-            ->line(__('ui.sla_indicator') . ': ' . $slaResult);
+            ->subject($this->ticket->ticket_no . ' — Kapatıldı')
+            ->view('emails.ticket-notification', [
+                'ticketNo'         => $this->ticket->ticket_no,
+                'eventDescription' => 'Açmış olduğunuz talep kapatıldı.',
+                'area'             => $this->ticket->area?->name,
+                'priority'         => $this->ticket->priority?->getLabel(),
+                'status'           => $this->ticket->status?->getLabel(),
+                'assignee'         => $this->ticket->employee?->name,
+                'url'              => url('/tickets/' . $this->ticket->id),
+                'note'             => $this->ticket->resolution_notes ?: null,
+            ]);
     }
 
     public function toDatabase(object $notifiable): array

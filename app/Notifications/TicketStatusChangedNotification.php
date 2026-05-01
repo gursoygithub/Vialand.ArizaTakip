@@ -30,20 +30,10 @@ class TicketStatusChangedNotification extends Notification implements ShouldQueu
 
     public function via(object $notifiable): array
     {
-        $channels = ['database'];
-
-        if (config('notifications.mail_enabled', false)) {
-            $channels[] = 'mail';
-        }
-
-        return $channels;
-    }
-
-    public function toMail(object $notifiable): MailMessage
-    {
-        return (new MailMessage)
-            ->subject($this->ticket->ticket_no . ' • Durum Değişti')
-            ->line($this->renderBody());
+        // Status changes are database-only — the dedicated assigned/closed/
+        // reopened/cancelled notifications carry the email payload for the
+        // events that actually warrant inbox attention.
+        return ['database'];
     }
 
     public function toDatabase(object $notifiable): array

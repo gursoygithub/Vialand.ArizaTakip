@@ -1,7 +1,8 @@
+<script>window.APP_NAME = @json(config('app.name'));</script>
 <script>
 // Browser notifications + soft chime, driven by Filament's bell-badge.
-// Polling cadence is set on the panel (databaseNotificationsPolling('5s')),
-// this script just reacts to the badge count changing.
+// Polling cadence is set on the panel (databaseNotificationsPolling('5s'));
+// this script reacts to the badge count changing on Livewire updates.
 (function () {
     'use strict';
 
@@ -9,12 +10,12 @@
         return;
     }
 
-    // Ask once, on the first user gesture (browsers reject silent prompts).
+    // Permission requested on first user gesture (browsers reject silent prompts).
     if (Notification.permission === 'default') {
         document.addEventListener('click', function req() {
             Notification.requestPermission().then(function (perm) {
                 if (perm === 'granted') {
-                    new Notification('Arıza Takip', {
+                    new Notification(window.APP_NAME, {
                         body: 'Masaüstü bildirimler aktif edildi.',
                         icon: '/favicon.ico',
                     });
@@ -45,62 +46,48 @@
                 osc.stop(t + 0.6);
             });
         } catch (e) {
-            // Audio context creation can fail before any user gesture; ignore.
+            // AudioContext creation can fail before any user gesture; ignore.
         }
     }
 
     function showDesktopNotification(delta) {
         if (Notification.permission !== 'granted') return;
-        const n = new Notification('Arıza Takip • Yeni Bildirim', {
+        const title = (window.APP_NAME || 'Arıza Takip') + ' • Yeni Bildirim';
+        const n = new Notification(title, {
             body: delta + ' yeni bildiriminiz var',
             icon: '/favicon.ico',
-            tag: 'ariza-takip-notif', // collapses repeated bells into one
+            tag: 'ariza-takip-notif', // collapses repeated bells into one popup
             requireInteraction: false,
         });
         n.onclick = function () { window.focus(); n.close(); };
         setTimeout(function () { n.close(); }, 5000);
     }
 
-    document.addEventListener('DOMContentLoaded', function () {
-        // sessionStorage persists across Livewire navigations within the tab.
-        let prevCount = parseInt(sessionStorage.getItem('ariza_notif_count') || '0', 10) || 0;
+    // Livewire fires 'livewire:update' after every server round-trip, including
+    // the polling tick that bumps the bell-badge. The 100ms timeout gives Alpine
+    // a moment to write the new count into the DOM before we read it.
+    document.addEventListener('livewire:update', function () {
+        setTimeout(function () {
+            const badge = document.querySelector('.fi-notification-badge');
+            if (!badge) return;
 
-        function readBadgeCount() {
-            const badge = document.querySelector(
-                '.fi-notification-badge, [x-text="unreadNotificationsCount"], [data-unread-count]'
-            );
-            if (!badge) return null;
-            const raw = (badge.textContent || '').trim();
-            const n = parseInt(raw, 10);
-            return Number.isFinite(n) ? n : 0;
-        }
+            const current = parseInt((badge.textContent || '').trim(), 10) || 0;
+            const stored  = sessionStorage.getItem('ariza_notif_count');
+            const prev    = stored === null ? -1 : parseInt(stored, 10);
 
-        function checkBadge() {
-            const current = readBadgeCount();
-            if (current === null) return; // bell not in the DOM yet
-
-            if (current > prevCount) {
-                playChime();
-                showDesktopNotification(current - prevCount);
+            // First reading after a fresh tab/login: prime the storage and
+            // bail without sounding — we don't know the user's baseline yet.
+            if (prev === -1) {
+                sessionStorage.setItem('ariza_notif_count', String(current));
+                return;
             }
-            prevCount = current;
+
+            if (current > prev) {
+                playChime();
+                showDesktopNotification(current - prev);
+            }
             sessionStorage.setItem('ariza_notif_count', String(current));
-        }
-
-        // Re-check on Livewire navigations and DOM mutations. The MutationObserver
-        // covers Filament's polling re-render of the bell badge.
-        document.addEventListener('livewire:navigated', checkBadge);
-
-        const observer = new MutationObserver(checkBadge);
-        observer.observe(document.body, {
-            childList: true,
-            subtree: true,
-            characterData: true,
-            characterDataOldValue: true,
-        });
-
-        // Initial sync after the bell hydrates.
-        setTimeout(checkBadge, 1000);
+        }, 100);
     });
 })();
 </script>

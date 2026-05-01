@@ -70,6 +70,16 @@ class Group extends Model
         return $this->belongsTo(Employee::class, 'employee_id');
     }
 
+    /**
+     * Same Employee as manager(); named "employee" so call sites following
+     * the column-name convention ($ticket->group->employee) work alongside
+     * the older $ticket->group->manager usage.
+     */
+    public function employee()
+    {
+        return $this->belongsTo(Employee::class, 'employee_id');
+    }
+
     // The members of the group
     public function members()
     {

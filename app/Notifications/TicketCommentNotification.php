@@ -23,20 +23,9 @@ class TicketCommentNotification extends Notification implements ShouldQueue
 
     public function via(object $notifiable): array
     {
-        $channels = ['database'];
-
-        if (config('notifications.mail_enabled', false)) {
-            $channels[] = 'mail';
-        }
-
-        return $channels;
-    }
-
-    public function toMail(object $notifiable): MailMessage
-    {
-        return (new MailMessage)
-            ->subject($this->ticket->ticket_no . ' — ' . __('ui.add_note') . ': ' . $this->author->name)
-            ->line($this->author->name . ': ' . \Illuminate\Support\Str::limit($this->body, 200));
+        // Comments are database-only by policy — they happen often and the
+        // bell + desktop chime cover them. No email channel.
+        return ['database'];
     }
 
     public function toDatabase(object $notifiable): array

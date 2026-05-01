@@ -73,7 +73,7 @@ class CheckSlaBreaches implements ShouldQueue
             return;
         }
 
-        foreach ($this->warningRecipients($ticket) as $user) {
+        foreach ($this->slaRecipients($ticket) as $user) {
             $user->notify(new SlaWarningNotification($ticket));
         }
     }
@@ -84,18 +84,27 @@ class CheckSlaBreaches implements ShouldQueue
             return;
         }
 
-        $recipients = $this->breachRecipients($ticket);
-
-        if ($recipients->isEmpty()) {
-            // Fallback: notify any admin / super_admin so the breach is not silent
-            $recipients = User::whereHas('roles', fn ($q) =>
-                $q->whereIn('name', ['admin', 'super_admin'])
-            )->get();
-        }
-
-        foreach ($recipients as $user) {
+        foreach ($this->slaRecipients($ticket) as $user) {
             $user->notify(new SlaBreachedNotification($ticket));
         }
+    }
+
+    /**
+     * Canonical SLA recipients: assignee + the supervisor (manager) of the
+     * ticket's group. No role-name lookups, no admin fallback — both relations
+     * walk through Employee->user (LDAP-bound by email). If both are missing
+     * the notification simply doesn't fire; the dashboard SLA widget already
+     * surfaces the breach for admins through the panel UI.
+     */
+    private function slaRecipients(Ticket $ticket)
+    {
+        $assigneeUser    = $ticket->employee?->user;
+        $groupSupervisor = $ticket->group?->employee?->user; // group.manager (employee) → user
+
+        return collect([$assigneeUser, $groupSupervisor])
+            ->filter()
+            ->unique('id')
+            ->values();
     }
 
     /**
@@ -124,55 +133,4 @@ class CheckSlaBreaches implements ShouldQueue
         return false;
     }
 
-    /**
-     * Recipients for the 80% warning: assigned technician + supervisor of the ticket's area.
-     */
-    private function warningRecipients(Ticket $ticket)
-    {
-        $recipients = collect();
-
-        if ($ticket->employee_id) {
-            $assigned = User::whereHas('employee', fn ($q) =>
-                $q->where('id', $ticket->employee_id)
-            )->first();
-
-            if ($assigned) {
-                $recipients->push($assigned);
-            }
-        }
-
-        $recipients = $recipients->merge($this->areaSupervisors($ticket->area_id));
-
-        return $recipients->unique('id');
-    }
-
-    /**
-     * Recipients for a breach: supervisor of the area + all admins.
-     */
-    private function breachRecipients(Ticket $ticket)
-    {
-        $supervisors = $this->areaSupervisors($ticket->area_id);
-
-        $admins = User::whereHas('roles', fn ($q) =>
-            $q->whereIn('name', ['admin', 'super_admin'])
-        )->get();
-
-        return $supervisors->merge($admins)->unique('id');
-    }
-
-    /**
-     * Find users who supervise the given area.
-     * Chain: User -> employee (hasOne by email) -> managedGroups (Group.employee_id) -> area_id.
-     * The User model has no direct `groups()` relationship, so we walk through Employee.
-     */
-    private function areaSupervisors(?int $areaId)
-    {
-        if (!$areaId) {
-            return collect();
-        }
-
-        return User::whereHas('employee.managedGroups', fn ($q) =>
-            $q->where('area_id', $areaId)
-        )->get();
-    }
 }

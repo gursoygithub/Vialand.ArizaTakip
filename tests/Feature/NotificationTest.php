@@ -68,7 +68,7 @@ class NotificationTest extends TestCase
         $sub      = SubArea::factory()->create(['area_id' => $area->id]);
         $unit     = Unit::factory()->create();
         $assignee = Employee::factory()->create(['email' => 'tech80@test.com']);
-        $assigneeUser = User::factory()->create(['email' => 'tech80@test.com']);
+        $assigneeUser = User::factory()->create(['email' => 'tech80@test.com', 'username' => 'tech80']);
 
         // 100-minute window; 85 minutes elapsed → 85% → should warn
         Ticket::factory()->create([
@@ -96,10 +96,15 @@ class NotificationTest extends TestCase
         $sub  = SubArea::factory()->create(['area_id' => $area->id]);
         $unit = Unit::factory()->create();
 
+        // Recipients are assignee + group supervisor (no admin fallback).
+        $assignee     = Employee::factory()->create(['email' => 'breach-assignee@test.com']);
+        $assigneeUser = User::factory()->create(['email' => 'breach-assignee@test.com', 'username' => 'breach-assignee']);
+
         Ticket::factory()->create([
             'area_id'      => $area->id,
             'sub_area_id'  => $sub->id,
             'unit_id'      => $unit->id,
+            'employee_id'  => $assignee->id,
             'status'       => TaskStatusEnum::IN_PROGRESS,
             'sla_deadline' => Carbon::now()->subHour(),
             'sla_breached' => false,
@@ -107,8 +112,7 @@ class NotificationTest extends TestCase
 
         (new CheckSlaBreaches())->handle();
 
-        // Admin (the test actor) should be notified as fallback recipient
-        Notification::assertSentTo($this->actor, SlaBreachedNotification::class);
+        Notification::assertSentTo($assigneeUser, SlaBreachedNotification::class);
     }
 
     public function test_no_duplicate_notifications_same_day(): void
@@ -119,10 +123,14 @@ class NotificationTest extends TestCase
         $sub  = SubArea::factory()->create(['area_id' => $area->id]);
         $unit = Unit::factory()->create();
 
+        $assignee     = Employee::factory()->create(['email' => 'dedupe-assignee@test.com']);
+        User::factory()->create(['email' => 'dedupe-assignee@test.com', 'username' => 'dedupe-assignee']);
+
         Ticket::factory()->create([
             'area_id'      => $area->id,
             'sub_area_id'  => $sub->id,
             'unit_id'      => $unit->id,
+            'employee_id'  => $assignee->id,
             'status'       => TaskStatusEnum::IN_PROGRESS,
             'sla_deadline' => Carbon::now()->subHour(),
             'sla_breached' => false,
