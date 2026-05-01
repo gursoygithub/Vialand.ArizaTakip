@@ -73,7 +73,11 @@ class FcmService
 
         foreach ($tokens as $token) {
             try {
-                $message = CloudMessage::withTarget('token', $token)
+                // kreait/firebase-php 8.x dropped the static
+                // CloudMessage::withTarget('token', $token) constructor;
+                // build via ::new() and ->withToken() instead.
+                $message = CloudMessage::new()
+                    ->withToken($token)
                     ->withNotification(FcmNotification::create($title, $body))
                     ->withData([
                         'title' => $title,
