@@ -52,79 +52,6 @@
             }
         }
 
-        // Foreground toast — try a chain of progressively-cruder mechanisms
-        // so we land *something* visible no matter which Filament/Livewire
-        // surface area is available in this build. Logs which path won so
-        // the field trace shows what's actually happening.
-        function showFilamentToast(title, body, url) {
-            console.log('[FCM] Attempting toast...');
-
-            // 1. Filament 3 global notification API.
-            try {
-                if (window.FilamentNotification && window.FilamentNotificationAction) {
-                    console.log('[FCM] Toast via FilamentNotification');
-                    window.FilamentNotification.make()
-                        .title(title)
-                        .body(body)
-                        .actions([
-                            window.FilamentNotificationAction.make('view')
-                                .label('Talebi Görüntüle')
-                                .url(url),
-                        ])
-                        .warning()
-                        .send();
-                    return;
-                }
-            } catch (e) {
-                console.log('[FCM] FilamentNotification path failed:', e.message);
-            }
-
-            console.log('[FCM] FilamentNotification not found, trying Livewire...');
-
-            // 2. Livewire dispatch. Different Filament builds listen on
-            //    different event names; we fire the most common one.
-            try {
-                if (window.Livewire && typeof window.Livewire.dispatch === 'function') {
-                    console.log('[FCM] Toast via Livewire.dispatch');
-                    window.Livewire.dispatch('filament.notifications', {
-                        title: title,
-                        body: body,
-                        status: 'warning',
-                    });
-                    return;
-                }
-            } catch (e) {
-                console.log('[FCM] Livewire dispatch failed:', e.message);
-            }
-
-            // 3. Custom DOM event — for any custom listener wired up in
-            //    user code, e.g. an Alpine component watching the document.
-            console.log('[FCM] Falling back to CustomEvent');
-            try {
-                window.dispatchEvent(new CustomEvent('filament-notification', {
-                    detail: { notification: { title: title, body: body, status: 'warning' } },
-                }));
-            } catch (e) {
-                console.log('[FCM] CustomEvent failed:', e.message);
-            }
-
-            // 4. Final fallback: native Notification when permission is granted.
-            //    Useful when the page is visible but the panel UI hasn't
-            //    surfaced the toast (e.g. on a route that isn't a Filament
-            //    page).
-            if ('Notification' in window && Notification.permission === 'granted') {
-                try {
-                    const n = new Notification(title, { body: body, icon: '/favicon.ico' });
-                    n.onclick = function () {
-                        window.focus();
-                        if (url) window.location.href = url;
-                        n.close();
-                    };
-                    setTimeout(function () { n.close(); }, 5000);
-                } catch (_) {}
-            }
-        }
-
         async function initFcm() {
             if (!('serviceWorker' in navigator)) {
                 console.log('[FCM] service workers unsupported');
@@ -178,11 +105,33 @@
             const body = (payload.data && payload.data.body)
                 || (payload.notification && payload.notification.body)
                 || '';
-            const url = (payload.data && payload.data.url) || '/';
+            const url = (payload.data && payload.data.url) || '/tickets';
+
+            console.log('[FCM] Foreground message:', title);
 
             playChime();
-            showFilamentToast(title, body, url);
-            console.log('[FCM] foreground message:', title);
+
+            // Filament 3 toast — uses the global FilamentNotification /
+            // FilamentNotificationAction constructors exposed by the panel
+            // plugin. The .duration(8000) keeps the toast on screen long
+            // enough to read; the .button() flag makes the action a
+            // primary button instead of a link.
+            try {
+                new FilamentNotification()
+                    .title(title)
+                    .body(body)
+                    .warning()
+                    .duration(8000)
+                    .actions([
+                        new FilamentNotificationAction('view')
+                            .label('Talebi Görüntüle')
+                            .url(url)
+                            .button(),
+                    ])
+                    .send();
+            } catch (e) {
+                console.error('[FCM] Toast error:', e);
+            }
         });
 
         initFcm();
