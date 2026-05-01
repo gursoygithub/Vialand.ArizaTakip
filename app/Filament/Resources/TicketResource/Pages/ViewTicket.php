@@ -331,6 +331,45 @@ class ViewTicket extends ViewRecord
     }
 
     /**
+     * Inline note edit. Mounted from the timeline blade via
+     * wire:click="mountAction('editComment', { history_id: <id> })".
+     * Pre-fills the textarea with the current note; on submit calls
+     * TicketService::updateComment which re-applies the author + 10-min
+     * window check (so a stale modal can't bypass the edit window).
+     */
+    public function editCommentAction(): \Filament\Actions\Action
+    {
+        return \Filament\Actions\Action::make('editComment')
+            ->label('Yorumu Düzenle')
+            ->icon('heroicon-o-pencil')
+            ->modalHeading('Yorumu Düzenle')
+            ->fillForm(function (array $arguments): array {
+                $history = TicketStatusHistory::find($arguments['history_id'] ?? null);
+                return ['note' => (string) ($history?->note ?? '')];
+            })
+            ->form([
+                Textarea::make('note')
+                    ->label('Yorum')
+                    ->rows(4)
+                    ->required(),
+            ])
+            ->action(function (array $arguments, array $data) {
+                $history = TicketStatusHistory::find($arguments['history_id'] ?? null);
+                if (!$history) {
+                    Notification::make()->title('Yorum bulunamadı')->danger()->send();
+                    return;
+                }
+
+                try {
+                    app(TicketService::class)->updateComment($history, $data['note'], auth()->user());
+                    Notification::make()->title('Yorum güncellendi')->success()->send();
+                } catch (\DomainException $e) {
+                    Notification::make()->title($e->getMessage())->danger()->send();
+                }
+            });
+    }
+
+    /**
      * Build one Filament Action per allowed next status, gated by the
      * permission required for that status type.
      *
@@ -524,9 +563,16 @@ class ViewTicket extends ViewRecord
         $html = '<div style="position:relative;width:100%;padding-left:36px;">';
         $html .= '<div style="position:absolute;left:14px;top:8px;bottom:8px;width:3px;background:#e5e7eb;border-radius:2px;"></div>';
 
+        $reassignPrefix = \App\Services\TicketService::REASSIGN_NOTE_PREFIX;
+
         foreach ($entries as $entry) {
-            $isCreation   = $entry->from_status === null;
-            $isComment    = !$isCreation
+            $isCreation = $entry->from_status === null;
+            $rawNote    = trim((string) ($entry->note ?? ''));
+            $isReassign = !$isCreation
+                && $entry->from_status?->value === $entry->to_status?->value
+                && str_starts_with($rawNote, $reassignPrefix);
+            $isComment  = !$isCreation
+                && !$isReassign
                 && $entry->from_status?->value === $entry->to_status?->value;
 
             // Author display: prefer employee.name, fall back to user.name, then '—'.
@@ -538,10 +584,15 @@ class ViewTicket extends ViewRecord
             $when = $entry->created_at?->format('d M Y H:i') ?? '';
 
             // Note: treat empty string the same as null. Render only if non-empty.
-            $rawNote   = trim((string) ($entry->note ?? ''));
-            $hasNote   = $rawNote !== '' && !($isCreation && $rawNote === 'Ticket created');
+            // The "Ticket created" placeholder from TicketObserver is suppressed
+            // for the creation card; the reassign prefix is stripped before display.
+            $displayNote = $isReassign
+                ? trim(substr($rawNote, strlen($reassignPrefix)))
+                : $rawNote;
+
+            $hasNote   = $displayNote !== '' && !($isCreation && $rawNote === 'Ticket created');
             $noteBlock = $hasNote
-                ? '<blockquote style="margin:8px 0 0;padding:8px 12px;border-left:3px solid #d1d5db;background:#f9fafb;color:#374151;line-height:1.5;border-radius:0 6px 6px 0;">' . nl2br(e($rawNote)) . '</blockquote>'
+                ? '<blockquote style="margin:8px 0 0;padding:8px 12px;border-left:3px solid #d1d5db;background:#f9fafb;color:#374151;line-height:1.5;border-radius:0 6px 6px 0;">' . nl2br(e($displayNote)) . '</blockquote>'
                 : '';
 
             if ($isCreation) {
@@ -560,10 +611,27 @@ class ViewTicket extends ViewRecord
                 continue;
             }
 
+            if ($isReassign) {
+                // 👤 Personel Değişikliği — system event, never editable.
+                $body = $displayNote !== ''
+                    ? '<div style="margin-top:8px;color:#111827;font-size:0.95em;line-height:1.55;white-space:pre-wrap;">' . nl2br(e($displayNote)) . '</div>'
+                    : '';
+                $dotColor = '#3b82f6';
+                $html .= <<<HTML
+                    <div style="position:relative;margin-bottom:24px;">
+                        <div style="position:absolute;left:-30px;top:6px;width:24px;height:24px;border-radius:50%;background:#fff;border:3px solid {$dotColor};display:flex;align-items:center;justify-content:center;font-size:12px;">👤</div>
+                        <div style="background:#fff;border:1px solid #e5e7eb;border-left:4px solid {$dotColor};border-radius:8px;padding:14px 16px;width:100%;">
+                            <div style="font-weight:700;color:#111827;font-size:1em;">Personel Değişikliği</div>
+                            <div style="font-size:0.875em;color:#6b7280;margin-top:6px;">{$author} tarafından • {$when}</div>
+                            {$body}
+                        </div>
+                    </div>
+                HTML;
+                continue;
+            }
+
             if ($isComment) {
-                // 💬 Not Eklendi — comment text gets a prominent block (note text
-                // is the entire payload of a comment, so render it always even
-                // if the "ticket created" filter would otherwise strip it).
+                // 💬 Not Eklendi — comment text gets a prominent block.
                 $commentBody = $rawNote !== ''
                     ? '<div style="margin-top:8px;color:#111827;font-size:0.95em;line-height:1.55;white-space:pre-wrap;">' . nl2br(e($rawNote)) . '</div>'
                     : '<div style="margin-top:8px;color:#9ca3af;font-style:italic;">(boş yorum)</div>';
@@ -573,8 +641,15 @@ class ViewTicket extends ViewRecord
                 if ($editable && $entry->created_at) {
                     $minutesLeft = max(0, 10 - (int) $entry->created_at->diffInMinutes(now()));
                 }
-                $editTag = $editable && $minutesLeft !== null && $minutesLeft > 0
-                    ? '<span style="font-size:0.75em;color:#6b7280;margin-left:6px;">' . $minutesLeft . ' dakika içinde düzenlenebilir</span>'
+
+                // Inline edit affordance: small "Düzenle" link mounting the
+                // editComment page action with the history row's id.
+                $editButton = $editable && $minutesLeft !== null && $minutesLeft > 0
+                    ? '<button type="button"'
+                        . ' wire:click="mountAction(\'editComment\', { history_id: ' . (int) $entry->id . ' })"'
+                        . ' style="margin-top:8px;font-size:0.8em;color:#3b82f6;background:none;border:none;padding:0;cursor:pointer;text-decoration:underline;">'
+                        . 'Düzenle (' . $minutesLeft . ' dk kaldı)'
+                        . '</button>'
                     : '';
 
                 $dotColor = '#9ca3af';
@@ -582,9 +657,10 @@ class ViewTicket extends ViewRecord
                     <div style="position:relative;margin-bottom:24px;">
                         <div style="position:absolute;left:-30px;top:6px;width:24px;height:24px;border-radius:50%;background:#fff;border:3px solid {$dotColor};display:flex;align-items:center;justify-content:center;font-size:12px;">💬</div>
                         <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:14px 16px;width:100%;">
-                            <div style="font-weight:700;color:#111827;font-size:1em;">Not Eklendi{$editTag}</div>
+                            <div style="font-weight:700;color:#111827;font-size:1em;">Not Eklendi</div>
                             <div style="font-size:0.875em;color:#6b7280;margin-top:6px;">{$author} tarafından • {$when}</div>
                             {$commentBody}
+                            {$editButton}
                         </div>
                     </div>
                 HTML;

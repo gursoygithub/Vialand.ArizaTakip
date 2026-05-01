@@ -215,6 +215,13 @@ class TicketService
         });
     }
 
+    /**
+     * Tag for the timeline renderer: lines starting with this prefix are
+     * personnel-change events, not user comments. The renderer strips the
+     * prefix when displaying the body and chooses a 👤 card instead of 💬.
+     */
+    public const REASSIGN_NOTE_PREFIX = '__reassign__:';
+
     private function logReassign(Ticket $ticket, User $by, string $note): void
     {
         $current = $ticket->status?->value;
@@ -223,7 +230,7 @@ class TicketService
             'from_status' => $current,
             'to_status'   => $current,
             'changed_by'  => $by->id,
-            'note'        => $note,
+            'note'        => self::REASSIGN_NOTE_PREFIX . $note,
         ]);
     }
 
@@ -268,6 +275,8 @@ class TicketService
     /**
      * Whether a comment may be edited by the given user.
      * Authors may edit their own comments within 10 minutes of posting.
+     * Personnel-change entries (logReassign) are NOT editable — they're
+     * system events even though the row shape (from==to) matches a comment.
      */
     public function canEditComment(TicketStatusHistory $entry, User $user): bool
     {
@@ -279,7 +288,40 @@ class TicketService
             return false; // it's a status change, not a pure comment
         }
 
+        if (str_starts_with((string) $entry->note, self::REASSIGN_NOTE_PREFIX)) {
+            return false; // reassignment system event
+        }
+
         return $entry->created_at?->diffInMinutes(now()) < 10;
+    }
+
+    /**
+     * Edit a comment's note in place. Re-applies canEditComment's contract
+     * (author + 10-min window + not-a-status-event) so the rules can't be
+     * bypassed by a stale Filament action mounted before the window expired.
+     *
+     * @throws \DomainException when the viewer isn't the author or the
+     *                          edit window has elapsed.
+     */
+    public function updateComment(TicketStatusHistory $history, string $newNote, User $by): void
+    {
+        if ($history->changed_by !== $by->id) {
+            throw new \DomainException('Yetkisiz işlem.');
+        }
+
+        if ($history->from_status?->value !== $history->to_status?->value) {
+            throw new \DomainException('Durum değişikliği kayıtları düzenlenemez.');
+        }
+
+        if (str_starts_with((string) $history->note, self::REASSIGN_NOTE_PREFIX)) {
+            throw new \DomainException('Personel değişikliği kayıtları düzenlenemez.');
+        }
+
+        if ($history->created_at?->diffInMinutes(now()) >= 10) {
+            throw new \DomainException('Düzenleme süresi doldu.');
+        }
+
+        $history->update(['note' => $newNote]);
     }
 
     public function isAllowed(?TaskStatusEnum $from, TaskStatusEnum $to): bool
