@@ -9,7 +9,6 @@ use App\Models\Employee;
 use App\Models\Ticket;
 use App\Models\TicketMute;
 use App\Models\TicketStatusHistory;
-use App\Services\SlaService;
 use App\Services\TicketService;
 use Filament\Actions;
 use Filament\Forms\Components\Select;
@@ -75,7 +74,7 @@ class ViewTicket extends ViewRecord
                 Section::make()
                     ->extraAttributes(['class' => 'rounded-xl'])
                     ->schema([
-                        Grid::make(4)->schema([
+                        Grid::make(3)->schema([
                             TextEntry::make('ticket_no')
                                 ->label(__('ui.ticket_no'))
                                 ->icon('heroicon-o-ticket')
@@ -96,12 +95,6 @@ class ViewTicket extends ViewRecord
                                 ->badge()
                                 ->color(fn ($state) => $state->getColor())
                                 ->icon(fn ($state) => $state->getIcon()),
-
-                            TextEntry::make('sla_badge')
-                                ->label(__('ui.sla_indicator'))
-                                ->formatStateUsing(fn (Ticket $record) => self::renderSlaBadge($record))
-                                ->visible(fn (Ticket $record) => $record->sla_deadline !== null)
-                                ->html(),
                         ]),
 
                         Grid::make(3)->schema([
@@ -218,11 +211,12 @@ class ViewTicket extends ViewRecord
                                     return $breached ? 'İhlal' : 'Zamanında';
                                 })
                                 ->badge()
-                                ->icon(fn (string $state) => $state === 'İhlal'
+                                ->icon(fn (?string $state) => str_contains($state ?? '', 'İhlal')
                                     ? 'heroicon-o-x-circle'
                                     : 'heroicon-o-check-circle')
-                                ->iconColor(fn (string $state) => $state === 'İhlal' ? 'danger' : 'success')
-                                ->color(fn (string $state) => $state === 'İhlal' ? 'danger' : 'success')
+                                ->color(fn (?string $state) => str_contains($state ?? '', 'İhlal')
+                                    ? 'danger'
+                                    : 'success')
                                 ->visible(fn (Ticket $record) => $record->status?->isClosed() && $record->sla_deadline),
                         ]),
                     ]),
@@ -243,7 +237,7 @@ class ViewTicket extends ViewRecord
                     ]),
 
                 // ── ATTACHMENTS ──
-                Section::make(__('ui.images'))
+                Section::make('Resimler')
                     ->icon('heroicon-o-photo')
                     ->extraAttributes(['class' => 'rounded-xl'])
                     ->collapsible()
@@ -610,117 +604,6 @@ class ViewTicket extends ViewRecord
         }
 
         return $actions;
-    }
-
-    /**
-     * Compact SLA status badge for the header card. Returns empty when the
-     * ticket has no policy (caller hides the entry).
-     */
-    private static function renderSlaBadge(Ticket $record): HtmlString
-    {
-        if (!$record->sla_deadline) {
-            return new HtmlString('');
-        }
-
-        if ($record->status === TaskStatusEnum::ON_HOLD) {
-            return self::slaBadge('⏸ Beklemede', '#374151', '#e5e7eb');
-        }
-
-        $terminal = in_array($record->status, [
-            TaskStatusEnum::RESOLVED,
-            TaskStatusEnum::CLOSED,
-            TaskStatusEnum::COMPLETED,
-            TaskStatusEnum::CANCELLED,
-        ], true);
-        if ($terminal) {
-            $finalAt  = $record->resolved_at ?? $record->closed_at;
-            $breached = $finalAt
-                ? $finalAt->gt($record->sla_deadline)
-                : now()->gt($record->sla_deadline);
-            return $breached
-                ? self::slaBadge('⚠️ İhlalle çözüldü', '#b91c1c', '#fee2e2')
-                : self::slaBadge('✅ Zamanında çözüldü', '#15803d', '#dcfce7');
-        }
-
-        $sla       = app(SlaService::class);
-        $remaining = $sla->getRemainingMinutes($record);
-        $elapsed   = $sla->getElapsedPercentage($record);
-
-        $abs       = abs((int) ($remaining ?? 0));
-        $formatted = $abs >= 60
-            ? intdiv($abs, 60) . 'sa ' . ($abs % 60) . 'dk'
-            : $abs . 'dk';
-
-        if ($remaining !== null && $remaining < 0) {
-            return self::slaBadge('🔴 ' . $formatted . ' önce ihlal edildi', '#b91c1c', '#fee2e2');
-        }
-
-        // <50% remaining ↔ >=50% elapsed
-        if (($elapsed ?? 0) >= 0.5) {
-            return self::slaBadge('🟡 ' . $formatted . ' kaldı', '#a16207', '#fef9c3');
-        }
-
-        return self::slaBadge('🟢 ' . $formatted . ' kaldı', '#15803d', '#dcfce7');
-    }
-
-    private static function slaBadge(string $label, string $fg, string $bg): HtmlString
-    {
-        return new HtmlString(sprintf(
-            '<span style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:6px;background:%s;color:%s;font-size:0.85em;font-weight:600;line-height:1.4;">%s</span>',
-            $bg,
-            $fg,
-            e($label)
-        ));
-    }
-
-    /**
-     * Render the SLA progress bar — green / yellow / red based on remaining time.
-     * on_hold tickets always render as paused — never show overdue/remaining.
-     */
-    private static function renderSlaProgress(Ticket $record): HtmlString
-    {
-        // 1. on_hold — clock paused, never show countdown or breach
-        if ($record->status === TaskStatusEnum::ON_HOLD) {
-            return new HtmlString(
-                '<div style="background:#e5e7eb;border-radius:6px;height:10px;overflow:hidden;">'
-                . '<div style="width:0;background:#9ca3af;height:10px;"></div></div>'
-                . '<div style="margin-top:4px;color:#6b7280;font-size:0.85em;font-weight:500;">⏸ Duraklatıldı</div>'
-            );
-        }
-
-        // 2. no SLA policy
-        if (!$record->sla_deadline) {
-            return new HtmlString('<span class="text-gray-400">SLA tanımlı değil</span>');
-        }
-
-        $sla        = app(SlaService::class);
-        $elapsedPct = $sla->getElapsedPercentage($record);
-        $remaining  = $sla->getRemainingMinutes($record);
-        $breached   = $remaining !== null && $remaining < 0;
-
-        $widthPct = (int) round(min(100, max(0, ($elapsedPct ?? 0) * 100)));
-        $color    = $breached ? '#ef4444'
-            : (($elapsedPct ?? 0) >= 0.5 ? '#f59e0b' : '#22c55e');
-
-        if ($breached) {
-            $absMins = abs((int) $remaining);
-            $h = intdiv($absMins, 60); $m = $absMins % 60;
-            $label = "{$h}s {$m}d gecikmiş";
-        } elseif ($remaining !== null) {
-            $h = intdiv($remaining, 60); $m = $remaining % 60;
-            $label = "{$h}s {$m}d kaldı";
-        } else {
-            $label = '—';
-        }
-
-        return new HtmlString(<<<HTML
-            <div style="width:100%">
-                <div style="background:#e5e7eb;border-radius:6px;height:10px;overflow:hidden;">
-                    <div style="width:{$widthPct}%;background:{$color};height:10px;transition:width 0.3s;"></div>
-                </div>
-                <div style="margin-top:4px;color:{$color};font-size:0.85em;font-weight:500;">{$label}</div>
-            </div>
-        HTML);
     }
 
     /**
