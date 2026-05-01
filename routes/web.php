@@ -31,6 +31,22 @@ Route::prefix('auth')
         Route::post('/', 'login')->name('login.submit');
     });
 
+/**
+ * Lightweight unread-count endpoint for the desktop-notification poller in
+ * resources/views/filament/notifications-js.blade.php. Filament's Livewire
+ * components don't expose unreadNotificationsCount via window.Livewire.find
+ * in this build, so the JS reads the count directly from this route every
+ * 5s. Auth-gated; returns 0 for guests.
+ */
+Route::get('/api/notifications/unread-count', function () {
+    if (!auth()->check()) {
+        return response()->json(['count' => 0]);
+    }
+    return response()->json([
+        'count' => auth()->user()->unreadNotifications()->count(),
+    ]);
+})->middleware(['web', 'auth'])->name('api.notifications.unread-count');
+
 //Route::controller(AuthController::class)
 //    ->middleware('guest')
 //    ->group(function () {

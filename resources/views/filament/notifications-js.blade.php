@@ -1,13 +1,14 @@
 <script>window.APP_NAME = @json(config('app.name'));</script>
 <script>
-// Browser notifications + soft chime, driven by Filament's bell-badge.
-// Verbose console logging is intentional while we stabilise the audio +
-// permission flow — every step prefixes [Notif] so it's easy to grep.
+// Browser notifications + soft chime, polled from a dedicated unread-count
+// endpoint. Filament's Livewire components don't expose
+// unreadNotificationsCount via window.Livewire.find in this build, so
+// reading from JS would require deep DOM/Alpine probing — fetching a
+// 4-byte JSON every 5s is simpler and survives panel internals changes.
 (function () {
     'use strict';
 
     if (!('Notification' in window)) {
-        console.warn('[Notif] Notifications not supported in this browser');
         return;
     }
 
@@ -15,7 +16,6 @@
     if (Notification.permission === 'default') {
         document.addEventListener('click', function req() {
             Notification.requestPermission().then(function (perm) {
-                console.log('[Notif] permission result:', perm);
                 if (perm === 'granted') {
                     new Notification(window.APP_NAME, {
                         body: 'Masaüstü bildirimler aktif edildi.',
@@ -27,11 +27,8 @@
         }, { once: true });
     }
 
-    // ── Audio context — primed on first user gesture ──────────────────────
-    // Web Audio refuses to start sound without a user gesture (browser
-    // autoplay policy). Build the context lazily and resume() it from the
-    // first click so subsequent chimes from setInterval / livewire:update
-    // play even though they don't originate from a click.
+    // ── Audio context — primed on first user gesture so subsequent chimes
+    // from setInterval / livewire:update aren't blocked by autoplay policy.
     let _audioCtx = null;
 
     function getAudioContext() {
@@ -41,9 +38,7 @@
             _audioCtx = new Ctx();
         }
         if (_audioCtx.state === 'suspended') {
-            _audioCtx.resume().catch(function (e) {
-                console.warn('[Notif] resume() failed:', e);
-            });
+            _audioCtx.resume().catch(function () {});
         }
         return _audioCtx;
     }
@@ -56,10 +51,7 @@
     function playChime() {
         try {
             const ctx = getAudioContext();
-            if (!ctx) {
-                console.warn('[Notif] AudioContext unavailable');
-                return;
-            }
+            if (!ctx) return;
             [660, 880].forEach(function (freq, i) {
                 const osc = ctx.createOscillator();
                 const gain = ctx.createGain();
@@ -76,13 +68,11 @@
             });
             console.log('[Notif] Chime played!');
         } catch (e) {
-            console.error('[Notif] Chime error:', e);
+            // Audio context may fail before any user gesture; ignore.
         }
     }
 
     function showDesktopNotification(count) {
-        console.log('[Notif] desktop notification requested, permission:', Notification.permission);
-
         if (Notification.permission === 'granted') {
             try {
                 const n = new Notification((window.APP_NAME || 'Arıza Takip') + ' • Yeni Bildirim', {
@@ -93,108 +83,43 @@
                 });
                 n.onclick = function () { window.focus(); n.close(); };
                 setTimeout(function () { n.close(); }, 5000);
-                console.log('[Notif] desktop notification shown!');
+                console.log('[Notif] Desktop notification shown!');
             } catch (e) {
-                console.error('[Notif] desktop notification error:', e);
+                // Notification constructor can throw on iOS Safari etc.; ignore.
             }
         } else if (Notification.permission === 'default') {
             Notification.requestPermission().then(function (perm) {
-                console.log('[Notif] permission result (lazy):', perm);
                 if (perm === 'granted') showDesktopNotification(count);
             });
-        } else {
-            console.warn('[Notif] desktop notification denied — user blocked');
         }
     }
 
-    // ── Badge readers ─────────────────────────────────────────────────────
-    // Field findings (Livewire 3 in this build):
-    //  - Livewire.all() returns [], so iterating registered components fails.
-    //  - Each Livewire root has wire:id (regenerated per page load).
-    //  - The bell panel exposes wire:click="markAllNotificationsAsRead";
-    //    walking up from there hits an Alpine $data carrying
-    //    unreadNotificationsCount even when the badge dot is hidden.
-    //
-    // Strategy: scan every [wire:id] for a component whose Livewire state
-    // has unreadNotificationsCount; if none, walk up from the
-    // markAllNotificationsAsRead button to find the Alpine wrapper that
-    // holds the count.
-    function getUnreadCount() {
-        // 1. Iterate every Livewire-rooted element and ask the component
-        //    for unreadNotificationsCount via Livewire.find(id).
+    // ── Count source: server-side endpoint ────────────────────────────────
+    // 4-byte JSON every 5s; cheaper than Filament's full polling roundtrip
+    // and independent of Alpine/Livewire internals.
+    async function getUnreadCount() {
         try {
-            const els = document.querySelectorAll('[wire\\:id]');
-            for (const el of els) {
-                const id = el.getAttribute('wire:id');
-
-                try {
-                    const comp = window.Livewire ? window.Livewire.find(id) : null;
-                    if (comp) {
-                        const count = comp.get('unreadNotificationsCount');
-                        if (typeof count !== 'undefined' && count !== null) {
-                            console.log('[Notif] Found count in Livewire component', id, ':', count);
-                            return parseInt(count, 10) || 0;
-                        }
-                    }
-                } catch (_) {
-                    // Component might not expose .get() yet; fall through.
-                }
-
-                // Same element via Alpine — Filament wraps each Livewire
-                // root in an [x-data] for client-side reactivity.
-                try {
-                    if (window.Alpine && typeof window.Alpine.$data === 'function') {
-                        const data = window.Alpine.$data(el);
-                        if (data && typeof data.unreadNotificationsCount !== 'undefined') {
-                            console.log('[Notif] Found count in Alpine', id, ':', data.unreadNotificationsCount);
-                            return parseInt(data.unreadNotificationsCount, 10) || 0;
-                        }
-                    }
-                } catch (_) {
-                    // Alpine may not be attached to this root.
-                }
-            }
+            const csrf = document.querySelector('meta[name="csrf-token"]');
+            const res = await fetch('/api/notifications/unread-count', {
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': csrf ? csrf.content : '',
+                    'Accept': 'application/json',
+                },
+                credentials: 'same-origin',
+            });
+            if (!res.ok) return 0;
+            const data = await res.json();
+            return parseInt(data.count, 10) || 0;
         } catch (e) {
-            console.log('[Notif] Component scan error:', e.message);
+            return 0;
         }
-
-        // 2. Walk up from the markAllNotificationsAsRead button (always
-        //    rendered inside the open panel + the closed dropdown) to find
-        //    an Alpine wrapper carrying unreadNotificationsCount. Bounded
-        //    to 10 ancestor hops so this can't spin away from the bell.
-        try {
-            const markBtn = document.querySelector('[wire\\:click="markAllNotificationsAsRead"]');
-            if (markBtn) {
-                let el = markBtn;
-                for (let i = 0; i < 10 && el; i++) {
-                    el = el.parentElement;
-                    if (!el) break;
-                    try {
-                        if (window.Alpine && typeof window.Alpine.$data === 'function') {
-                            const data = window.Alpine.$data(el);
-                            if (data && typeof data.unreadNotificationsCount !== 'undefined') {
-                                console.log('[Notif] Found via bell-parent walk:', data.unreadNotificationsCount);
-                                return parseInt(data.unreadNotificationsCount, 10) || 0;
-                            }
-                        }
-                    } catch (_) {}
-                }
-            }
-        } catch (e) {
-            console.log('[Notif] Bell-parent walk error:', e.message);
-        }
-
-        // 3. Last-resort baseline. 0 (not null) so the watcher can establish
-        //    a stable prev count; the next successful read will compare
-        //    against it correctly.
-        console.log('[Notif] All methods failed, returning 0');
-        return 0;
     }
 
     let _prevNotifCount = -1;
 
-    function checkNotificationBadge() {
-        const current = getUnreadCount(); // always a number now, never null
+    async function checkNotificationBadge() {
+        const current = await getUnreadCount();
         console.log('[Notif] check — current:', current, 'prev:', _prevNotifCount);
 
         if (_prevNotifCount === -1) {
@@ -210,45 +135,15 @@
         _prevNotifCount = current;
     }
 
-    // Triple-source badge polling — any of these will bump the watcher.
-    setInterval(checkNotificationBadge, 5000);
+    // Triple-source watcher — any of these triggers a count refresh.
+    setInterval(function () { checkNotificationBadge(); }, 5000);
 
     document.addEventListener('livewire:update', function () {
-        setTimeout(checkNotificationBadge, 200);
+        setTimeout(function () { checkNotificationBadge(); }, 200);
     });
 
     document.addEventListener('DOMContentLoaded', function () {
-        setTimeout(checkNotificationBadge, 1500);
+        setTimeout(function () { checkNotificationBadge(); }, 1500);
     });
-
-    // ── One-shot debug: find the bell button specifically (the "5"
-    // we found earlier was the nav-item badge for Arıza Talepleri,
-    // not the bell). Filament's bell button carries wire:click with
-    // "Notification" or aria-label with "notification" / "bildirim".
-    // Also dumps every Livewire-rooted element so we can match the
-    // bell's component id against Livewire.all() entries.
-    function debugFindNotifCount() {
-        console.log('=== NOTIF DEBUG ===');
-
-        document.querySelectorAll('button').forEach(function (btn, i) {
-            const wire = btn.getAttribute('wire:click') || '';
-            const aria = btn.getAttribute('aria-label') || '';
-            if (wire.toLowerCase().includes('otification')
-                || aria.toLowerCase().includes('otification')
-                || aria.toLowerCase().includes('ildirim')) {
-                console.log('BELL BUTTON:', (btn.outerHTML || '').substring(0, 500));
-            }
-        });
-
-        document.querySelectorAll('[wire\\:id]').forEach(function (el) {
-            console.log('Livewire component:',
-                el.getAttribute('wire:id'),
-                (el.className || '').toString().substring(0, 100));
-        });
-
-        console.log('=== END DEBUG ===');
-    }
-
-    setTimeout(debugFindNotifCount, 2000);
 })();
 </script>
