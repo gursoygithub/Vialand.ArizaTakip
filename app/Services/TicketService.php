@@ -296,6 +296,35 @@ class TicketService
     }
 
     /**
+     * Hard-delete a comment within the 10-min window. Re-applies the same
+     * invariants as updateComment so a stale UI can't bypass them. Hard
+     * delete (not soft) — a deleted comment never happened, so we don't
+     * leave it in the timeline as a tombstone.
+     *
+     * @throws \DomainException same set as updateComment.
+     */
+    public function deleteComment(TicketStatusHistory $history, User $by): void
+    {
+        if ($history->changed_by !== $by->id) {
+            throw new \DomainException('Yetkisiz işlem.');
+        }
+
+        if ($history->from_status?->value !== $history->to_status?->value) {
+            throw new \DomainException('Durum değişikliği kayıtları silinemez.');
+        }
+
+        if (str_starts_with((string) $history->note, self::REASSIGN_NOTE_PREFIX)) {
+            throw new \DomainException('Personel değişikliği kayıtları silinemez.');
+        }
+
+        if ($history->created_at?->diffInMinutes(now()) >= 10) {
+            throw new \DomainException('Silme süresi doldu.');
+        }
+
+        $history->delete();
+    }
+
+    /**
      * Edit a comment's note in place. Re-applies canEditComment's contract
      * (author + 10-min window + not-a-status-event) so the rules can't be
      * bypassed by a stale Filament action mounted before the window expired.

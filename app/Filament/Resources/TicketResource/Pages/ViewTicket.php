@@ -331,6 +331,40 @@ class ViewTicket extends ViewRecord
     }
 
     /**
+     * Inline note delete. Mounted from the timeline blade via
+     * wire:click="mountAction('deleteComment', { history_id: <id> })".
+     * Confirmation modal protects against accidental clicks; on confirm
+     * calls TicketService::deleteComment which re-checks ownership and
+     * the 10-min window.
+     */
+    public function deleteCommentAction(): \Filament\Actions\Action
+    {
+        return \Filament\Actions\Action::make('deleteComment')
+            ->label('Notu Sil')
+            ->icon('heroicon-o-trash')
+            ->color('danger')
+            ->requiresConfirmation()
+            ->modalHeading('Notu sil?')
+            ->modalDescription('Bu notu silmek istediğinizden emin misiniz?')
+            ->modalSubmitActionLabel('Evet, sil')
+            ->modalCancelActionLabel('Vazgeç')
+            ->action(function (array $arguments) {
+                $history = TicketStatusHistory::find($arguments['history_id'] ?? null);
+                if (!$history) {
+                    Notification::make()->title('Yorum bulunamadı')->danger()->send();
+                    return;
+                }
+
+                try {
+                    app(TicketService::class)->deleteComment($history, auth()->user());
+                    Notification::make()->title('Yorum silindi')->success()->send();
+                } catch (\DomainException $e) {
+                    Notification::make()->title($e->getMessage())->danger()->send();
+                }
+            });
+    }
+
+    /**
      * Inline note edit. Mounted from the timeline blade via
      * wire:click="mountAction('editComment', { history_id: <id> })".
      * Pre-fills the textarea with the current note; on submit calls
@@ -642,25 +676,44 @@ class ViewTicket extends ViewRecord
                     $minutesLeft = max(0, 10 - (int) $entry->created_at->diffInMinutes(now()));
                 }
 
-                // Inline edit affordance: small "Düzenle" link mounting the
-                // editComment page action with the history row's id.
-                $editButton = $editable && $minutesLeft !== null && $minutesLeft > 0
-                    ? '<button type="button"'
-                        . ' wire:click="mountAction(\'editComment\', { history_id: ' . (int) $entry->id . ' })"'
-                        . ' style="margin-top:8px;font-size:0.8em;color:#3b82f6;background:none;border:none;padding:0;cursor:pointer;text-decoration:underline;">'
-                        . 'Düzenle (' . $minutesLeft . ' dk kaldı)'
-                        . '</button>'
-                    : '';
+                // Header-row action chips (top-right corner of the card):
+                //  [✏️ Düzenle • 8 dk kaldı]   [🗑️]
+                // Both visible only inside the 10-min window for the author.
+                // Timer color: gray when >5 min, orange when ≤5 min.
+                $headerActions = '';
+                if ($editable && $minutesLeft !== null && $minutesLeft > 0) {
+                    $timerColor = $minutesLeft <= 5 ? '#f97316' : '#6b7280';
+                    $editId     = (int) $entry->id;
+
+                    $editChip = '<button type="button"'
+                        . ' wire:click="mountAction(\'editComment\', { history_id: ' . $editId . ' })"'
+                        . ' style="display:inline-flex;align-items:center;gap:4px;font-size:0.75em;color:' . $timerColor . ';background:#fff;border:1px solid #e5e7eb;border-radius:9999px;padding:2px 10px;cursor:pointer;line-height:1.4;"'
+                        . ' title="Yorumu düzenle">'
+                        . '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>'
+                        . 'Düzenle • ' . $minutesLeft . ' dk kaldı'
+                        . '</button>';
+
+                    $deleteChip = '<button type="button"'
+                        . ' wire:click="mountAction(\'deleteComment\', { history_id: ' . $editId . ' })"'
+                        . ' style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;color:#ef4444;background:#fff;border:1px solid #fecaca;border-radius:9999px;cursor:pointer;"'
+                        . ' title="Notu sil">'
+                        . '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>'
+                        . '</button>';
+
+                    $headerActions = '<div style="display:inline-flex;gap:6px;align-items:center;">' . $editChip . $deleteChip . '</div>';
+                }
 
                 $dotColor = '#9ca3af';
                 $html .= <<<HTML
                     <div style="position:relative;margin-bottom:24px;">
                         <div style="position:absolute;left:-30px;top:6px;width:24px;height:24px;border-radius:50%;background:#fff;border:3px solid {$dotColor};display:flex;align-items:center;justify-content:center;font-size:12px;">💬</div>
                         <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:14px 16px;width:100%;">
-                            <div style="font-weight:700;color:#111827;font-size:1em;">Not Eklendi</div>
+                            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+                                <div style="font-weight:700;color:#111827;font-size:1em;">Not Eklendi</div>
+                                {$headerActions}
+                            </div>
                             <div style="font-size:0.875em;color:#6b7280;margin-top:6px;">{$author} tarafından • {$when}</div>
                             {$commentBody}
-                            {$editButton}
                         </div>
                     </div>
                 HTML;
