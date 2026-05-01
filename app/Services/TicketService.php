@@ -122,6 +122,7 @@ class TicketService
             $assignee = $this->userForEmployee($ticket->employee_id);
             if ($assignee && $assignee->id !== $actor->id) {
                 $assignee->notify(new TicketAssignedNotification($ticket));
+                $this->pushAssignmentFcm($ticket, $assignee, $actor);
             }
             return;
         }
@@ -375,7 +376,31 @@ class TicketService
         $assignee = $this->userForEmployee($ticket->employee_id);
         if ($assignee && $assignee->id !== $by->id) {
             $assignee->notify(new TicketAssignedNotification($ticket));
+            $this->pushAssignmentFcm($ticket, $assignee, $by);
         }
+    }
+
+    /**
+     * Desktop push to the new assignee. Mirrors the actor-name-prefixed
+     * body used elsewhere; gated on the user's database preference for
+     * `ticket_assigned` so opting out of the bell silences the push too.
+     */
+    private function pushAssignmentFcm(Ticket $ticket, User $assignee, User $actor): void
+    {
+        if (!$assignee->wantsNotification('ticket_assigned', 'database')) {
+            return;
+        }
+
+        $actorName = $this->actorDisplayName($actor);
+        $area      = $ticket->area?->name ?? '';
+        $priority  = $ticket->priority?->getLabel() ?? '';
+
+        app(FcmService::class)->sendToUser(
+            $assignee,
+            $ticket->ticket_no . ' • Size Atandı',
+            $actorName . ' tarafından atandı — ' . $area . ' / ' . $priority,
+            url('/tickets/' . $ticket->id),
+        );
     }
 
     /**
