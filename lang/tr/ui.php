@@ -426,7 +426,7 @@ return [
     'fault_tracking_panel' => 'Arıza Takip Paneli',
     'welcome_user' => 'Arıza Takip Paneline hoş geldiniz!',
     'export_tasks',
-    'task_date' => 'Görev Tarihi',
+    'task_date' => 'Arıza Tarihi',
     'task_closed' => 'Görev Kapandı',
     'task_closed_successfully' => 'Görev başarıyla kapatıldı',
     'completed_by' => 'Tamamlayan',

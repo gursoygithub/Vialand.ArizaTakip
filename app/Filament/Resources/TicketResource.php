@@ -414,34 +414,23 @@ class TicketResource extends Resource
                     ->sortable()
                     ->toggleable(),
 
-                // SLA indicator with color coding.
-                // Priority order (spec):
-                //   1. status = on_hold        → gray   "⏸"
-                //   2. no sla_deadline         → gray   "—"
-                //   3. closed/completed        → "✓"/"✗" by outcome
-                //   4. breached / <50% / >=50% → smart label via Ticket helper
+                // SLA indicator. The Ticket helper carries the full label
+                // including terminal-state outcomes (✓ Zamanında / ✗ İhlalle);
+                // we just prefix '⚠ '/'✓ ' to in-flight remaining-time strings
+                // so the badge color is unambiguous.
                 Tables\Columns\TextColumn::make('sla_deadline')
                     ->label(__('ui.sla_indicator'))
                     ->formatStateUsing(function (Ticket $record): string {
-                        $statusValue = is_object($record->status) ? $record->status->value : (int) $record->status;
-                        if ($statusValue === TaskStatusEnum::ON_HOLD->value) {
-                            return '⏸';
-                        }
-                        if (!$record->sla_deadline) {
-                            return '—';
-                        }
-                        if ($record->status?->isClosed()) {
-                            return $record->sla_breached ? '✗' : '✓';
-                        }
+                        $label = $record->getSlaStatusLabel();
 
-                        $label     = $record->getSlaStatusLabel();
-                        $remaining = $record->getRemainingMinutes();
-                        if ($remaining < 0) {
-                            return $label;
+                        // Prefix only in-flight countdown labels (those ending
+                        // in ' kaldı'); terminal/breached/paused labels already
+                        // have their own glyph.
+                        if (str_ends_with($label, ' kaldı')) {
+                            $pct = $record->sla_percent_remaining ?? 100;
+                            return ($pct > 50 ? '✓ ' : '⚠ ') . $label;
                         }
-
-                        $pct = $record->sla_percent_remaining ?? 100;
-                        return ($pct > 50 ? '✓ ' : '⚠ ') . $label;
+                        return $label;
                     })
                     ->color(fn (Ticket $record): string => self::slaColor($record))
                     ->sortable()
@@ -651,8 +640,20 @@ class TicketResource extends Resource
             return 'gray';
         }
 
-        if ($record->status?->isClosed()) {
-            return $record->sla_breached ? 'danger' : 'success';
+        // Terminal states include RESOLVED — TaskStatusEnum::isClosed()
+        // intentionally excludes it (resolved ≠ closed for the lifecycle),
+        // but for SLA outcome display they're the same: success/danger by
+        // breach result.
+        $terminal = in_array($record->status, [
+            TaskStatusEnum::RESOLVED,
+            TaskStatusEnum::CLOSED,
+            TaskStatusEnum::COMPLETED,
+            TaskStatusEnum::CANCELLED,
+        ], true);
+        if ($terminal) {
+            $breached = $record->sla_breached
+                || ($record->resolved_at && $record->resolved_at->gt($record->sla_deadline));
+            return $breached ? 'danger' : 'success';
         }
 
         if ($record->sla_breached || now()->isAfter($record->sla_deadline)) {

@@ -230,6 +230,19 @@ class Ticket extends Model implements HasMedia
             return '⏸';
         }
 
+        $terminal = in_array($this->status, [
+            TaskStatusEnum::RESOLVED,
+            TaskStatusEnum::CLOSED,
+            TaskStatusEnum::COMPLETED,
+            TaskStatusEnum::CANCELLED,
+        ], true);
+
+        if ($terminal) {
+            $breached = $this->sla_breached
+                || ($this->resolved_at && $this->resolved_at->gt($this->sla_deadline));
+            return $breached ? '✗ İhlalle çözüldü' : '✓ Zamanında çözüldü';
+        }
+
         $remaining = $this->getRemainingMinutes();
         $abs = abs($remaining);
         $formatted = $abs >= 60
