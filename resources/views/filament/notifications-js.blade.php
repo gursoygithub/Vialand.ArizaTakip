@@ -108,56 +108,86 @@
     }
 
     // ── Badge readers ─────────────────────────────────────────────────────
-    // Filament removes the badge element when unreadCount === 0, so DOM
-    // selectors return null both for "actually zero" and "bell not mounted".
-    // Read the source of truth instead: Alpine $data on the bell button,
-    // then the Livewire component's data, then 0 as a safe baseline.
+    // Field findings (Livewire 3 in this build):
+    //  - Livewire.all() returns [], so iterating registered components fails.
+    //  - Each Livewire root has wire:id (regenerated per page load).
+    //  - The bell panel exposes wire:click="markAllNotificationsAsRead";
+    //    walking up from there hits an Alpine $data carrying
+    //    unreadNotificationsCount even when the badge dot is hidden.
+    //
+    // Strategy: scan every [wire:id] for a component whose Livewire state
+    // has unreadNotificationsCount; if none, walk up from the
+    // markAllNotificationsAsRead button to find the Alpine wrapper that
+    // holds the count.
     function getUnreadCount() {
-        // 1. Alpine.$data on the bell wrapper. The bell's x-data block has
-        //    unreadNotificationsCount as a reactive property — querying it
-        //    works whether or not the badge is currently rendered.
+        // 1. Iterate every Livewire-rooted element and ask the component
+        //    for unreadNotificationsCount via Livewire.find(id).
         try {
-            const bellBtn = document.querySelector(
-                '[x-data*="unreadNotificationsCount"],[x-data*="notifications"]'
-            );
-            if (bellBtn && window.Alpine && typeof window.Alpine.$data === 'function') {
-                const alpineData = window.Alpine.$data(bellBtn);
-                if (alpineData && typeof alpineData.unreadNotificationsCount !== 'undefined') {
-                    console.log('[Notif] Alpine count:', alpineData.unreadNotificationsCount);
-                    return parseInt(alpineData.unreadNotificationsCount, 10) || 0;
+            const els = document.querySelectorAll('[wire\\:id]');
+            for (const el of els) {
+                const id = el.getAttribute('wire:id');
+
+                try {
+                    const comp = window.Livewire ? window.Livewire.find(id) : null;
+                    if (comp) {
+                        const count = comp.get('unreadNotificationsCount');
+                        if (typeof count !== 'undefined' && count !== null) {
+                            console.log('[Notif] Found count in Livewire component', id, ':', count);
+                            return parseInt(count, 10) || 0;
+                        }
+                    }
+                } catch (_) {
+                    // Component might not expose .get() yet; fall through.
+                }
+
+                // Same element via Alpine — Filament wraps each Livewire
+                // root in an [x-data] for client-side reactivity.
+                try {
+                    if (window.Alpine && typeof window.Alpine.$data === 'function') {
+                        const data = window.Alpine.$data(el);
+                        if (data && typeof data.unreadNotificationsCount !== 'undefined') {
+                            console.log('[Notif] Found count in Alpine', id, ':', data.unreadNotificationsCount);
+                            return parseInt(data.unreadNotificationsCount, 10) || 0;
+                        }
+                    }
+                } catch (_) {
+                    // Alpine may not be attached to this root.
                 }
             }
         } catch (e) {
-            console.log('[Notif] Alpine error:', e.message);
+            console.log('[Notif] Component scan error:', e.message);
         }
 
-        // 2. Livewire component's public state. Filament 3 stores the
-        //    unread count on the DatabaseNotifications Livewire component.
+        // 2. Walk up from the markAllNotificationsAsRead button (always
+        //    rendered inside the open panel + the closed dropdown) to find
+        //    an Alpine wrapper carrying unreadNotificationsCount. Bounded
+        //    to 10 ancestor hops so this can't spin away from the bell.
         try {
-            if (window.Livewire && typeof window.Livewire.all === 'function') {
-                const components = window.Livewire.all();
-                for (const comp of components) {
-                    // Log component keys once so we can see what's available
-                    // when debugging — only on the first iteration to avoid
-                    // spam on every poll.
-                    if (comp === components[0]) {
-                        console.log('[Notif] Livewire component keys:', Object.keys(comp.data ?? {}));
-                    }
-                    let val;
-                    try { val = comp.get('unreadNotificationsCount'); } catch (_) { val = undefined; }
-                    if (typeof val !== 'undefined') {
-                        console.log('[Notif] Livewire count:', val);
-                        return parseInt(val, 10) || 0;
-                    }
+            const markBtn = document.querySelector('[wire\\:click="markAllNotificationsAsRead"]');
+            if (markBtn) {
+                let el = markBtn;
+                for (let i = 0; i < 10 && el; i++) {
+                    el = el.parentElement;
+                    if (!el) break;
+                    try {
+                        if (window.Alpine && typeof window.Alpine.$data === 'function') {
+                            const data = window.Alpine.$data(el);
+                            if (data && typeof data.unreadNotificationsCount !== 'undefined') {
+                                console.log('[Notif] Found via bell-parent walk:', data.unreadNotificationsCount);
+                                return parseInt(data.unreadNotificationsCount, 10) || 0;
+                            }
+                        }
+                    } catch (_) {}
                 }
             }
         } catch (e) {
-            console.log('[Notif] Livewire error:', e.message);
+            console.log('[Notif] Bell-parent walk error:', e.message);
         }
 
-        // 3. Final fallback: 0 (not null). Returning null here would let the
-        //    watcher reset _prevNotifCount mid-session and miss real
-        //    increments. 0 is the safest baseline when both APIs are missing.
+        // 3. Last-resort baseline. 0 (not null) so the watcher can establish
+        //    a stable prev count; the next successful read will compare
+        //    against it correctly.
+        console.log('[Notif] All methods failed, returning 0');
         return 0;
     }
 
