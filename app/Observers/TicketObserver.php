@@ -98,8 +98,29 @@ class TicketObserver
             $q->where('id', $ticket->employee_id)
         )->first();
 
-        if ($assignedUser) {
-            $assignedUser->notify(new TicketAssignedNotification($ticket));
+        if (!$assignedUser) {
+            return;
+        }
+
+        $assignedUser->notify(new TicketAssignedNotification($ticket));
+
+        // Desktop push — same actor-name-prefixed body as the
+        // TicketService::pushAssignmentFcm path. The observer fires for
+        // creation-with-assignee and direct employee_id edits, which don't
+        // route through TicketService.
+        if ($assignedUser->wantsNotification('ticket_assigned', 'database')) {
+            $actorName = auth()->user()?->employee?->name
+                      ?? auth()->user()?->name
+                      ?? 'Sistem';
+            $area     = $ticket->area?->name ?? '';
+            $priority = $ticket->priority?->getLabel() ?? '';
+
+            app(\App\Services\FcmService::class)->sendToUser(
+                $assignedUser,
+                $ticket->ticket_no . ' • Size Atandı',
+                $actorName . ' tarafından atandı — ' . $area . ' / ' . $priority,
+                url('/tickets/' . $ticket->id),
+            );
         }
     }
 }
