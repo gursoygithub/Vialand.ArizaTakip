@@ -316,12 +316,14 @@ class ViewTicket extends ViewRecord
             // showing them a toggle would be misleading.
             Actions\Action::make('toggleMute')
                 ->label(fn () => $this->getRecord()->isMutedBy(auth()->user())
-                    ? '🔔 Takibi Aç'
-                    : '🔕 Takibi Bırak')
+                    ? 'Takibi Aç'
+                    : 'Takibi Bırak')
                 ->icon(fn () => $this->getRecord()->isMutedBy(auth()->user())
-                    ? 'heroicon-o-bell'
-                    : 'heroicon-o-bell-slash')
-                ->color('gray')
+                    ? 'heroicon-o-bell-slash'
+                    : 'heroicon-o-bell')
+                ->color(fn () => $this->getRecord()->isMutedBy(auth()->user())
+                    ? 'gray'
+                    : 'warning')
                 ->action(function () {
                     $ticket = $this->getRecord();
                     $user   = auth()->user();
