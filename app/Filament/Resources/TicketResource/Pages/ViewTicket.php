@@ -135,11 +135,13 @@ class ViewTicket extends ViewRecord
                 Section::make(__('ui.sla_information'))
                     ->collapsible()
                     ->visible(fn (Ticket $record) => $record->sla_deadline !== null
-                        || $record->assigned_at || $record->resolved_at || $record->closed_at)
+                        || $record->resolved_at || $record->closed_at)
                     ->schema([
-                        Grid::make(4)->schema([
+                        // Atanma Tarihi removed — duplicates the timeline's
+                        // ASSIGNED row and is irrelevant for tickets that
+                        // bypass the ASSIGNED status entirely.
+                        Grid::make(3)->schema([
                             TextEntry::make('sla_deadline')->label(__('ui.sla_deadline'))->dateTime()->placeholder('—'),
-                            TextEntry::make('assigned_at')->label(__('ui.assigned_at'))->dateTime()->placeholder('—'),
                             TextEntry::make('resolved_at')->label(__('ui.resolved_at'))->dateTime()->placeholder('—'),
                             TextEntry::make('closed_at')->label(__('ui.closed_at'))->dateTime()->placeholder('—'),
                         ]),
@@ -235,9 +237,27 @@ class ViewTicket extends ViewRecord
                 ->label($ticket->employee_id ? 'Yeniden Ata' : 'Ata')
                 ->icon('heroicon-o-user-plus')
                 ->color('warning')
-                ->visible(fn () => $allowAnyAction
-                    && auth()->user()?->can('ticket.assign')
-                    && !$isTerminal)
+                ->visible(function () use ($ticket, $isTerminal, $isCreator): bool {
+                    if ($isTerminal) {
+                        return false;
+                    }
+                    $user = auth()->user();
+                    if (!$user) {
+                        return false;
+                    }
+                    // Creator opens the ticket; routing it to a technician is
+                    // a supervisor/admin job — hide for the creator unless
+                    // they also carry view.all/view.group (i.e. they're an
+                    // admin/supervisor opening their own ticket).
+                    if ($isCreator
+                        && !$user->hasPermissionTo('ticket.view.all')
+                        && !$user->hasPermissionTo('ticket.view.group')) {
+                        return false;
+                    }
+                    return $user->can('ticket.assign')
+                        || $user->hasPermissionTo('ticket.view.all')
+                        || $user->hasPermissionTo('ticket.view.group');
+                })
                 ->form([
                     Select::make('employee_id')
                         ->label(__('ui.assigned_employee'))
@@ -298,6 +318,8 @@ class ViewTicket extends ViewRecord
                 ->visible(function () use ($ticket): bool {
                     // Mirror the mount-time gate in EditTicket so the button
                     // never appears for users the page would 403 anyway.
+                    // ticket.view.group is intentionally NOT here — it's a
+                    // read scope, not a write scope.
                     $user = auth()->user();
                     if (!$user) {
                         return false;
@@ -306,8 +328,7 @@ class ViewTicket extends ViewRecord
                         return false;
                     }
                     return $ticket->created_by === $user->id
-                        || $user->hasPermissionTo('ticket.view.all')
-                        || $user->hasPermissionTo('ticket.view.group');
+                        || $user->hasPermissionTo('ticket.view.all');
                 }),
 
             Actions\DeleteAction::make()
@@ -488,8 +509,11 @@ class ViewTicket extends ViewRecord
         }
 
         $viewer = auth()->user();
-        $html = '<div style="position:relative;padding-left:28px;">';
-        $html .= '<div style="position:absolute;left:11px;top:6px;bottom:6px;width:2px;background:#e5e7eb;border-radius:1px;"></div>';
+        // Full-width timeline; the vertical guide line sits at left:15px and
+        // spans top:0 → bottom:0 with extra margin so it visibly connects
+        // every entry. Cards take the rest of the row.
+        $html = '<div style="position:relative;width:100%;padding-left:36px;">';
+        $html .= '<div style="position:absolute;left:14px;top:8px;bottom:8px;width:3px;background:#e5e7eb;border-radius:2px;"></div>';
 
         foreach ($entries as $entry) {
             $isCreation   = $entry->from_status === null;
@@ -515,11 +539,11 @@ class ViewTicket extends ViewRecord
                 // 🟡 Talep Açıldı
                 $dotColor = '#eab308';
                 $html .= <<<HTML
-                    <div style="position:relative;margin-bottom:18px;">
-                        <div style="position:absolute;left:-22px;top:2px;width:20px;height:20px;border-radius:50%;background:{$dotColor};border:2px solid #fff;box-shadow:0 0 0 2px {$dotColor}33;display:flex;align-items:center;justify-content:center;font-size:11px;">🟡</div>
-                        <div style="background:#fff;border:1px solid #e5e7eb;border-left:3px solid {$dotColor};border-radius:8px;padding:10px 12px;">
-                            <div style="font-weight:700;color:#111827;">Talep Açıldı</div>
-                            <div style="font-size:0.85em;color:#6b7280;margin-top:4px;">{$author} tarafından • {$when}</div>
+                    <div style="position:relative;margin-bottom:24px;">
+                        <div style="position:absolute;left:-30px;top:6px;width:24px;height:24px;border-radius:50%;background:{$dotColor};border:3px solid #fff;box-shadow:0 0 0 2px {$dotColor}33;display:flex;align-items:center;justify-content:center;font-size:12px;">🟡</div>
+                        <div style="background:#fff;border:1px solid #e5e7eb;border-left:4px solid {$dotColor};border-radius:8px;padding:14px 16px;width:100%;">
+                            <div style="font-weight:700;color:#111827;font-size:1em;">Talep Açıldı</div>
+                            <div style="font-size:0.875em;color:#6b7280;margin-top:6px;">{$author} tarafından • {$when}</div>
                             {$noteBlock}
                         </div>
                     </div>
@@ -546,11 +570,11 @@ class ViewTicket extends ViewRecord
 
                 $dotColor = '#9ca3af';
                 $html .= <<<HTML
-                    <div style="position:relative;margin-bottom:18px;">
-                        <div style="position:absolute;left:-22px;top:2px;width:20px;height:20px;border-radius:50%;background:#fff;border:2px solid {$dotColor};display:flex;align-items:center;justify-content:center;font-size:11px;">💬</div>
-                        <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px;">
-                            <div style="font-weight:700;color:#111827;">Not Eklendi{$editTag}</div>
-                            <div style="font-size:0.85em;color:#6b7280;margin-top:4px;">{$author} tarafından • {$when}</div>
+                    <div style="position:relative;margin-bottom:24px;">
+                        <div style="position:absolute;left:-30px;top:6px;width:24px;height:24px;border-radius:50%;background:#fff;border:3px solid {$dotColor};display:flex;align-items:center;justify-content:center;font-size:12px;">💬</div>
+                        <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:14px 16px;width:100%;">
+                            <div style="font-weight:700;color:#111827;font-size:1em;">Not Eklendi{$editTag}</div>
+                            <div style="font-size:0.875em;color:#6b7280;margin-top:6px;">{$author} tarafından • {$when}</div>
                             {$commentBody}
                         </div>
                     </div>
@@ -569,15 +593,15 @@ class ViewTicket extends ViewRecord
                 default => '#3b82f6',
             };
             $html .= <<<HTML
-                <div style="position:relative;margin-bottom:18px;">
-                    <div style="position:absolute;left:-22px;top:2px;width:20px;height:20px;border-radius:50%;background:{$toColor};border:2px solid #fff;box-shadow:0 0 0 2px {$toColor}33;"></div>
-                    <div style="background:#fff;border:1px solid #e5e7eb;border-left:3px solid {$toColor};border-radius:8px;padding:10px 12px;">
-                        <div style="font-weight:600;color:#111827;">
-                            <span style="background:#f3f4f6;color:#6b7280;padding:2px 8px;border-radius:4px;font-size:0.85em;">{$fromLabel}</span>
-                            <span style="margin:0 6px;color:#6b7280;">→</span>
-                            <span style="background:{$toColor}22;color:{$toColor};padding:2px 8px;border-radius:4px;font-size:0.85em;font-weight:700;">{$toLabel}</span>
+                <div style="position:relative;margin-bottom:24px;">
+                    <div style="position:absolute;left:-30px;top:6px;width:24px;height:24px;border-radius:50%;background:{$toColor};border:3px solid #fff;box-shadow:0 0 0 2px {$toColor}33;"></div>
+                    <div style="background:#fff;border:1px solid #e5e7eb;border-left:4px solid {$toColor};border-radius:8px;padding:14px 16px;width:100%;">
+                        <div style="font-weight:600;color:#111827;font-size:1em;">
+                            <span style="background:#f3f4f6;color:#6b7280;padding:3px 10px;border-radius:4px;font-size:0.85em;">{$fromLabel}</span>
+                            <span style="margin:0 8px;color:#6b7280;">→</span>
+                            <span style="background:{$toColor}22;color:{$toColor};padding:3px 10px;border-radius:4px;font-size:0.85em;font-weight:700;">{$toLabel}</span>
                         </div>
-                        <div style="font-size:0.85em;color:#6b7280;margin-top:4px;">{$author} tarafından • {$when}</div>
+                        <div style="font-size:0.875em;color:#6b7280;margin-top:6px;">{$author} tarafından • {$when}</div>
                         {$noteBlock}
                     </div>
                 </div>

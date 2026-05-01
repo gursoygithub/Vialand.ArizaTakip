@@ -23,10 +23,13 @@ class EditTicket extends EditRecord
         $user = auth()->user();
         $ticket = $this->getRecord();
 
+        // Edit is creator-or-admin only. ticket.view.group is a READ scope —
+        // group supervisors can see their region's tickets but not rewrite
+        // someone else's ticket; for that the user has to be the creator
+        // (their own ticket) or a true admin (ticket.view.all).
         if (
             $ticket->created_by !== $user?->id
             && !$user?->hasPermissionTo('ticket.view.all')
-            && !$user?->hasPermissionTo('ticket.view.group')
         ) {
             abort(403, 'Bu talebi düzenleme yetkiniz bulunmuyor.');
         }
