@@ -20,6 +20,7 @@ use Filament\Infolists\Components\TextEntry;
 use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
+use Filament\Support\Enums\FontWeight;
 use Illuminate\Support\HtmlString;
 
 class ViewTicket extends ViewRecord
@@ -72,13 +73,17 @@ class ViewTicket extends ViewRecord
             ->schema([
                 // ── HEADER ──
                 Section::make()
+                    ->extraAttributes(['class' => 'rounded-xl'])
                     ->schema([
                         Grid::make(4)->schema([
                             TextEntry::make('ticket_no')
                                 ->label(__('ui.ticket_no'))
+                                ->icon('heroicon-o-ticket')
+                                ->iconColor('primary')
                                 ->size(TextEntry\TextEntrySize::Large)
-                                ->weight('bold')
-                                ->copyable(),
+                                ->weight(FontWeight::Bold)
+                                ->copyable()
+                                ->copyMessage('Talep no kopyalandı'),
 
                             TextEntry::make('status')
                                 ->label(__('ui.status'))
@@ -101,42 +106,69 @@ class ViewTicket extends ViewRecord
 
                         Grid::make(3)->schema([
                             TextEntry::make('createdBy.name')
-                                ->label(__('ui.created_by')),
+                                ->label('Oluşturan')
+                                ->icon('heroicon-o-user'),
 
                             TextEntry::make('created_at')
-                                ->label(__('ui.created_at'))
+                                ->label('Oluşturulma Tarihi')
+                                ->icon('heroicon-o-calendar')
                                 ->dateTime(),
 
                             TextEntry::make('employee.name')
-                                ->label(__('ui.assigned_employee'))
+                                ->label('Atanan Personel')
+                                ->icon('heroicon-o-user-circle')
+                                ->iconColor('warning')
                                 ->placeholder('—')
                                 ->badge()
                                 ->color('warning'),
                         ]),
 
                         Grid::make(3)->schema([
-                            TextEntry::make('area.name')->label(__('ui.area')),
-                            TextEntry::make('subArea.name')->label(__('ui.sub_area'))->placeholder('—'),
-                            TextEntry::make('group.name')->label(__('ui.group'))->placeholder('—'),
+                            TextEntry::make('area.name')
+                                ->label('Bölge')
+                                ->icon('heroicon-o-map-pin'),
+
+                            TextEntry::make('subArea.name')
+                                ->label('Lokasyon')
+                                ->icon('heroicon-o-map')
+                                ->placeholder('—'),
+
+                            TextEntry::make('group.name')
+                                ->label('Grup')
+                                ->icon('heroicon-o-user-group')
+                                ->placeholder('—'),
                         ]),
                     ]),
 
                 // ── TICKET DETAIL ──
                 Section::make(__('ui.ticket_information'))
+                    ->icon('heroicon-o-clipboard-document-list')
+                    ->extraAttributes(['class' => 'rounded-xl'])
                     ->collapsible()
                     ->schema([
                         Grid::make(2)->schema([
-                            TextEntry::make('unit.name')->label(__('ui.unit')),
-                            TextEntry::make('task_date')->label(__('ui.task_date'))->date(),
+                            TextEntry::make('unit.name')
+                                ->label('Birim')
+                                ->icon('heroicon-o-wrench-screwdriver'),
+
+                            TextEntry::make('task_date')
+                                ->label('Arıza Tarihi')
+                                ->icon('heroicon-o-calendar-days')
+                                ->date(),
                         ]),
 
                         TextEntry::make('description')
-                            ->label(__('ui.description'))
-                            ->columnSpanFull(),
+                            ->label('Açıklama')
+                            ->icon('heroicon-o-document-text')
+                            ->prose()
+                            ->columnSpanFull()
+                            ->extraAttributes(['class' => 'bg-gray-50 dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700']),
                     ]),
 
                 // ── SLA & TIMESTAMPS ──
                 Section::make(__('ui.sla_information'))
+                    ->icon('heroicon-o-clock')
+                    ->extraAttributes(['class' => 'rounded-xl'])
                     ->collapsible()
                     ->visible(fn (Ticket $record) => $record->sla_deadline !== null)
                     ->schema([
@@ -144,14 +176,33 @@ class ViewTicket extends ViewRecord
                         // ASSIGNED row and is irrelevant for tickets that
                         // bypass the ASSIGNED status entirely.
                         Grid::make(3)->schema([
-                            TextEntry::make('sla_deadline')->label(__('ui.sla_deadline'))->dateTime()->placeholder('—'),
-                            TextEntry::make('resolved_at')->label(__('ui.resolved_at'))->dateTime()->placeholder('—'),
-                            TextEntry::make('closed_at')->label(__('ui.closed_at'))->dateTime()->placeholder('—'),
+                            TextEntry::make('sla_deadline')
+                                ->label('SLA Son Tarihi')
+                                ->icon('heroicon-o-clock')
+                                ->color(fn (Ticket $record) => $record->sla_breached ? 'danger' : 'success')
+                                ->dateTime()
+                                ->placeholder('—'),
+
+                            TextEntry::make('resolved_at')
+                                ->label('Çözüm Tarihi')
+                                ->icon('heroicon-o-check-circle')
+                                ->iconColor('success')
+                                ->dateTime()
+                                ->placeholder('—'),
+
+                            TextEntry::make('closed_at')
+                                ->label('Kapatma Tarihi')
+                                ->icon('heroicon-o-lock-closed')
+                                ->iconColor('gray')
+                                ->dateTime()
+                                ->placeholder('—'),
                         ]),
 
                         Grid::make(2)->schema([
                             TextEntry::make('total_on_hold_minutes')
                                 ->label('Toplam Bekleme Süresi')
+                                ->icon('heroicon-o-pause-circle')
+                                ->iconColor('gray')
                                 ->formatStateUsing(fn ($state) => ((int) $state) . ' dk')
                                 ->visible(fn (Ticket $record) => (int) $record->total_on_hold_minutes > 0),
 
@@ -159,15 +210,19 @@ class ViewTicket extends ViewRecord
                             // — never read the persisted column for live UI.
                             TextEntry::make('sla_outcome')
                                 ->label(__('ui.sla_breached'))
-                                ->badge()
-                                ->state(function (Ticket $record): bool {
-                                    $finalAt = $record->resolved_at ?? $record->closed_at;
-                                    return $finalAt
+                                ->state(function (Ticket $record): string {
+                                    $finalAt  = $record->resolved_at ?? $record->closed_at;
+                                    $breached = $finalAt
                                         ? $finalAt->gt($record->sla_deadline)
                                         : now()->gt($record->sla_deadline);
+                                    return $breached ? 'İhlal' : 'Zamanında';
                                 })
-                                ->formatStateUsing(fn (bool $state) => $state ? __('ui.sla_breached') : __('ui.on_time'))
-                                ->color(fn (bool $state) => $state ? 'danger' : 'success')
+                                ->badge()
+                                ->icon(fn (string $state) => $state === 'İhlal'
+                                    ? 'heroicon-o-x-circle'
+                                    : 'heroicon-o-check-circle')
+                                ->iconColor(fn (string $state) => $state === 'İhlal' ? 'danger' : 'success')
+                                ->color(fn (string $state) => $state === 'İhlal' ? 'danger' : 'success')
                                 ->visible(fn (Ticket $record) => $record->status?->isClosed() && $record->sla_deadline),
                         ]),
                     ]),
@@ -189,6 +244,8 @@ class ViewTicket extends ViewRecord
 
                 // ── ATTACHMENTS ──
                 Section::make(__('ui.images'))
+                    ->icon('heroicon-o-photo')
+                    ->extraAttributes(['class' => 'rounded-xl'])
                     ->collapsible()
                     ->collapsed()
                     ->schema([
