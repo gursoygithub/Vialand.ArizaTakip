@@ -52,12 +52,17 @@
             }
         }
 
-        // Foreground toast — uses Filament's Notification API when present,
-        // falls back to the native browser Notification if the user has
-        // granted permission and the page is hidden.
+        // Foreground toast — try a chain of progressively-cruder mechanisms
+        // so we land *something* visible no matter which Filament/Livewire
+        // surface area is available in this build. Logs which path won so
+        // the field trace shows what's actually happening.
         function showFilamentToast(title, body, url) {
+            console.log('[FCM] Attempting toast...');
+
+            // 1. Filament 3 global notification API.
             try {
                 if (window.FilamentNotification && window.FilamentNotificationAction) {
+                    console.log('[FCM] Toast via FilamentNotification');
                     window.FilamentNotification.make()
                         .title(title)
                         .body(body)
@@ -71,9 +76,42 @@
                     return;
                 }
             } catch (e) {
-                // Fall through to native notification.
+                console.log('[FCM] FilamentNotification path failed:', e.message);
             }
 
+            console.log('[FCM] FilamentNotification not found, trying Livewire...');
+
+            // 2. Livewire dispatch. Different Filament builds listen on
+            //    different event names; we fire the most common one.
+            try {
+                if (window.Livewire && typeof window.Livewire.dispatch === 'function') {
+                    console.log('[FCM] Toast via Livewire.dispatch');
+                    window.Livewire.dispatch('filament.notifications', {
+                        title: title,
+                        body: body,
+                        status: 'warning',
+                    });
+                    return;
+                }
+            } catch (e) {
+                console.log('[FCM] Livewire dispatch failed:', e.message);
+            }
+
+            // 3. Custom DOM event — for any custom listener wired up in
+            //    user code, e.g. an Alpine component watching the document.
+            console.log('[FCM] Falling back to CustomEvent');
+            try {
+                window.dispatchEvent(new CustomEvent('filament-notification', {
+                    detail: { notification: { title: title, body: body, status: 'warning' } },
+                }));
+            } catch (e) {
+                console.log('[FCM] CustomEvent failed:', e.message);
+            }
+
+            // 4. Final fallback: native Notification when permission is granted.
+            //    Useful when the page is visible but the panel UI hasn't
+            //    surfaced the toast (e.g. on a route that isn't a Filament
+            //    page).
             if ('Notification' in window && Notification.permission === 'granted') {
                 try {
                     const n = new Notification(title, { body: body, icon: '/favicon.ico' });

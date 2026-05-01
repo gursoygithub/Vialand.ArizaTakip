@@ -104,10 +104,21 @@ class FcmService
 
     /**
      * @param Collection<int, User> $users
+     * @param ?int $excludeUserId Defense-in-depth — caller should already
+     *   have excluded the actor, but if they forgot we drop it here too.
+     *   FCM pushes are user-visible side effects; cheap to double-check.
      */
-    public function sendToUsers(Collection $users, string $title, string $body, string $url = '/'): void
-    {
+    public function sendToUsers(
+        Collection $users,
+        string $title,
+        string $body,
+        string $url = '/',
+        ?int $excludeUserId = null,
+    ): void {
         foreach ($users as $user) {
+            if ($excludeUserId !== null && (int) $user->id === (int) $excludeUserId) {
+                continue;
+            }
             $this->sendToUser($user, $title, $body, $url);
         }
     }

@@ -190,18 +190,37 @@ class TicketService
         string $fcmTitle = '',
         string $fcmBody = '',
     ): void {
+        // Participants already excludes the actor (see getTicketParticipants).
         $participants = $this->getTicketParticipants($ticket, $actor);
 
+        // Database side: notification's own via() consults the user's
+        // per-type preference, so each user can opt out independently.
         $participants->each(fn (User $user) => $user->notify(clone $notification));
 
-        if ($fcmTitle !== '' && $fcmBody !== '') {
-            app(\App\Services\FcmService::class)->sendToUsers(
-                $participants,
-                $fcmTitle,
-                $fcmBody,
-                url('/tickets/' . $ticket->id),
-            );
+        if ($fcmTitle === '' || $fcmBody === '') {
+            return;
         }
+
+        // FCM side: filter the same participants by their database preference
+        // for this notification type. If the user has turned off the in-app
+        // bell for this type, they shouldn't get a desktop push for it
+        // either. The actor-exclusion is enforced once here AND defended
+        // again inside FcmService::sendToUsers via $excludeUserId.
+        $type = method_exists($notification, 'getNotificationType')
+            ? $notification->getNotificationType()
+            : null;
+
+        $fcmRecipients = $type
+            ? $participants->filter(fn (User $u) => $u->wantsNotification($type, 'database'))
+            : $participants;
+
+        app(\App\Services\FcmService::class)->sendToUsers(
+            $fcmRecipients,
+            $fcmTitle,
+            $fcmBody,
+            url('/tickets/' . $ticket->id),
+            $actor->id,
+        );
     }
 
     private function userForEmployee(int $employeeId): ?User
