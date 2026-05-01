@@ -191,30 +191,30 @@
         setTimeout(checkNotificationBadge, 1500);
     });
 
-    // ── One-shot debug: find the leaf element whose text is exactly "5"
-    // (the user's known unread count) and dump its tag/id/class plus its
-    // parent's class. Then dump the first 2KB of header HTML so we can
-    // see the surrounding markup. Runs 2s after script load.
+    // ── One-shot debug: find the bell button specifically (the "5"
+    // we found earlier was the nav-item badge for Arıza Talepleri,
+    // not the bell). Filament's bell button carries wire:click with
+    // "Notification" or aria-label with "notification" / "bildirim".
+    // Also dumps every Livewire-rooted element so we can match the
+    // bell's component id against Livewire.all() entries.
     function debugFindNotifCount() {
         console.log('=== NOTIF DEBUG ===');
 
-        const all = document.querySelectorAll('*');
-        for (const el of all) {
-            if (el.children.length === 0
-                && (el.textContent || '').trim() === '5') {
-                console.log('FOUND "5" in:',
-                    el.tagName,
-                    el.id,
-                    el.className,
-                    'parent:', el.parentElement ? el.parentElement.className : '(no parent)'
-                );
+        document.querySelectorAll('button').forEach(function (btn, i) {
+            const wire = btn.getAttribute('wire:click') || '';
+            const aria = btn.getAttribute('aria-label') || '';
+            if (wire.toLowerCase().includes('otification')
+                || aria.toLowerCase().includes('otification')
+                || aria.toLowerCase().includes('ildirim')) {
+                console.log('BELL BUTTON:', (btn.outerHTML || '').substring(0, 500));
             }
-        }
+        });
 
-        const header = document.querySelector('header');
-        if (header) {
-            console.log('HEADER HTML:', (header.innerHTML || '').substring(0, 2000));
-        }
+        document.querySelectorAll('[wire\\:id]').forEach(function (el) {
+            console.log('Livewire component:',
+                el.getAttribute('wire:id'),
+                (el.className || '').toString().substring(0, 100));
+        });
 
         console.log('=== END DEBUG ===');
     }
