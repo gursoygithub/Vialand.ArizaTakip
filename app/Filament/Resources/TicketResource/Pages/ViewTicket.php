@@ -670,6 +670,17 @@ class ViewTicket extends ViewRecord
                     ? '<div style="margin-top:8px;color:#111827;font-size:0.95em;line-height:1.55;white-space:pre-wrap;">' . nl2br(e($rawNote)) . '</div>'
                     : '<div style="margin-top:8px;color:#9ca3af;font-style:italic;">(boş yorum)</div>';
 
+                // Edit indicator. Eloquent stamps both timestamps to the same
+                // microsecond on insert, so a 1-second floor avoids false
+                // positives on freshly-created rows. Only shown when the row
+                // was actually mutated (i.e. updateComment ran).
+                $wasEdited = $entry->updated_at
+                    && $entry->created_at
+                    && $entry->updated_at->gt($entry->created_at->copy()->addSecond());
+                $editedLine = $wasEdited
+                    ? '<div style="font-size:0.8em;color:#6b7280;font-style:italic;margin-top:4px;">Son düzenleme: ' . e($entry->updated_at->format('d M Y H:i')) . '</div>'
+                    : '';
+
                 $editable    = $viewer && $service->canEditComment($entry, $viewer);
                 $minutesLeft = null;
                 if ($editable && $entry->created_at) {
@@ -713,6 +724,7 @@ class ViewTicket extends ViewRecord
                                 {$headerActions}
                             </div>
                             <div style="font-size:0.875em;color:#6b7280;margin-top:6px;">{$author} tarafından • {$when}</div>
+                            {$editedLine}
                             {$commentBody}
                         </div>
                     </div>
