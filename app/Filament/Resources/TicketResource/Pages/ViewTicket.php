@@ -293,21 +293,17 @@ class ViewTicket extends ViewRecord
                     Textarea::make('note')->label(__('ui.note'))->rows(2),
                 ])
                 ->action(function (array $data) use ($ticket) {
-                    $ticket->update(['employee_id' => $data['employee_id']]);
-                    if ($ticket->status === TaskStatusEnum::OPEN) {
-                        try {
-                            app(TicketService::class)->transition(
-                                $ticket->fresh(),
-                                TaskStatusEnum::ASSIGNED,
-                                auth()->user(),
-                                $data['note'] ?? null
-                            );
-                        } catch (TicketTransitionException $e) {
-                            // already not open — fine
-                        }
-                    }
+                    $hadEmployee = (bool) $ticket->employee_id;
+
+                    app(TicketService::class)->reassign(
+                        $ticket,
+                        (int) $data['employee_id'],
+                        auth()->user(),
+                        $data['note'] ?? null,
+                    );
+
                     Notification::make()
-                        ->title($ticket->employee_id ? 'Bilet yeniden atandı' : 'Bilet atandı')
+                        ->title($hadEmployee ? 'Bilet yeniden atandı' : 'Bilet atandı')
                         ->success()
                         ->send();
                 }),

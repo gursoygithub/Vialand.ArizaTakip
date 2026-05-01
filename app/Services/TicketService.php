@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\TaskStatusEnum;
 use App\Events\TicketStatusChanged;
 use App\Exceptions\TicketTransitionException;
+use App\Models\Employee;
 use App\Models\Ticket;
 use App\Models\TicketStatusHistory;
 use App\Models\User;
@@ -156,6 +157,85 @@ class TicketService
     private function userForEmployee(int $employeeId): ?User
     {
         return User::whereHas('employee', fn ($q) => $q->where('id', $employeeId))->first();
+    }
+
+    /**
+     * Assign or reassign a ticket to an employee. Always writes a history row
+     * so the timeline records the change. If the ticket was OPEN we delegate
+     * to transition() so the entry shows up as OPEN → ASSIGNED with its
+     * own notification + event; otherwise we log a from=to=current entry
+     * (the timeline renders this as a non-status update) and notify the new
+     * assignee directly. assigned_at is stamped by TicketObserver::saving()
+     * when employee_id transitions from empty.
+     *
+     * @param Ticket $ticket
+     * @param int    $employeeId  target Employee::id
+     * @param User   $by          actor (for changed_by + notification dedupe)
+     * @param ?string $note       optional extra note appended to the auto-generated
+     *                            "Old → New" reassignment line
+     */
+    public function reassign(Ticket $ticket, int $employeeId, User $by, ?string $note = null): Ticket
+    {
+        $newEmployee = Employee::find($employeeId);
+        if (!$newEmployee) {
+            throw new \InvalidArgumentException("Employee {$employeeId} not found");
+        }
+
+        $oldEmployeeName = $ticket->employee?->name;
+        $statusBefore    = $ticket->status;
+
+        $reassignLine = $oldEmployeeName
+            ? "{$oldEmployeeName} → {$newEmployee->name}"
+            : "Atandı: {$newEmployee->name}";
+
+        $fullNote = trim($reassignLine . ($note ? "\n" . $note : ''));
+
+        return DB::transaction(function () use ($ticket, $employeeId, $by, $fullNote, $statusBefore) {
+            $ticket->update(['employee_id' => $employeeId]);
+
+            // OPEN → ASSIGNED: real status transition + history + notification
+            // all handled inside transition().
+            if ($statusBefore === TaskStatusEnum::OPEN) {
+                try {
+                    $this->transition($ticket->fresh(), TaskStatusEnum::ASSIGNED, $by, $fullNote);
+                } catch (TicketTransitionException) {
+                    // raced past OPEN — fall through to the from=to log path.
+                    $this->logReassign($ticket->fresh(), $by, $fullNote);
+                    $this->notifyAssignee($ticket->fresh(), $by);
+                }
+                return $ticket->fresh();
+            }
+
+            // Status didn't change — log the reassignment as a from=to entry
+            // so the timeline still shows it (rendered same as a comment).
+            $this->logReassign($ticket->fresh(), $by, $fullNote);
+            $this->notifyAssignee($ticket->fresh(), $by);
+
+            return $ticket->fresh();
+        });
+    }
+
+    private function logReassign(Ticket $ticket, User $by, string $note): void
+    {
+        $current = $ticket->status?->value;
+        TicketStatusHistory::create([
+            'ticket_id'   => $ticket->id,
+            'from_status' => $current,
+            'to_status'   => $current,
+            'changed_by'  => $by->id,
+            'note'        => $note,
+        ]);
+    }
+
+    private function notifyAssignee(Ticket $ticket, User $by): void
+    {
+        if (!$ticket->employee_id) {
+            return;
+        }
+        $assignee = $this->userForEmployee($ticket->employee_id);
+        if ($assignee && $assignee->id !== $by->id) {
+            $assignee->notify(new TicketAssignedNotification($ticket));
+        }
     }
 
     /**
