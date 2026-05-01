@@ -79,6 +79,12 @@ Usage rules:
   `ticket.view.group` branch. `TicketResource::getEloquentQuery` adds it on
   top for the panel list — both are correct (idempotent for admins).
 
+## Locale & Notifications
+- Carbon locale is `tr` (set in `AppServiceProvider::boot`); use `translatedFormat('d F Y H:i')` for Turkish month names in custom output. Filament tables/infolists already format via `Table::$defaultDateTimeDisplayFormat = 'd F Y - H:i'`
+- Bell uses Filament `databaseNotifications`; mail is opt-in (`config/notifications.php` → `mail_enabled`); FCM web-push tokens live in `fcm_tokens`, dispatched via `App\Services\FcmService`
+- Per-user `UserNotificationPreference` toggles channels (`database` / `mail` / `push`) per event type
+- Per-ticket mute: `ticket_mutes` (UNIQUE on `ticket_id, user_id`); `Ticket::isMutedBy(User)` short-circuits sender paths
+
 ## Gotchas
 
 ### Setup chain must be enforced

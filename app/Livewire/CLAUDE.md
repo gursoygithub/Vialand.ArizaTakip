@@ -30,9 +30,10 @@ Forms\Components\Select::make('area_id')
 - Filament/Livewire events: kebab-case → `ticket-status-changed`, `sla-breached`
 - Dispatch: `$this->dispatch('event-name', data: [...])`
 
-## Image Upload
+## File Upload (ticket attachments)
 - Component: `SpatieMediaLibraryFileUpload`
-- Collection: `task_attachments`, disk: `s3`, single file
+- Collection: `task_attachments`, disk: `s3`, **multi-file** (model has no `singleFile()`)
+- Form caps via `->multiple()->maxFiles(5)->maxSize(10240)` and `->acceptedFileTypes([...image/jpeg, image/png, image/webp, application/pdf])`
 
 ## Live Polling (SLA countdown)
 - Add `protected static ?string $pollingInterval = '60s';` to ListTickets page
@@ -40,7 +41,10 @@ Forms\Components\Select::make('area_id')
 
 ## Notification Bell
 - Panel has `->databaseNotifications()` enabled in `DashboardPanelProvider`
-- Filament renders the bell automatically: unread badge, dropdown of last
-  notifications, mark-as-read on click, mark-all-read button
-- Our notification classes return `FilamentNotification::getDatabaseMessage()`
-  from `toDatabase()` so the bell renders title/body/icon/action correctly
+- Filament renders the bell automatically: unread badge, dropdown of last notifications, mark-as-read on click, mark-all-read button
+- Our notification classes return `FilamentNotification::getDatabaseMessage()` from `toDatabase()` so the bell renders title/body/icon/action correctly
+
+## Locale & Date Formatting
+- `AppServiceProvider::boot` sets `Carbon::setLocale('tr')` + `setlocale(LC_TIME, 'tr_TR.UTF-8', 'tr_TR', 'tr')`
+- Filament defaults: `Table::$defaultDateTimeDisplayFormat = 'd F Y - H:i'`, same for Infolist
+- For Turkish month names in custom blade output, use `$carbon->translatedFormat('d F Y H:i')` — never `format()`

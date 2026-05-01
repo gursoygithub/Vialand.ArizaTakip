@@ -20,15 +20,24 @@ Examples:
 |---|---|---|
 | ticket_no | VARCHAR(20) UNIQUE | Auto: TKT-YYYY-NNNNN via Ticket::boot() |
 | sla_deadline | DATETIME NULL | Set on create via TicketObserver + SlaService |
-| sla_breached | BOOLEAN DEFAULT false | Set by CheckSlaBreaches job |
-| assigned_at | DATETIME NULL | Set when status → assigned |
+| sla_breached | BOOLEAN DEFAULT false | Three writers: TicketObserver::saving, TicketService transitions, CheckSlaBreaches job |
+| assigned_at | DATETIME NULL | Set when status → assigned (also stamped by Observer when employee_id is attached) |
 | resolved_at | DATETIME NULL | Set when status → resolved |
 | closed_at | DATETIME NULL | Set when status → closed/completed |
 | closed_by | FK users NULL | User who closed the ticket |
+| total_on_hold_minutes | INT DEFAULT 0 | Accumulated paused time for on_hold/resume cycles |
+
+Composite index `tickets_sla_status_idx (sla_breached, status)` backs the
+"breached" tab, the navigation badge color, and `Ticket::scopeSlaBreached`.
 
 ## ticket_status_histories Table
-Append-only. No `updated_at`. No soft deletes.
-Columns: id, ticket_id, from_status, to_status, changed_by (FK users), note (TEXT NULL), created_at
+- Append-only — no `updated_at`, no soft deletes
+- Columns: id, ticket_id, from_status, to_status, changed_by (FK users), note (TEXT NULL), created_at
+
+## Notifications & Push
+- `ticket_mutes` (`ticket_id`, `user_id`, timestamps; UNIQUE `(ticket_id, user_id)`) — per-user mute toggle on the View page; `Ticket::isMutedBy(User)` short-circuits notification senders
+- `fcm_tokens` (`user_id`, `token`, `last_seen_at`) — web-push tokens consumed by `App\Services\FcmService`
+- `user_notification_preferences` — per-user channel switches (database / mail / push) keyed by event type
 
 ## Never Edit Existing Migrations
 Always write a new migration file. Schema changes are additive.

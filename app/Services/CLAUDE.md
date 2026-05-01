@@ -5,22 +5,26 @@ All business logic lives in `app/Services/`. Never put business logic in Filamen
 Widgets, or Observers (observers trigger services, they don't contain logic).
 
 ## SlaService (`App\Services\SlaService`)
-- `resolvePolicy(int $areaId, ?int $subAreaId, int $unitId, string|int $priority): ?SlaPolicy`
-  Lookup order: (area + subArea + unit + priority) → fallback (area + unit + priority)
-- `calculateDeadline(SlaPolicy $policy, Carbon $from): Carbon`
-  Returns `$from->addMinutes($policy->deadline_minutes)`
-- `checkBreach(Ticket $ticket): bool`
-  Returns true if `sla_deadline` is not null, is in the past, and ticket is not closed
+- `resolvePolicy(int $areaId, ?int $subAreaId, int $unitId, string|int $priority): ?SlaPolicy` — lookup order: (area + subArea + unit + priority) → fallback (area + unit + priority)
+- `calculateDeadline(SlaPolicy $policy, Carbon $from): Carbon` — `$from->addMinutes($policy->deadline_minutes)`
+- `getRemainingMinutes(Ticket $ticket): ?int` — minutes until deadline, paused while `on_hold` (uses `on_hold_since`)
+- `getElapsedPercentage(Ticket $ticket): ?float` — `0.0`–`1.0+`, used by widgets for the >50%/<50% split
+- `checkBreach(Ticket $ticket): bool` — true when deadline is in the past and ticket is not closed
 
 ## TicketService (`App\Services\TicketService`)
-- `transition(Ticket $ticket, string $toStatus, User $by, ?string $note = null): Ticket`
-  Validates allowed transitions, creates TicketStatusHistory, sets timestamps
+- `transition(Ticket $ticket, TaskStatusEnum $toStatus, User $by, ?string $note = null): Ticket` — validates the allowed transition, writes a `TicketStatusHistory` row, stamps timestamps
+- `markResolved` / `markClosed` / `markCancelled` set the **terminal SLA outcome** (`sla_breached` true/false based on `now()` vs `sla_deadline`); reopen path recomputes the flag too
 - Transition map (from → allowed to):
-  `open → [assigned, cancelled]`
-  `assigned → [in_progress, on_hold, cancelled]`
-  `in_progress → [resolved, on_hold, cancelled]`
-  `on_hold → [in_progress, cancelled]`
-  `resolved → [closed, in_progress]`
+  - `open → [assigned, cancelled]`
+  - `assigned → [in_progress, on_hold, cancelled]`
+  - `in_progress → [resolved, on_hold, cancelled]`
+  - `on_hold → [in_progress, cancelled]`
+  - `resolved → [closed, in_progress]`
+
+## FcmService (`App\Services\FcmService`)
+- `sendToUser(User, string $title, string $body, ?string $url): void` / `sendToUsers(Collection, …)` — fans out to each user's `fcm_tokens` rows
+- Used by `TicketAssignedNotification`, `CheckSlaBreaches`, the comment / status / mute paths
+- Tokens stored in `fcm_tokens` (`user_id`, `token`, `last_seen_at`)
 
 ## PerformanceService (`App\Services\PerformanceService`)
 - `getStats(User $user, Carbon $from, Carbon $to): array`
@@ -34,20 +38,13 @@ Widgets, or Observers (observers trigger services, they don't contain logic).
 - Bound in `AppServiceProvider::register()`
 
 ## Async / Scheduled Work
-- `App\Jobs\CheckSlaBreaches` — queued, runs every 5 min (`bootstrap/app.php`)
-  - Marks breached tickets, dispatches `TicketSlaBreached` event
-  - Sends `SlaWarningNotification` at 80% time elapsed
-  - Sends `SlaBreachedNotification` to supervisors/admins on breach
-- `App\Observers\TicketObserver` — registered in AppServiceProvider
-  - On creating: SlaService.resolvePolicy() → set sla_deadline
-  - On status change: set assigned_at / resolved_at / closed_at + write history
-  - On status change: dispatch TicketAssignedNotification / TicketClosedNotification
+- `App\Jobs\CheckSlaBreaches` — see `app/Jobs/CLAUDE.md`. The job is one of three writers of the `sla_breached` column; the other two are `TicketObserver::saving` and the `TicketService` terminal-state markers
+- `App\Observers\TicketObserver` — registered in AppServiceProvider; see `app/Models/CLAUDE.md` for the saving-hook flip rule
 
 ## Notifications (Filament-compatible)
-All ticket notifications return `FilamentNotification::getDatabaseMessage()`
-from `toDatabase()` so the panel's bell renders them with title, body, icon,
-and an action button. Mail channel is opt-in via `config/notifications.php`
-(`mail_enabled`, default false).
+- All ticket notifications return `FilamentNotification::getDatabaseMessage()` from `toDatabase()` so the panel bell renders title/body/icon/action
+- Mail channel is opt-in via `config/notifications.php` (`mail_enabled`, default false)
+- Per-user channel preferences via `UserNotificationPreference` (`database` / `mail` / `push` per event type) — see `app/Notifications/CLAUDE.md`
 
 ## Setup Chain Rules
 
