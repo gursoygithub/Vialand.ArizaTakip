@@ -472,11 +472,21 @@ class TicketResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true)
                     ->visible(fn (): bool => (bool) auth()->user()?->hasRole('super_admin')),
 
+                // Pair Güncelleme Tarihi with Güncelleyen — same super_admin
+                // gate, same hidden-by-default toggle. When updated_by is
+                // null (e.g. system-touched rows like the SLA breach flip)
+                // collapse the timestamp to the placeholder so the column
+                // doesn't imply a real edit.
                 Tables\Columns\TextColumn::make('updated_at')
                     ->label('Güncelleme Tarihi')
                     ->dateTime()
                     ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
+                    ->toggleable(isToggledHiddenByDefault: true)
+                    ->placeholder('—')
+                    ->visible(fn (): bool => (bool) auth()->user()?->hasRole('super_admin'))
+                    ->getStateUsing(fn (Ticket $record) => $record->updated_by
+                        ? $record->updated_at
+                        : null),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('area_id')
