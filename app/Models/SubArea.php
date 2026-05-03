@@ -44,7 +44,7 @@ class SubArea extends Model
 
     public function tasks()
     {
-        return $this->hasMany(Task::class, 'sub_area_id');
+        return $this->hasMany(\App\Models\Ticket::class, 'sub_area_id');
     }
 
 

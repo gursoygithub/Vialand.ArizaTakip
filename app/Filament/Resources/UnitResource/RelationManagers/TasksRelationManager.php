@@ -4,8 +4,7 @@ namespace App\Filament\Resources\UnitResource\RelationManagers;
 
 use App\Enums\TaskStatusEnum;
 use App\Enums\TaskTypeEnum;
-use App\Filament\Resources\TaskResource;
-use App\Models\Task;
+use App\Filament\Resources\TicketResource;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Components\Tab;
@@ -189,9 +188,9 @@ class TasksRelationManager extends RelationManager
             ->actions([
                 Tables\Actions\ActionGroup::make([
                     Tables\Actions\ViewAction::make()
-                        ->url(fn ($record) => TaskResource::getUrl('view', ['record' => $record])),
+                        ->url(fn ($record) => TicketResource::getUrl('view', ['record' => $record])),
                     Tables\Actions\EditAction::make()
-                        ->url(fn ($record) => TaskResource::getUrl('edit', ['record' => $record])),
+                        ->url(fn ($record) => TicketResource::getUrl('edit', ['record' => $record])),
                     Tables\Actions\DeleteAction::make()
                         ->requiresConfirmation(),
                 ]),

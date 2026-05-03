@@ -28,10 +28,11 @@ class Technician extends Model
         'deleted_by',
     ];
 
-    // relation with Task model
+    // legacy relation; tickets table has no technician_id column so this is
+    // effectively unused — kept only so existing callers don't fatally fail.
     public function tasks()
     {
-        return $this->hasMany(Task::class, 'technician_id');
+        return $this->hasMany(\App\Models\Ticket::class, 'technician_id');
     }
 
     protected $casts = [

@@ -6,7 +6,7 @@ use App\Enums\ActiveStatusEnum;
 use App\Enums\TaskPriorityEnum;
 use App\Enums\TaskStatusEnum;
 use App\Enums\TaskTypeEnum;
-use App\Filament\Resources\TaskResource;
+use App\Filament\Resources\TicketResource;
 use App\Models\Employee;
 use App\Models\Unit;
 use Carbon\CarbonInterval;
@@ -258,7 +258,7 @@ class TasksRelationManager extends RelationManager
             ])
             ->actions([
                 Tables\Actions\ViewAction::make()
-                    ->url(fn ($record) => TaskResource::getUrl('view', ['record' => $record])),
+                    ->url(fn ($record) => TicketResource::getUrl('view', ['record' => $record])),
             ])
             ->bulkActions([
                 //
