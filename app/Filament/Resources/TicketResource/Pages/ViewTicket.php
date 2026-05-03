@@ -37,25 +37,15 @@ class ViewTicket extends ViewRecord
     }
 
     /**
-     * Permissions required by each action button.
-     * Per spec:
-     *   Ata          → ticket.assign
-     *   Kapat        → ticket.close
-     *   Yeniden Aç   → ticket.reopen
-     *   İptal Et     → ticket.close
-     *   Beklemede    → ticket.assign
-     *   İşleme Al    → assigned employee OR ticket.assign
+     * Action visibility rules (kept here as the source-of-truth comment;
+     * the per-status logic lives in buildTransitionActions::$allowedFn):
+     *   İşleme Al / Çözüldü / Beklemede → assigned personnel OR super_admin
+     *   İptal Et / Kapat               → creator OR super_admin
+     *   Yeniden Aç                     → ticket.reopen OR super_admin
+     *   Yeniden Ata                    → ticket.assign AND not creator
+     *   Düzenle / Sil                  → creator OR super_admin
+     *   Not Ekle                       → any participant
      */
-    private const ACTION_PERMISSION = [
-        TaskStatusEnum::ASSIGNED->value    => 'ticket.assign',
-        TaskStatusEnum::IN_PROGRESS->value => null, // open to assigned employee or ticket.assign
-        TaskStatusEnum::ON_HOLD->value     => 'ticket.assign',
-        TaskStatusEnum::RESOLVED->value    => null, // assigned employee can resolve
-        TaskStatusEnum::CLOSED->value      => 'ticket.close',
-        TaskStatusEnum::CANCELLED->value   => 'ticket.close',
-        TaskStatusEnum::COMPLETED->value   => 'ticket.close',
-    ];
-
     private const ACTION_LABEL = [
         TaskStatusEnum::ASSIGNED->value    => 'Ata',
         TaskStatusEnum::IN_PROGRESS->value => 'İşleme Al',
@@ -257,31 +247,25 @@ class ViewTicket extends ViewRecord
     {
         $ticket = $this->getRecord();
 
-        // Visibility envelope shared across action buttons.
-        // - Terminal tickets (resolved/closed/cancelled): non-creators see no
-        //   action buttons at all; creator can still reopen via the
-        //   buildTransitionActions reopen path.
-        // - Active tickets: existing per-action permission checks decide.
-        $isCreator      = (int) $ticket->created_by === (int) auth()->id();
-        $isTerminal     = in_array($ticket->status, [
+        $isCreator  = (int) $ticket->created_by === (int) auth()->id();
+        $isTerminal = in_array($ticket->status, [
             TaskStatusEnum::RESOLVED,
             TaskStatusEnum::CLOSED,
             TaskStatusEnum::COMPLETED,
             TaskStatusEnum::CANCELLED,
         ], true);
-        $allowAnyAction = $isCreator || !$isTerminal;
 
         return [
             // STATUS TRANSITION ACTIONS — one button per allowed next status
-            ...$this->buildTransitionActions($ticket, $allowAnyAction, $isCreator),
+            ...$this->buildTransitionActions($ticket),
 
-            // ADD COMMENT
+            // ADD COMMENT — any participant (creator / current assignee /
+            // anyone who has acted on the ticket via TicketStatusHistory).
             Actions\Action::make('add_comment')
                 ->label(__('ui.add_note'))
                 ->icon('heroicon-o-chat-bubble-left')
                 ->color('gray')
-                ->visible(fn () => $allowAnyAction
-                    && ($isCreator || auth()->user()?->can('ticket.assign')))
+                ->visible(fn (): bool => $this->isParticipant($ticket))
                 ->form([
                     Textarea::make('note')->label(__('ui.note'))->rows(3)->required(),
                 ])
@@ -290,33 +274,22 @@ class ViewTicket extends ViewRecord
                     Notification::make()->title('Yorum eklendi')->success()->send();
                 }),
 
-            // ASSIGN / REASSIGN — single action, label depends on current state.
-            // Replaces the auto-generated "Ata" status-transition button (the
-            // ASSIGNED case is filtered out of buildTransitionActions below)
-            // because plain status-flip without an employee picker is useless.
+            // ASSIGN / REASSIGN — visibility: ticket.assign permission AND
+            // not the creator (a manager opening their own ticket cannot
+            // reassign it). super_admin has ticket.assign by default.
             Actions\Action::make('assign')
                 ->label($ticket->employee_id ? 'Yeniden Ata' : 'Ata')
                 ->icon('heroicon-o-user-plus')
                 ->color('warning')
                 ->visible(function () use ($isTerminal, $isCreator): bool {
-                    if ($isTerminal) {
+                    if ($isTerminal || $isCreator) {
                         return false;
                     }
                     $user = auth()->user();
                     if (!$user) {
                         return false;
                     }
-                    // The creator opens the ticket; routing to a technician is
-                    // a supervisor/admin job, never the creator's. Hide for
-                    // the creator unconditionally — even if they also hold
-                    // view.all / view.group (a manager opening their own
-                    // ticket still doesn't reassign to themselves).
-                    if ($isCreator) {
-                        return false;
-                    }
-                    return $user->can('ticket.assign')
-                        || $user->hasPermissionTo('ticket.view.all')
-                        || $user->hasPermissionTo('ticket.view.group');
+                    return $user->can('ticket.assign');
                 })
                 ->form([
                     Select::make('employee_id')
@@ -400,17 +373,7 @@ class ViewTicket extends ViewRecord
                         Notification::make()->title('Talep bildirimleri kapatıldı.')->success()->send();
                     }
                 })
-                ->visible(function () use ($ticket): bool {
-                    $user = auth()->user();
-                    if (!$user) {
-                        return false;
-                    }
-                    return (int) $ticket->created_by === (int) $user->id
-                        || (int) ($ticket->employee?->user?->id ?? 0) === (int) $user->id
-                        || TicketStatusHistory::where('ticket_id', $ticket->id)
-                            ->where('changed_by', $user->id)
-                            ->exists();
-                }),
+                ->visible(fn (): bool => $this->isParticipant($ticket)),
 
             Actions\EditAction::make()
                 ->visible(function () use ($ticket): bool {
@@ -425,8 +388,37 @@ class ViewTicket extends ViewRecord
                 }),
 
             Actions\DeleteAction::make()
-                ->visible(fn () => auth()->user()?->can('delete', $ticket)),
+                ->visible(function () use ($ticket): bool {
+                    // Delete is creator-or-super_admin only — mirrors the
+                    // TicketPolicy and the EditAction gate.
+                    $user = auth()->user();
+                    if (!$user) {
+                        return false;
+                    }
+                    return $ticket->created_by === $user->id
+                        || $user->hasRole('super_admin');
+                }),
         ];
+    }
+
+    /**
+     * "Participant" = creator, current assignee, or anyone who has acted on
+     * the ticket via TicketStatusHistory. Used by add_comment and the mute
+     * toggle so non-participants — who wouldn't receive notifications anyway
+     * — don't see action buttons that would only confuse them.
+     */
+    private function isParticipant(Ticket $ticket): bool
+    {
+        $user = auth()->user();
+        if (!$user) {
+            return false;
+        }
+
+        return (int) $ticket->created_by === (int) $user->id
+            || (int) ($ticket->employee?->user?->id ?? 0) === (int) $user->id
+            || TicketStatusHistory::where('ticket_id', $ticket->id)
+                ->where('changed_by', $user->id)
+                ->exists();
     }
 
     /**
@@ -511,7 +503,7 @@ class ViewTicket extends ViewRecord
      *   that case (the creator can still reopen via the IN_PROGRESS arm).
      * @param bool $isCreator     true when the viewer created the ticket.
      */
-    private function buildTransitionActions(Ticket $ticket, bool $allowAnyAction, bool $isCreator): array
+    private function buildTransitionActions(Ticket $ticket): array
     {
         $service = app(TicketService::class);
         $next    = $service->allowedNextStatuses($ticket->status);
@@ -525,48 +517,47 @@ class ViewTicket extends ViewRecord
                 continue;
             }
 
-            $required = self::ACTION_PERMISSION[$to->value] ?? null;
-            $label    = self::ACTION_LABEL[$to->value] ?? $to->getLabel();
+            $isReopenPath = $to === TaskStatusEnum::IN_PROGRESS
+                && in_array($ticket->status, [
+                    TaskStatusEnum::RESOLVED,
+                    TaskStatusEnum::CLOSED,
+                    TaskStatusEnum::COMPLETED,
+                ], true);
 
-            // "İşleme Al" / "Çözüldü" — open to assigned employee or anyone with ticket.assign
-            $allowedFn = function () use ($required, $to, $ticket, $allowAnyAction, $isCreator) {
-                if (!$allowAnyAction) {
+            $label = $isReopenPath
+                ? 'Yeniden Aç'
+                : (self::ACTION_LABEL[$to->value] ?? $to->getLabel());
+
+            $allowedFn = function () use ($to, $ticket, $isReopenPath): bool {
+                $user = auth()->user();
+                if (!$user) {
                     return false;
                 }
 
-                $user = auth()->user();
-                if (!$user) return false;
-                if ($isCreator) return true;
-                if ($required && $user->can($required)) return true;
-
-                // Re-open special-case: ticket.reopen permission
-                if ($to === TaskStatusEnum::IN_PROGRESS
-                    && in_array($ticket->status, [
-                        TaskStatusEnum::CLOSED, TaskStatusEnum::COMPLETED, TaskStatusEnum::RESOLVED
-                    ], true)) {
-                    return $user->can('ticket.reopen') || $user->can('can_reopen_task');
+                if ($user->hasRole('super_admin')) {
+                    return true;
                 }
 
-                // assigned employee can move to in_progress / resolved
-                if (in_array($to, [TaskStatusEnum::IN_PROGRESS, TaskStatusEnum::RESOLVED], true)) {
-                    if ($user->can('ticket.assign')) return true;
-                    return $ticket->employee?->email === $user->email;
+                if ($isReopenPath) {
+                    return $user->can('ticket.reopen');
                 }
 
-                return false;
-            };
-
-            // Reopen label: any closed-ish status going back to IN_PROGRESS
-            // is a reopen, including RESOLVED. The permission check above
-            // already requires ticket.reopen for these source statuses.
-            if ($to === TaskStatusEnum::IN_PROGRESS
-                && in_array($ticket->status, [
-                    TaskStatusEnum::CLOSED,
-                    TaskStatusEnum::COMPLETED,
+                return match ($to) {
+                    // Assigned-employee actions: only the person the ticket is
+                    // assigned to may run them (super_admin handled above).
+                    TaskStatusEnum::IN_PROGRESS,
                     TaskStatusEnum::RESOLVED,
-                ], true)) {
-                $label = 'Yeniden Aç';
-            }
+                    TaskStatusEnum::ON_HOLD => (bool) $ticket->employee_id
+                        && (int) ($ticket->employee?->user?->id ?? 0) === (int) $user->id,
+
+                    // Creator-only terminal actions.
+                    TaskStatusEnum::CANCELLED,
+                    TaskStatusEnum::CLOSED,
+                    TaskStatusEnum::COMPLETED => (int) $ticket->created_by === (int) $user->id,
+
+                    default => false,
+                };
+            };
 
             $actions[] = Actions\Action::make('to_' . $to->value)
                 ->label($label)
