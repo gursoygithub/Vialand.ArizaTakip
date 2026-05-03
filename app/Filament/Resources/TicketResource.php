@@ -449,11 +449,44 @@ class TicketResource extends Resource
                     ->sortable()
                     ->toggleable(),
 
+                // Oluşturan — visible to group/all/super_admin (a creator-only
+                // user already knows who opened their own tickets).
+                Tables\Columns\TextColumn::make('createdBy.name')
+                    ->label('Oluşturan')
+                    ->searchable()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: false)
+                    ->visible(fn (): bool => (bool) (auth()->user()?->hasRole('super_admin')
+                        || auth()->user()?->hasPermissionTo('ticket.view.group')
+                        || auth()->user()?->hasPermissionTo('ticket.view.all'))),
+
                 Tables\Columns\TextColumn::make('created_at')
-                    ->label(__('ui.created_at'))
+                    ->label('Oluşturma Tarihi')
                     ->dateTime()
                     ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
+                    ->toggleable(isToggledHiddenByDefault: false),
+
+                // Audit columns: super_admin only, hidden by default.
+                Tables\Columns\TextColumn::make('updatedBy.name')
+                    ->label('Güncelleyen')
+                    ->toggleable(isToggledHiddenByDefault: true)
+                    ->visible(fn (): bool => (bool) auth()->user()?->hasRole('super_admin')),
+
+                // Pair Güncelleme Tarihi with Güncelleyen — same super_admin
+                // gate, same hidden-by-default toggle. When updated_by is
+                // null (e.g. system-touched rows like the SLA breach flip)
+                // collapse the timestamp to the placeholder so the column
+                // doesn't imply a real edit.
+                Tables\Columns\TextColumn::make('updated_at')
+                    ->label('Güncelleme Tarihi')
+                    ->dateTime()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true)
+                    ->placeholder('—')
+                    ->visible(fn (): bool => (bool) auth()->user()?->hasRole('super_admin'))
+                    ->getStateUsing(fn (Ticket $record) => $record->updated_by
+                        ? $record->updated_at
+                        : null),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('area_id')
@@ -518,22 +551,24 @@ class TicketResource extends Resource
                     }),
             ])
             ->actions([
-                Tables\Actions\ViewAction::make(),
+                Tables\Actions\ActionGroup::make([
+                    Tables\Actions\ViewAction::make(),
 
-                // Edit/Delete are creator-or-super_admin only (mirrors the
-                // ViewTicket header gate and TicketPolicy::update/delete).
-                Tables\Actions\EditAction::make()
-                    ->visible(fn (Ticket $record): bool => $record->created_by === auth()->id()
-                        || (bool) auth()->user()?->hasRole('super_admin')),
+                    // Edit/Delete are creator-or-super_admin only (mirrors the
+                    // ViewTicket header gate and TicketPolicy::update/delete).
+                    Tables\Actions\EditAction::make()
+                        ->visible(fn (Ticket $record): bool => $record->created_by === auth()->id()
+                            || (bool) auth()->user()?->hasRole('super_admin')),
 
-                Tables\Actions\DeleteAction::make()
-                    ->visible(fn (Ticket $record): bool => $record->created_by === auth()->id()
-                        || (bool) auth()->user()?->hasRole('super_admin'))
-                    ->requiresConfirmation()
-                    ->modalHeading('Talebi Sil')
-                    ->modalDescription('Bu talebi silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.')
-                    ->modalSubmitActionLabel('Evet, Sil')
-                    ->modalCancelActionLabel('İptal'),
+                    Tables\Actions\DeleteAction::make()
+                        ->visible(fn (Ticket $record): bool => $record->created_by === auth()->id()
+                            || (bool) auth()->user()?->hasRole('super_admin'))
+                        ->requiresConfirmation()
+                        ->modalHeading('Talebi Sil')
+                        ->modalDescription('Bu talebi silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.')
+                        ->modalSubmitActionLabel('Evet, Sil')
+                        ->modalCancelActionLabel('İptal'),
+                ])
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

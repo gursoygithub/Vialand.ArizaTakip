@@ -129,10 +129,10 @@ class User extends Authenticatable implements FilamentUser
         return $this->hasMany(SubArea::class, 'created_by');
     }
 
-    // relation with tasks
+    // relation with tickets (legacy `tasks` relation name kept for callers)
     public function tasks()
     {
-        return $this->hasMany(Task::class, 'created_by');
+        return $this->hasMany(\App\Models\Ticket::class, 'created_by');
     }
 
     public static function query()

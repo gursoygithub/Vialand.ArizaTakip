@@ -38,7 +38,7 @@ class Unit extends Model
 
     public function tasks()
     {
-        return $this->hasMany(Task::class, 'unit_id');
+        return $this->hasMany(\App\Models\Ticket::class, 'unit_id');
     }
 
     // relation with group

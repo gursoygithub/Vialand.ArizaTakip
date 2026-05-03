@@ -4,7 +4,7 @@ namespace App\Filament\Pages;
 
 use App\Enums\TaskStatusEnum;
 use App\Enums\TaskPriorityEnum;
-use App\Models\Task;
+use App\Models\Ticket;
 use App\Models\User;
 use App\Models\Employee;
 use Carbon\CarbonPeriod;
@@ -70,7 +70,7 @@ class TaskKpiPage extends Page implements HasForms
 
     private function baseQuery()
     {
-        $q = Task::query()
+        $q = Ticket::query()
             ->whereBetween('task_date', [
                 $this->data['start_date'],
                 $this->data['end_date'],

@@ -3,14 +3,14 @@
 namespace App\Filament\Exports;
 
 use App\Helpers\DateHelper;
-use App\Models\Task;
+use App\Models\Ticket;
 use Filament\Actions\Exports\ExportColumn;
 use Filament\Actions\Exports\Exporter;
 use Filament\Actions\Exports\Models\Export;
 
 class TaskExporter extends Exporter
 {
-    protected static ?string $model = Task::class;
+    protected static ?string $model = Ticket::class;
 
     public static function getColumns(): array
     {

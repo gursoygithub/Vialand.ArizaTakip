@@ -49,6 +49,12 @@ Tests use SQLite in-memory (configured in `phpunit.xml`).
   - `isim` → `name` | `amir_id` → `employee_id` (supervisor FK)
 - UI: Filament 3.x only — code in `app/Filament/` (Resources, Pages, Widgets)
 - Business logic: `app/Services/` only — never in Filament Resources
+- Default pagination: `[5, 10, 25, 50]` selector, default page size `10`.
+  Set globally in `AppServiceProvider::boot()` via `Table::configureUsing(...)`
+  (Filament 3.x has no static prop for this — the callback fires on every
+  Table instance). Do **not** override per-resource unless the table needs
+  a genuinely different page size; when overriding, leave a comment
+  explaining why.
 
 ## Company Access
 
