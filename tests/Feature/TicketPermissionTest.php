@@ -58,10 +58,12 @@ class TicketPermissionTest extends TestCase
             'employee_id' => null,
         ]);
 
-        $policy = new TicketPolicy();
-
-        // TechnicianA cannot view TechnicianB's ticket
-        $this->assertFalse($policy->view($technicianA, $ticket));
+        // Row-level visibility lives in Ticket::scopeVisibleBy (driven by
+        // ticket.view.own/group/all). The Shield policy gates the action
+        // (view_ticket) — the scope filters the rows out for a `view.own`
+        // user who is neither creator nor assignee.
+        $visibleIds = Ticket::query()->visibleBy($technicianA)->pluck('id')->all();
+        $this->assertNotContains($ticket->id, $visibleIds);
     }
 
     public function test_supervisor_can_view_their_regions_tickets(): void

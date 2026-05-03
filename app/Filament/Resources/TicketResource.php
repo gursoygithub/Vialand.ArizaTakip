@@ -529,7 +529,7 @@ class TicketResource extends Resource
                         || (bool) auth()->user()?->hasPermissionTo('ticket.view.all')),
 
                 Tables\Actions\DeleteAction::make()
-                    ->visible(fn (): bool => (bool) auth()->user()?->hasPermissionTo('ticket.delete'))
+                    ->visible(fn (): bool => (bool) auth()->user()?->hasPermissionTo('delete_ticket'))
                     ->requiresConfirmation()
                     ->modalHeading('Talebi Sil')
                     ->modalDescription('Bu talebi silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.')
