@@ -31,7 +31,12 @@ class Employee extends Model
 
     public function tasks()
     {
-        return $this->hasMany(Task::class);
+        return $this->hasMany(\App\Models\Ticket::class, 'employee_id');
+    }
+
+    public function tickets()
+    {
+        return $this->hasMany(\App\Models\Ticket::class, 'employee_id');
     }
 
     public function user()
