@@ -43,6 +43,17 @@ class AppServiceProvider extends ServiceProvider
         Table::$defaultDateDisplayFormat = 'd F Y';
         Table::$defaultCurrency = 'TRY';
 
+        // Pagination defaults — applied to every Filament table.
+        // Filament 3.x doesn't expose static props for these, so we register
+        // a global Configurable callback. Override per-resource only when the
+        // table genuinely needs a different page size; document the reason
+        // in a comment there.
+        Table::configureUsing(function (Table $table): void {
+            $table
+                ->paginationPageOptions([5, 10, 25, 50])
+                ->defaultPaginationPageOption(10);
+        });
+
         Infolist::$defaultCurrency = 'TRY';
         Infolist::$defaultDateTimeDisplayFormat = 'd F Y - H:i';
         Infolist::$defaultDateDisplayFormat = 'd F Y';
