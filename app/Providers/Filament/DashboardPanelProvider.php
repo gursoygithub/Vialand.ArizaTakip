@@ -12,6 +12,7 @@ use Filament\Pages;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
+use Filament\View\PanelsRenderHook;
 use Filament\Widgets;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
@@ -39,6 +40,22 @@ class DashboardPanelProvider extends PanelProvider
                 'primary' => Color::Blue,
             ])
             ->databaseNotifications()
+            // 5s polling so the bell + browser notification fire promptly.
+            // The actual desktop notification is dispatched from the
+            // notifications-js partial (see renderHook below) by watching
+            // the badge count for increases.
+            ->databaseNotificationsPolling('5s')
+            ->renderHook(
+                PanelsRenderHook::BODY_END,
+                fn (): string => view('filament.fcm-init')->render(),
+            )
+            ->navigationGroups([
+                __('ui.ticket_management'),
+                __('ui.reports'),
+                __('ui.panel_management'),
+                __('ui.user_management'),
+                __('ui.system'),
+            ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
             ->pages([
@@ -46,7 +63,11 @@ class DashboardPanelProvider extends PanelProvider
             ])
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\\Filament\\Widgets')
             ->widgets([
-
+                \App\Filament\Widgets\TicketStatsOverview::class,
+                \App\Filament\Widgets\TicketsByStatusChart::class,
+                \App\Filament\Widgets\TicketsByPriorityChart::class,
+                \App\Filament\Widgets\SlaComplianceTrendChart::class,
+                \App\Filament\Widgets\RecentTicketsTable::class,
             ])
             ->middleware([
                 EncryptCookies::class,

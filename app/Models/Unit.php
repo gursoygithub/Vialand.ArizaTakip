@@ -11,7 +11,7 @@ use Spatie\Activitylog\Traits\LogsActivity;
 
 class Unit extends Model
 {
-    use Notifiable, SoftDeletes, LogsActivity;
+    use HasFactory, Notifiable, SoftDeletes, LogsActivity;
 
     protected $fillable = [
         'name',

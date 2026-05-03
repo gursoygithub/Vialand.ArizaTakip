@@ -15,8 +15,9 @@ use App\Models\SubArea;
 use App\Models\Task;
 use App\Models\Unit;
 use App\Models\User;
-use App\Notifications\TaskAssigned;
-use App\Notifications\TaskClosed;
+use App\Notifications\TicketAssignedNotification;
+use App\Notifications\TicketClosedNotification;
+use App\Notifications\TicketReopenedNotification;
 use Filament\Forms;
 use Filament\Forms\Components\Fieldset;
 use Filament\Forms\Components\ToggleButtons;
@@ -42,6 +43,13 @@ class TaskResource extends Resource
 
     protected static ?int $navigationSort = -999;
 
+    /**
+     * Hidden from navigation: superseded by TicketResource.
+     * The class is kept (do not delete) so existing routes / model bindings
+     * continue to resolve, but the menu entry is gone.
+     */
+    protected static bool $shouldRegisterNavigation = false;
+
     public static function getModelLabel(): string
     {
         return __('ui.task');
@@ -59,16 +67,10 @@ class TaskResource extends Resource
 
     public static function getNavigationBadge(): ?string
     {
-        if (auth()->user()?->hasRole('super_admin') || auth()->user()?->can('view_all_tasks')) {
-            return static::getModel()::count();
-        }
-        return static::getModel()::where('created_by', auth()->id())
-            ->orWhere('employee_id', function ($query) {
-                $query->select('id')
-                    ->from('employees')
-                    ->where('email', auth()->user()->email);
-            })
-            ->count();
+        // Use the same scope as the list query so badge and list never diverge.
+        // static::getModel()::query() goes through Ticket::query() which applies
+        // scopeVisibleBy(auth()->user()) — single source of truth for visibility.
+        return (string) static::getModel()::query()->count();
     }
 
     public static function form(Form $form): Form
@@ -934,7 +936,7 @@ class TaskResource extends Resource
                             $record->refresh();
 
                             if ($record->employee) {
-                                $record->notify(new \App\Notifications\TaskAssigned($record));
+                                $record->notify(new TicketAssignedNotification($record));
                             }
 
                             Notification::make()
@@ -1002,7 +1004,7 @@ class TaskResource extends Resource
                             $record->refresh();
 
                             if ($record->employee) {
-                                $record->notify(new \App\Notifications\TaskAssigned($record));
+                                $record->notify(new TicketAssignedNotification($record));
                             }
 
                             Notification::make()
@@ -1061,7 +1063,7 @@ class TaskResource extends Resource
 
                             $record->refresh();
 
-                            $record->createdBy->notify(new TaskClosed($record));
+                            $record->createdBy->notify(new TicketClosedNotification($record));
 
                             Notification::make()
                                 ->title(__('ui.task_closed_successfully'))
@@ -1103,7 +1105,7 @@ class TaskResource extends Resource
 
                             $record->refresh();
 
-                            $record->employee->notify(new \App\Notifications\TaskReopened($record));
+                            $record->employee->notify(new TicketReopenedNotification($record));
 
                             Notification::make()
                                 ->title(__('ui.task_reopened_successfully'))

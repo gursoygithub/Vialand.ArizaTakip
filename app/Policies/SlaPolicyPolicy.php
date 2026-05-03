@@ -1,108 +1,79 @@
 <?php
 
+// WARNING: Do NOT run `php artisan shield:generate --all` without
+// restoring this file from git afterwards.
+// shield:generate overwrites custom policy logic with stubs.
+// Run: git checkout HEAD -- app/Policies/TicketPolicy.php
+//      git checkout HEAD -- app/Policies/GroupPolicy.php
+//      git checkout HEAD -- app/Policies/SlaPolicyPolicy.php
+
 namespace App\Policies;
 
-use App\Models\User;
 use App\Models\SlaPolicy;
+use App\Models\User;
 use Illuminate\Auth\Access\HandlesAuthorization;
 
 class SlaPolicyPolicy
 {
     use HandlesAuthorization;
 
-    /**
-     * Determine whether the user can view any models.
-     */
     public function viewAny(User $user): bool
     {
-        return $user->can('view_any_sla::policy');
+        return $user->can('sla.manage') || $user->can('view_all_sla_policies');
     }
 
-    /**
-     * Determine whether the user can view the model.
-     */
     public function view(User $user, SlaPolicy $slaPolicy): bool
     {
-        return $user->can('view_sla::policy');
+        return $user->can('sla.manage') || $user->can('view_all_sla_policies');
     }
 
-    /**
-     * Determine whether the user can create models.
-     */
     public function create(User $user): bool
     {
-        return $user->can('create_sla::policy');
+        return $user->can('sla.manage');
     }
 
-    /**
-     * Determine whether the user can update the model.
-     */
     public function update(User $user, SlaPolicy $slaPolicy): bool
     {
-        return $user->can('update_sla::policy');
+        return $user->can('sla.manage');
     }
 
-    /**
-     * Determine whether the user can delete the model.
-     */
     public function delete(User $user, SlaPolicy $slaPolicy): bool
     {
-        return $user->can('delete_sla::policy');
+        return $user->can('sla.manage');
     }
 
-    /**
-     * Determine whether the user can bulk delete.
-     */
     public function deleteAny(User $user): bool
     {
-        return $user->can('delete_any_sla::policy');
+        return $user->can('sla.manage');
     }
 
-    /**
-     * Determine whether the user can permanently delete.
-     */
     public function forceDelete(User $user, SlaPolicy $slaPolicy): bool
     {
-        return $user->can('{{ ForceDelete }}');
+        return $user->hasRole(['super_admin']);
     }
 
-    /**
-     * Determine whether the user can permanently bulk delete.
-     */
     public function forceDeleteAny(User $user): bool
     {
-        return $user->can('{{ ForceDeleteAny }}');
+        return $user->hasRole(['super_admin']);
     }
 
-    /**
-     * Determine whether the user can restore.
-     */
     public function restore(User $user, SlaPolicy $slaPolicy): bool
     {
-        return $user->can('{{ Restore }}');
+        return $user->can('sla.manage');
     }
 
-    /**
-     * Determine whether the user can bulk restore.
-     */
     public function restoreAny(User $user): bool
     {
-        return $user->can('{{ RestoreAny }}');
+        return $user->can('sla.manage');
     }
 
-    /**
-     * Determine whether the user can replicate.
-     */
     public function replicate(User $user, SlaPolicy $slaPolicy): bool
     {
-        return $user->can('{{ Replicate }}');
+        return $user->can('sla.manage');
     }
 
-    /**
-     * Determine whether the user can reorder.
-     */
     public function reorder(User $user): bool
     {
-        return $user->can('{{ Reorder }}');
+        return $user->can('sla.manage');
     }
 }

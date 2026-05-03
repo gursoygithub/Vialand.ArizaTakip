@@ -1,108 +1,79 @@
 <?php
 
+// WARNING: Do NOT run `php artisan shield:generate --all` without
+// restoring this file from git afterwards.
+// shield:generate overwrites custom policy logic with stubs.
+// Run: git checkout HEAD -- app/Policies/TicketPolicy.php
+//      git checkout HEAD -- app/Policies/GroupPolicy.php
+//      git checkout HEAD -- app/Policies/SlaPolicyPolicy.php
+
 namespace App\Policies;
 
-use App\Models\User;
 use App\Models\Group;
+use App\Models\User;
 use Illuminate\Auth\Access\HandlesAuthorization;
 
 class GroupPolicy
 {
     use HandlesAuthorization;
 
-    /**
-     * Determine whether the user can view any models.
-     */
     public function viewAny(User $user): bool
     {
-        return $user->can('view_any_group');
+        return $user->can('group.manage') || $user->can('view_any_group');
     }
 
-    /**
-     * Determine whether the user can view the model.
-     */
     public function view(User $user, Group $group): bool
     {
-        return $user->can('view_group');
+        return $user->can('group.manage') || $user->can('view_group');
     }
 
-    /**
-     * Determine whether the user can create models.
-     */
     public function create(User $user): bool
     {
-        return $user->can('create_group');
+        return $user->can('group.manage');
     }
 
-    /**
-     * Determine whether the user can update the model.
-     */
     public function update(User $user, Group $group): bool
     {
-        return $user->can('update_group');
+        return $user->can('group.manage');
     }
 
-    /**
-     * Determine whether the user can delete the model.
-     */
     public function delete(User $user, Group $group): bool
     {
-        return $user->can('delete_group');
+        return $user->can('group.manage');
     }
 
-    /**
-     * Determine whether the user can bulk delete.
-     */
     public function deleteAny(User $user): bool
     {
-        return $user->can('delete_any_group');
+        return $user->can('group.manage');
     }
 
-    /**
-     * Determine whether the user can permanently delete.
-     */
     public function forceDelete(User $user, Group $group): bool
     {
-        return $user->can('{{ ForceDelete }}');
+        return $user->hasRole(['super_admin']);
     }
 
-    /**
-     * Determine whether the user can permanently bulk delete.
-     */
     public function forceDeleteAny(User $user): bool
     {
-        return $user->can('{{ ForceDeleteAny }}');
+        return $user->hasRole(['super_admin']);
     }
 
-    /**
-     * Determine whether the user can restore.
-     */
     public function restore(User $user, Group $group): bool
     {
-        return $user->can('{{ Restore }}');
+        return $user->can('group.manage');
     }
 
-    /**
-     * Determine whether the user can bulk restore.
-     */
     public function restoreAny(User $user): bool
     {
-        return $user->can('{{ RestoreAny }}');
+        return $user->can('group.manage');
     }
 
-    /**
-     * Determine whether the user can replicate.
-     */
     public function replicate(User $user, Group $group): bool
     {
-        return $user->can('{{ Replicate }}');
+        return $user->can('group.manage');
     }
 
-    /**
-     * Determine whether the user can reorder.
-     */
     public function reorder(User $user): bool
     {
-        return $user->can('{{ Reorder }}');
+        return $user->can('group.manage');
     }
 }

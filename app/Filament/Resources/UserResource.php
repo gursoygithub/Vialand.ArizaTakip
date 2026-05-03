@@ -125,7 +125,11 @@ class UserResource extends Resource
                             ->multiple()
                             ->preload()
                             ->required()
-                            ->prefixIcon('heroicon-o-shield-check'),
+                            ->prefixIcon('heroicon-o-shield-check')
+                            // Only users with user.role.assign may modify role assignments.
+                            // Others see the field disabled (read-only) so they can still view it.
+                            ->disabled(fn () => ! auth()->user()?->can('user.role.assign'))
+                            ->dehydrated(fn () => (bool) auth()->user()?->can('user.role.assign')),
                     ]),
 
             ]);
@@ -387,6 +391,7 @@ class UserResource extends Resource
     {
         return [
             //RelationManagers\StaffsRelationManager::class,
+            RelationManagers\CompanyAccessRelationManager::class,
         ];
     }
 

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Notifications\Notifiable;
@@ -10,7 +11,7 @@ use Spatie\Activitylog\Traits\LogsActivity;
 
 class Group extends Model
 {
-    use Notifiable, SoftDeletes, LogsActivity;
+    use HasFactory, Notifiable, SoftDeletes, LogsActivity;
 
     protected $fillable = [
         'name',
@@ -65,6 +66,16 @@ class Group extends Model
 
     // The manager of the group
     public function manager()
+    {
+        return $this->belongsTo(Employee::class, 'employee_id');
+    }
+
+    /**
+     * Same Employee as manager(); named "employee" so call sites following
+     * the column-name convention ($ticket->group->employee) work alongside
+     * the older $ticket->group->manager usage.
+     */
+    public function employee()
     {
         return $this->belongsTo(Employee::class, 'employee_id');
     }

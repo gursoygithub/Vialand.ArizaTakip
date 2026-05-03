@@ -11,9 +11,9 @@ use Filament\Pages\SettingsPage;
 class ManageGeneralSettings extends SettingsPage
 {
 
-    protected static bool $shouldRegisterNavigation = false;
-
     protected static ?string $navigationIcon = 'heroicon-o-cog-6-tooth';
+
+    protected static ?int $navigationSort = 1;
 
     // Ayar sınıfımızı buraya bağlıyoruz
     protected static string $settings = GeneralSettings::class;
@@ -21,6 +21,16 @@ class ManageGeneralSettings extends SettingsPage
     public static function getNavigationLabel(): string
     {
         return 'Sistem Ayarları';
+    }
+
+    public static function getNavigationGroup(): ?string
+    {
+        return __('ui.system');
+    }
+
+    public static function shouldRegisterNavigation(): bool
+    {
+        return (bool) auth()->user()?->can('manage_settings');
     }
 
     public function form(Form $form): Form
@@ -44,7 +54,8 @@ class ManageGeneralSettings extends SettingsPage
 
     public static function canAccess(): bool
     {
-        $user = auth()->user();
-        return $user?->hasRole('super_admin') || $user?->can('manage settings');
+        // Note: previous code used 'manage settings' (with a space) which never
+        // matched any seeded permission. Canonical name is `manage_settings`.
+        return (bool) auth()->user()?->can('manage_settings');
     }
 }
