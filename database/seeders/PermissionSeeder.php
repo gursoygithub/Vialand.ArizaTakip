@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 
@@ -34,14 +35,25 @@ class PermissionSeeder extends Seeder
      * Anything Shield auto-generates is intentionally NOT listed here.
      */
     private const CUSTOM_PERMISSIONS = [
-        // Reform §5.4 — namespaced
-        'ticket.create',
+        // Shield-standard CRUD permissions for the Ticket resource. These are
+        // also produced by `shield:generate --all` in prod, but we list them
+        // here so test DBs (which only run PermissionSeeder, not shield:generate)
+        // get them too. firstOrCreate is idempotent in prod.
+        'view_any_ticket',
+        'view_ticket',
+        'create_ticket',
+        'update_ticket',
+        'delete_ticket',
+        'delete_any_ticket',
+
+        // Reform §5.4 — truly custom (scope + transition) permissions.
+        // ticket.create / ticket.delete intentionally removed: replaced by
+        // Shield-standard create_ticket / delete_ticket above.
         'ticket.view.own',
         'ticket.view.group',
         'ticket.view.all',
         'ticket.assign',
         'ticket.close',
-        'ticket.delete',
         'ticket.reopen',
         'sla.manage',
         'group.manage',
@@ -98,11 +110,15 @@ class PermissionSeeder extends Seeder
      */
     private const ROLE_PERMISSIONS = [
         'admin' => [
-            'ticket.create',
+            'view_any_ticket',
+            'view_ticket',
+            'create_ticket',
+            'update_ticket',
+            'delete_ticket',
+            'delete_any_ticket',
             'ticket.view.all',
             'ticket.assign',
             'ticket.close',
-            'ticket.delete',
             'ticket.reopen',
             'sla.manage',
             'group.manage',
@@ -138,7 +154,10 @@ class PermissionSeeder extends Seeder
             'widget_RecentTicketsTable',
         ],
         'supervisor' => [
-            'ticket.create',
+            'view_any_ticket',
+            'view_ticket',
+            'create_ticket',
+            'update_ticket',
             'ticket.view.group',
             'ticket.assign',
             'ticket.close',
@@ -162,14 +181,19 @@ class PermissionSeeder extends Seeder
             'widget_RecentTicketsTable',
         ],
         'manager' => [
+            'view_any_ticket',
+            'view_ticket',
+            // Open new tickets — without this the "Arıza Talebi Oluştur" CTA
+            // is hidden by TicketPolicy::create (gated on create_ticket).
+            'create_ticket',
             // Row-level ticket visibility for BM and other mid-management roles.
             'ticket.view.own',
-            // Open new tickets — without this the "Arıza Talebi Oluştur" CTA
-            // is hidden by TicketPolicy::create (gated on ticket.create).
-            'ticket.create',
         ],
         'technician' => [
-            'ticket.create',
+            'view_any_ticket',
+            'view_ticket',
+            'create_ticket',
+            'update_ticket',
             'ticket.view.own',
             'can_reopen_task',
             'widget_TicketStatsOverview',
@@ -177,6 +201,8 @@ class PermissionSeeder extends Seeder
             'widget_TicketsByPriorityChart',
         ],
         'viewer' => [
+            'view_any_ticket',
+            'view_ticket',
             'ticket.view.own',
         ],
         'default' => [
@@ -184,8 +210,24 @@ class PermissionSeeder extends Seeder
         ],
     ];
 
+    /**
+     * Permissions removed from this seeder that should be purged from the DB.
+     * Replaced by Shield-standard equivalents (create_ticket, delete_ticket,
+     * delete_any_ticket) handled via shield:generate.
+     */
+    private const REMOVED_PERMISSIONS = [
+        'ticket.create',
+        'ticket.delete',
+    ];
+
     public function run(): void
     {
+        // 0. Drop legacy duplicates that have been migrated to Shield-standard
+        //    permissions. Spatie's pivot rows clean up via FK cascade.
+        DB::table('permissions')
+            ->whereIn('name', self::REMOVED_PERMISSIONS)
+            ->delete();
+
         // 1. Custom permissions (idempotent)
         foreach (self::CUSTOM_PERMISSIONS as $name) {
             Permission::firstOrCreate(['name' => $name, 'guard_name' => 'web']);

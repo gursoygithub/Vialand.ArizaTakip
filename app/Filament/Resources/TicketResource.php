@@ -520,16 +520,15 @@ class TicketResource extends Resource
             ->actions([
                 Tables\Actions\ViewAction::make(),
 
-                // Mirror the ViewTicket header EditAction gate: creator or
-                // ticket.view.all (read scope is the de-facto write scope
-                // for the panel — ticket.view.group is intentionally NOT
-                // here, that's read-only).
+                // Edit/Delete are creator-or-super_admin only (mirrors the
+                // ViewTicket header gate and TicketPolicy::update/delete).
                 Tables\Actions\EditAction::make()
                     ->visible(fn (Ticket $record): bool => $record->created_by === auth()->id()
-                        || (bool) auth()->user()?->hasPermissionTo('ticket.view.all')),
+                        || (bool) auth()->user()?->hasRole('super_admin')),
 
                 Tables\Actions\DeleteAction::make()
-                    ->visible(fn (): bool => (bool) auth()->user()?->hasPermissionTo('ticket.delete'))
+                    ->visible(fn (Ticket $record): bool => $record->created_by === auth()->id()
+                        || (bool) auth()->user()?->hasRole('super_admin'))
                     ->requiresConfirmation()
                     ->modalHeading('Talebi Sil')
                     ->modalDescription('Bu talebi silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.')

@@ -50,6 +50,16 @@ class TaskResource extends Resource
      */
     protected static bool $shouldRegisterNavigation = false;
 
+    /**
+     * Hide this legacy resource from the Shield permissions UI. The Ticket
+     * resource owns the permission set; Task is a navigation-less alias kept
+     * only so old routes / model bindings keep resolving.
+     */
+    public static function getPermissionPrefixes(): array
+    {
+        return [];
+    }
+
     public static function getModelLabel(): string
     {
         return __('ui.task');
