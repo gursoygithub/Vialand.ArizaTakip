@@ -34,7 +34,11 @@ class TicketPolicy
 
     public function update(User $user, Ticket $ticket): bool
     {
-        return $user->can('update_ticket');
+        if ($user->hasRole('super_admin')) {
+            return true;
+        }
+
+        return $ticket->created_by === $user->id;
     }
 
     public function assign(User $user, Ticket $ticket): bool
@@ -49,12 +53,16 @@ class TicketPolicy
 
     public function delete(User $user, Ticket $ticket): bool
     {
-        return $user->can('delete_ticket');
+        if ($user->hasRole('super_admin')) {
+            return true;
+        }
+
+        return $ticket->created_by === $user->id;
     }
 
     public function deleteAny(User $user): bool
     {
-        return $user->can('delete_any_ticket');
+        return $user->hasRole('super_admin');
     }
 
     public function forceDelete(User $user, Ticket $ticket): bool

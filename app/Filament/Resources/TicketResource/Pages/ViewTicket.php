@@ -414,19 +414,14 @@ class ViewTicket extends ViewRecord
 
             Actions\EditAction::make()
                 ->visible(function () use ($ticket): bool {
-                    // Mirror the mount-time gate in EditTicket so the button
-                    // never appears for users the page would 403 anyway.
-                    // ticket.view.group is intentionally NOT here — it's a
-                    // read scope, not a write scope.
+                    // Edit is creator-or-super_admin only — mirrors the
+                    // mount-time gate in EditTicket and the TicketPolicy.
                     $user = auth()->user();
                     if (!$user) {
                         return false;
                     }
-                    if (!$user->can('update', $ticket)) {
-                        return false;
-                    }
                     return $ticket->created_by === $user->id
-                        || $user->hasPermissionTo('ticket.view.all');
+                        || $user->hasRole('super_admin');
                 }),
 
             Actions\DeleteAction::make()
