@@ -35,10 +35,14 @@ Widgets, or Observers (observers trigger services, they don't contain logic).
 - Tokens stored in `fcm_tokens` (`user_id`, `token`, `last_seen_at`)
 
 ## PerformanceService (`App\Services\PerformanceService`)
-- `getStats(User $user, Carbon $from, Carbon $to): array`
-  Returns: total, on_time, breach_count, compliance_rate, avg_resolution_minutes
-- `getTeamStats(int $areaId, Carbon $from, Carbon $to): Collection`
-  Per-person stats for all employees in an area
+- `getStats(User $user, Carbon $from, Carbon $to, ?User $viewer = null): array` — per-user stats. Resolves User → Employee by email, scopes by `Ticket::scopeVisibleBy($viewer)` AND `whereBetween('created_at', [$from, $to])`. Cancelled tickets excluded.
+- `getTeamStats(int $areaId, Carbon $from, Carbon $to, ?User $viewer = null): Collection` — per-person stats for every employee in the area's groups (deduped). N+1 by design (one `getStats` query per employee).
+- `getOverview(Carbon $from, Carbon $to, ?User $viewer = null): array` — dashboard headline. Returns the full `aggregate()` shape PLUS `priority_breakdown` (per-priority [label, total, closed_on_time, breached, compliance_rate], cancelled excluded, only priorities with total>0), `reopen_count` (rows in `ticket_status_histories` with `from_status IN [RESOLVED,CLOSED] AND to_status = ASSIGNED`, scoped to visible tickets, dated within `[$from,$to]`), and `reopen_rate` (`reopen_count / total_assigned * 100`).
+- `getRegionBreakdown(Carbon $from, Carbon $to, ?User $viewer = null): Collection` — per-area roll-up. **Excludes CANCELLED** so totals match `aggregate()`'s per-person numbers.
+- `aggregate()` (private) emits these metric keys per cohort:
+  - `total_assigned`, `closed_on_time`, `closed_breached` (legacy name — same as total_breached), `total_breached` (canonical headline; same value as `closed_breached`, both count `sla_breached=true` after cancelled-rejection), `at_risk` (active tickets with `sla_deadline ≤ now()+2h`, not yet flipped, `status NOT IN [RESOLVED,CLOSED,ON_HOLD]`), `currently_open`, `currently_on_hold`, `avg_resolution_minutes`, `sla_compliance_rate`, `avg_response_time_minutes`.
+  - Plus 7 backward-compat aliases: `total`, `closed`, `on_time`, `breach_count`, `compliance_rate`, `open`, `breached`.
+- Dashboard blade (`resources/views/filament/pages/performance-dashboard.blade.php`) consumes `total_breached` (card "Toplam İhlal"), `priority_breakdown` (compact table), `reopen_rate` + `reopen_count` (card "Yeniden Açılma" — green <5%, orange <15%, red ≥15%), `at_risk` (card "Risk Altında" — green=0, orange>0, red>5), and mounts `\App\Filament\Widgets\SlaComplianceTrendChart` via `@livewire(...)` (the chart's window is hard-coded to the last 30 days and does NOT honour the page's date filter).
 
 ## Repository Pattern
 - Contracts: `App\Repositories\Contracts\TicketRepositoryInterface`

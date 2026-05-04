@@ -2,9 +2,11 @@
 
 namespace App\Services;
 
+use App\Enums\TaskPriorityEnum;
 use App\Enums\TaskStatusEnum;
 use App\Models\Employee;
 use App\Models\Ticket;
+use App\Models\TicketStatusHistory;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
@@ -62,7 +64,9 @@ class PerformanceService
     }
 
     /**
-     * Dashboard overview totals — same metrics aggregated across visible tickets.
+     * Dashboard overview totals — same metrics aggregated across visible
+     * tickets, plus dashboard-only extras: priority breakdown, reopen
+     * count/rate, total breach surface, and at-risk count.
      */
     public function getOverview(Carbon $from, Carbon $to, ?User $viewer = null): array
     {
@@ -73,11 +77,72 @@ class PerformanceService
             ->whereBetween('created_at', [$from, $to])
             ->get();
 
-        return $this->aggregate(null, $tickets);
+        $base = $this->aggregate(null, $tickets);
+
+        // Per-priority slice. Excludes CANCELLED (already rejected upstream
+        // in aggregate's input — but $tickets here still contains them, so
+        // re-reject locally). Only emits priorities with > 0 total.
+        $nonCancelled = $tickets->reject(fn ($t) => $t->status === TaskStatusEnum::CANCELLED);
+        $priorityBreakdown = collect(TaskPriorityEnum::cases())
+            ->map(function (TaskPriorityEnum $priority) use ($nonCancelled) {
+                $forPriority = $nonCancelled->where('priority', $priority);
+                $total = $forPriority->count();
+                if ($total === 0) {
+                    return null;
+                }
+
+                $closed = $forPriority->filter(fn ($t) => $t->closed_at !== null);
+                $onTime = $closed->filter(fn ($t) =>
+                    $t->sla_deadline && $t->closed_at?->lte($t->sla_deadline)
+                )->count();
+                $breached = $forPriority->where('sla_breached', true)->count();
+                $compliance = $closed->count() > 0
+                    ? round(($onTime / $closed->count()) * 100, 1)
+                    : 0;
+
+                return [
+                    'label'           => $priority->getLabel(),
+                    'priority'        => $priority,
+                    'total'           => $total,
+                    'closed_on_time'  => $onTime,
+                    'breached'        => $breached,
+                    'compliance_rate' => $compliance,
+                ];
+            })
+            ->filter()
+            ->values()
+            ->all();
+
+        // Reopen events that landed in the period, scoped to tickets the
+        // viewer can see. Counted from ticket_status_histories (the
+        // canonical reopen log: from RESOLVED/CLOSED to ASSIGNED). Stored
+        // values are integers; pass the enum's ->value.
+        $reopenCount = TicketStatusHistory::query()
+            ->whereIn('from_status', [
+                TaskStatusEnum::RESOLVED->value,
+                TaskStatusEnum::CLOSED->value,
+            ])
+            ->where('to_status', TaskStatusEnum::ASSIGNED->value)
+            ->whereBetween('created_at', [$from, $to])
+            ->whereIn('ticket_id', Ticket::query()->visibleBy($viewer)->select('id'))
+            ->count();
+
+        $reopenRate = $base['total_assigned'] > 0
+            ? round(($reopenCount / $base['total_assigned']) * 100, 1)
+            : 0;
+
+        $base['priority_breakdown'] = $priorityBreakdown;
+        $base['reopen_count']       = $reopenCount;
+        $base['reopen_rate']        = $reopenRate;
+
+        return $base;
     }
 
     /**
-     * Region/unit breakdown — counts grouped by area.
+     * Region/unit breakdown — counts grouped by area. Excludes CANCELLED
+     * tickets to stay consistent with `aggregate()` (which rejects them
+     * up front); without this filter regional totals would diverge from
+     * per-person totals.
      */
     public function getRegionBreakdown(Carbon $from, Carbon $to, ?User $viewer = null): Collection
     {
@@ -86,6 +151,7 @@ class PerformanceService
         return Ticket::query()
             ->visibleBy($viewer)
             ->whereBetween('created_at', [$from, $to])
+            ->whereNotIn('status', [TaskStatusEnum::CANCELLED])
             ->with('area:id,name')
             ->get()
             ->groupBy('area_id')
@@ -135,10 +201,36 @@ class PerformanceService
             ? round(($onTime->count() / $closed->count()) * 100, 1)
             : 0;
 
+        // Total breach surface across the cohort: every ticket that has
+        // ever flipped sla_breached=true regardless of whether it's still
+        // active or already closed-and-breached. The historical key
+        // `closed_breached` shares the same value but its name is
+        // misleading; `total_breached` is the canonical headline number
+        // used by the dashboard's "Toplam İhlal" card.
+        $totalBreached = $breached->count();
+
+        // At-risk: active tickets whose SLA deadline lands within the
+        // next two hours and which haven't been flipped to breached yet.
+        // ON_HOLD is paused — not at risk. Cancelled already rejected
+        // at the top of this method.
+        $atRiskCutoff = now()->addHours(2);
+        $atRisk = $tickets->filter(fn ($t) =>
+            $t->sla_deadline !== null
+            && !$t->sla_breached
+            && $t->sla_deadline->lte($atRiskCutoff)
+            && !in_array($t->status, [
+                TaskStatusEnum::RESOLVED,
+                TaskStatusEnum::CLOSED,
+                TaskStatusEnum::ON_HOLD,
+            ], true)
+        )->count();
+
         $base = [
             'total_assigned'           => $tickets->count(),
             'closed_on_time'           => $onTime->count(),
             'closed_breached'          => $breached->count(),
+            'total_breached'           => $totalBreached,
+            'at_risk'                  => $atRisk,
             'currently_open'           => $currentlyOpen,
             'currently_on_hold'        => $onHold,
             'avg_resolution_minutes'   => (int) round($avgResolution),
@@ -168,6 +260,8 @@ class PerformanceService
             'total_assigned'            => 0,
             'closed_on_time'            => 0,
             'closed_breached'           => 0,
+            'total_breached'            => 0,
+            'at_risk'                   => 0,
             'currently_open'            => 0,
             'currently_on_hold'         => 0,
             'avg_resolution_minutes'    => 0,

@@ -35,7 +35,7 @@
             </form>
         </div>
 
-        {{-- 8 summary cards --}}
+        {{-- 10 summary cards --}}
         @if(!empty($overview))
         @php
             $colorMap = [
@@ -45,26 +45,86 @@
                 'red'    => 'text-red-500',
                 'green'  => 'text-green-600',
             ];
+
+            // Reopen rate: green <5%, orange <15%, red ≥15%
+            $reopenRate  = $overview['reopen_rate'] ?? 0;
+            $reopenColor = $reopenRate < 5 ? 'green' : ($reopenRate < 15 ? 'orange' : 'red');
+
+            // At-risk: green = 0, orange > 0, red > 5
+            $atRisk      = $overview['at_risk'] ?? 0;
+            $atRiskColor = $atRisk === 0 ? 'green' : ($atRisk > 5 ? 'red' : 'orange');
+
             $cards = [
-                [__('ui.total_tickets'),           $overview['total_assigned'],                          'gray'],
-                [__('ui.open_tickets'),            $overview['currently_open'],                          'blue'],
-                ['Beklemede',                      $overview['currently_on_hold'],                       'orange'],
-                [__('ui.breached_tickets'),        $overview['closed_breached'],                         'red'],
-                ['Zamanında Kapanan',              $overview['closed_on_time'],                          'green'],
-                [__('ui.compliance_rate'),         $overview['sla_compliance_rate'].'%',                 $overview['sla_compliance_rate'] >= 80 ? 'green' : 'orange'],
-                ['Ort. Çözüm',                     $overview['avg_resolution_minutes'].' dk',            'gray'],
-                ['Ort. Yanıt',                     $overview['avg_response_time_minutes'].' dk',         'gray'],
+                [__('ui.total_tickets'),  $overview['total_assigned'],                  'gray',   null],
+                [__('ui.open_tickets'),   $overview['currently_open'],                  'blue',   null],
+                ['Beklemede',             $overview['currently_on_hold'],               'orange', null],
+                ['Toplam İhlal',          $overview['total_breached'],                  'red',    null],
+                ['Zamanında Kapanan',     $overview['closed_on_time'],                  'green',  null],
+                [__('ui.compliance_rate'), $overview['sla_compliance_rate'].'%',
+                    $overview['sla_compliance_rate'] >= 80 ? 'green' : 'orange', null],
+                ['Ort. Çözüm',            $overview['avg_resolution_minutes'].' dk',    'gray',   null],
+                ['Ort. Yanıt',            $overview['avg_response_time_minutes'].' dk', 'gray',   null],
+                ['Yeniden Açılma',        $reopenRate.'%',                              $reopenColor, ($overview['reopen_count'] ?? 0).' adet'],
+                ['Risk Altında',          $atRisk,                                      $atRiskColor, '≤2sa içinde SLA'],
             ];
         @endphp
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-            @foreach($cards as [$label, $value, $color])
+            @foreach($cards as [$label, $value, $color, $subtitle])
                 <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-4 text-center">
                     <p class="text-2xl font-bold {{ $colorMap[$color] ?? $colorMap['gray'] }}">{{ $value }}</p>
                     <p class="text-sm text-gray-500 mt-1">{{ $label }}</p>
+                    @if($subtitle)
+                        <p class="text-xs text-gray-400 mt-0.5">{{ $subtitle }}</p>
+                    @endif
                 </div>
             @endforeach
         </div>
         @endif
+
+        {{-- Priority breakdown --}}
+        @if(!empty($overview['priority_breakdown'] ?? []))
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow overflow-hidden">
+            <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="font-semibold text-gray-900 dark:text-white">Öncelik Dağılımı</h3>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-50 dark:bg-gray-700">
+                        <tr>
+                            <th class="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-300">Öncelik</th>
+                            <th class="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-300">Toplam</th>
+                            <th class="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-300">Zamanında</th>
+                            <th class="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-300">İhlal</th>
+                            <th class="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-300">Uyum %</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                        @foreach($overview['priority_breakdown'] as $row)
+                        @php
+                            $r = $row['compliance_rate'];
+                            $pillClass = $r >= 80
+                                ? 'bg-green-100 text-green-700'
+                                : ($r >= 50 ? 'bg-orange-100 text-orange-700' : 'bg-red-100 text-red-700');
+                        @endphp
+                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                            <td class="px-4 py-3 font-medium text-gray-900 dark:text-white">{{ $row['label'] }}</td>
+                            <td class="px-4 py-3 text-center text-gray-600 dark:text-gray-300">{{ $row['total'] }}</td>
+                            <td class="px-4 py-3 text-center text-green-600">{{ $row['closed_on_time'] }}</td>
+                            <td class="px-4 py-3 text-center text-red-500">{{ $row['breached'] }}</td>
+                            <td class="px-4 py-3 text-center">
+                                <span class="px-2 py-0.5 rounded-full text-xs font-semibold {{ $pillClass }}">{{ $r }}%</span>
+                            </td>
+                        </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        @endif
+
+        {{-- SLA Compliance Trend Chart (last 30 days, fixed window — does
+             not respect this page's date filter; rendered as-is). --}}
+        @livewire(\App\Filament\Widgets\SlaComplianceTrendChart::class)
 
         {{-- Region breakdown --}}
         @if($regionBreakdown->isNotEmpty())
