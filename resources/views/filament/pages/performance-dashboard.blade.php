@@ -1,5 +1,8 @@
 <x-filament-panels::page>
-    <div class="space-y-6">
+    {{-- Outer container: section spacing is now driven by <hr> separators
+         between each major block, so space-y-* on the wrapper would
+         double-stack with my-6 on the rules. --}}
+    <div>
 
         {{-- Filters --}}
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-4">
@@ -34,6 +37,8 @@
                 </div>
             </form>
         </div>
+
+        <hr class="border-t border-gray-100 dark:border-gray-700 my-6">
 
         {{-- 10 summary cards — 2×5 grid (mobile 2 / md 3 / lg 5).
              Each card: colored left border, icon tile in soft tint, then
@@ -96,56 +101,73 @@
         </div>
         @endif
 
-        {{-- Priority breakdown --}}
+        <hr class="border-t border-gray-100 dark:border-gray-700 my-6">
+
+        {{-- Priority breakdown — one card per priority. Card tint, border,
+             and badge colors are keyed off the priority enum value (Low=1
+             /blue, Medium=2/yellow, High=3/orange, Urgent=4/red). --}}
         @if(!empty($overview['priority_breakdown'] ?? []))
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow overflow-hidden">
-            <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-                <h3 class="font-semibold text-gray-900 dark:text-white">Öncelik Dağılımı</h3>
-            </div>
-            <div class="overflow-x-auto">
-                <table class="w-full text-sm">
-                    <thead class="bg-gray-50 dark:bg-gray-700">
-                        <tr>
-                            <th class="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-300">Öncelik</th>
-                            <th class="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-300">Toplam</th>
-                            <th class="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-300">Zamanında</th>
-                            <th class="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-300">İhlal</th>
-                            <th class="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-300">Uyum %</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
-                        @foreach($overview['priority_breakdown'] as $row)
-                        @php
-                            $r = $row['compliance_rate'];
-                            $pillClass = $r >= 80
-                                ? 'bg-green-100 text-green-700'
-                                : ($r >= 50 ? 'bg-orange-100 text-orange-700' : 'bg-red-100 text-red-700');
-                        @endphp
-                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                            <td class="px-4 py-3 font-medium text-gray-900 dark:text-white">{{ $row['label'] }}</td>
-                            <td class="px-4 py-3 text-center text-gray-600 dark:text-gray-300">{{ $row['total'] }}</td>
-                            <td class="px-4 py-3 text-center text-green-600">{{ $row['closed_on_time'] }}</td>
-                            <td class="px-4 py-3 text-center text-red-500">{{ $row['breached'] }}</td>
-                            <td class="px-4 py-3 text-center">
-                                <span class="px-2 py-0.5 rounded-full text-xs font-semibold {{ $pillClass }}">{{ $r }}%</span>
-                            </td>
-                        </tr>
-                        @endforeach
-                    </tbody>
-                </table>
+        @php
+            $priorityPalette = [
+                1 => ['card' => 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800',     'badge' => 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'],
+                2 => ['card' => 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800', 'badge' => 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300'],
+                3 => ['card' => 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800', 'badge' => 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300'],
+                4 => ['card' => 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800',         'badge' => 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'],
+            ];
+        @endphp
+        <div>
+            <h3 class="font-semibold text-gray-900 dark:text-white border-l-4 border-primary-500 pl-3 mb-3">Öncelik Dağılımı</h3>
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                @foreach($overview['priority_breakdown'] as $row)
+                    @php
+                        $pp = $priorityPalette[$row['priority']->value] ?? $priorityPalette[2];
+                        $r  = $row['compliance_rate'];
+                        $rateClass = $r >= 80 ? 'text-green-600 dark:text-green-400'
+                            : ($r >= 50 ? 'text-orange-600 dark:text-orange-400' : 'text-red-600 dark:text-red-400');
+                    @endphp
+                    <div class="rounded-xl shadow-sm p-4 border {{ $pp['card'] }}">
+                        <div class="flex items-center justify-between mb-3">
+                            <span class="text-xs font-semibold uppercase tracking-wide rounded-full px-2 py-0.5 {{ $pp['badge'] }}">{{ $row['label'] }}</span>
+                        </div>
+                        <div class="text-3xl font-bold text-gray-900 dark:text-gray-100 leading-tight">{{ $row['total'] }}</div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400 mb-3">Toplam</div>
+                        <div class="grid grid-cols-3 gap-2 text-xs pt-3 border-t border-gray-200/60 dark:border-gray-700/60">
+                            <div class="text-center">
+                                <div class="font-semibold text-green-600 dark:text-green-400">{{ $row['closed_on_time'] }}</div>
+                                <div class="text-gray-500 dark:text-gray-400 mt-0.5">Zamanında</div>
+                            </div>
+                            <div class="text-center">
+                                <div class="font-semibold text-red-600 dark:text-red-400">{{ $row['breached'] }}</div>
+                                <div class="text-gray-500 dark:text-gray-400 mt-0.5">İhlal</div>
+                            </div>
+                            <div class="text-center">
+                                <div class="font-semibold {{ $rateClass }}">{{ $r }}%</div>
+                                <div class="text-gray-500 dark:text-gray-400 mt-0.5">Uyum</div>
+                            </div>
+                        </div>
+                    </div>
+                @endforeach
             </div>
         </div>
         @endif
+
+        <hr class="border-t border-gray-100 dark:border-gray-700 my-6">
 
         {{-- SLA Compliance Trend Chart (last 30 days, fixed window — does
              not respect this page's date filter; rendered as-is). --}}
         @livewire(\App\Filament\Widgets\SlaComplianceTrendChart::class)
 
-        {{-- Region breakdown --}}
+        <hr class="border-t border-gray-100 dark:border-gray-700 my-6">
+
+        {{-- Region breakdown — colored compliance pill on each row plus a
+             thin progress bar in a colspan'd row directly below. divide-y
+             is dropped so the data row and its progress bar visually
+             belong together; explicit border-t is added between groups
+             via $loop->first. --}}
         @if($regionBreakdown->isNotEmpty())
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow overflow-hidden">
             <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-                <h3 class="font-semibold text-gray-900 dark:text-white">Bölge Dağılımı</h3>
+                <h3 class="font-semibold text-gray-900 dark:text-white border-l-4 border-primary-500 pl-3">Bölge Dağılımı</h3>
             </div>
             <div class="overflow-x-auto">
                 <table class="w-full text-sm">
@@ -159,23 +181,32 @@
                             <th class="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-300">{{ __('ui.compliance_rate') }}</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                    <tbody>
                         @foreach($regionBreakdown->sortByDesc('total') as $row)
-                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                            <td class="px-4 py-3 font-medium text-gray-900 dark:text-white">{{ $row['area_name'] }}</td>
-                            <td class="px-4 py-3 text-center text-gray-600 dark:text-gray-300">{{ $row['total'] }}</td>
-                            <td class="px-4 py-3 text-center text-gray-600 dark:text-gray-300">{{ $row['closed'] }}</td>
-                            <td class="px-4 py-3 text-center text-green-600">{{ $row['on_time'] }}</td>
-                            <td class="px-4 py-3 text-center text-red-500">{{ $row['breached'] }}</td>
-                            <td class="px-4 py-3 text-center">
-                                <div class="w-24 mx-auto">
-                                    <div class="bg-gray-200 dark:bg-gray-600 rounded-full h-2 overflow-hidden">
-                                        <div class="h-2 rounded-full {{ $row['compliance'] >= 80 ? 'bg-green-500' : 'bg-orange-500' }}" style="width:{{ $row['compliance'] }}%"></div>
+                            @php
+                                $rc = $row['compliance'];
+                                $pillClass = $rc >= 80 ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
+                                    : ($rc >= 50 ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300'
+                                        : 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300');
+                                $barClass = $rc >= 80 ? 'bg-green-500' : ($rc >= 50 ? 'bg-orange-500' : 'bg-red-500');
+                            @endphp
+                            <tr class="{{ !$loop->first ? 'border-t border-gray-200 dark:border-gray-700' : '' }} hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                                <td class="px-4 py-3 font-medium text-gray-900 dark:text-white">{{ $row['area_name'] }}</td>
+                                <td class="px-4 py-3 text-center text-gray-600 dark:text-gray-300">{{ $row['total'] }}</td>
+                                <td class="px-4 py-3 text-center text-gray-600 dark:text-gray-300">{{ $row['closed'] }}</td>
+                                <td class="px-4 py-3 text-center text-green-600">{{ $row['on_time'] }}</td>
+                                <td class="px-4 py-3 text-center text-red-500">{{ $row['breached'] }}</td>
+                                <td class="px-4 py-3 text-center">
+                                    <span class="px-2 py-0.5 rounded-full text-xs font-semibold {{ $pillClass }}">{{ $rc }}%</span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td colspan="6" class="px-4 pb-3 pt-0">
+                                    <div class="bg-gray-100 dark:bg-gray-700 rounded-full h-1 overflow-hidden">
+                                        <div class="h-1 rounded-full {{ $barClass }}" style="width:{{ $rc }}%"></div>
                                     </div>
-                                    <div class="text-xs mt-1 {{ $row['compliance'] >= 80 ? 'text-green-700' : 'text-orange-700' }}">{{ $row['compliance'] }}%</div>
-                                </div>
-                            </td>
-                        </tr>
+                                </td>
+                            </tr>
                         @endforeach
                     </tbody>
                 </table>
@@ -183,11 +214,14 @@
         </div>
         @endif
 
-        {{-- Per-person table --}}
+        <hr class="border-t border-gray-100 dark:border-gray-700 my-6">
+
+        {{-- Per-person table — avatar initial before name, 3-tier compliance
+             pill, breach count rendered as red badge when >0 / dim gray when 0. --}}
         @if($teamStats->isNotEmpty())
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow overflow-hidden">
             <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-                <h3 class="font-semibold text-gray-900 dark:text-white">{{ __('ui.technician_performance') }}</h3>
+                <h3 class="font-semibold text-gray-900 dark:text-white border-l-4 border-primary-500 pl-3">{{ __('ui.technician_performance') }}</h3>
             </div>
             <div class="overflow-x-auto">
                 <table class="w-full text-sm">
@@ -206,21 +240,41 @@
                     </thead>
                     <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
                         @foreach($teamStats->sortByDesc('sla_compliance_rate') as $row)
-                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                            <td class="px-4 py-3 font-medium text-gray-900 dark:text-white">{{ $row['user']->name }}</td>
-                            <td class="px-4 py-3 text-center text-gray-600 dark:text-gray-300">{{ $row['total_assigned'] }}</td>
-                            <td class="px-4 py-3 text-center text-blue-600">{{ $row['currently_open'] }}</td>
-                            <td class="px-4 py-3 text-center text-orange-600">{{ $row['currently_on_hold'] }}</td>
-                            <td class="px-4 py-3 text-center text-green-600">{{ $row['closed_on_time'] }}</td>
-                            <td class="px-4 py-3 text-center text-red-500">{{ $row['closed_breached'] }}</td>
-                            <td class="px-4 py-3 text-center">
-                                <span class="px-2 py-0.5 rounded-full text-xs font-semibold {{ $row['sla_compliance_rate'] >= 80 ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700' }}">
-                                    {{ $row['sla_compliance_rate'] }}%
-                                </span>
-                            </td>
-                            <td class="px-4 py-3 text-center text-gray-600 dark:text-gray-300">{{ $row['avg_resolution_minutes'] }}</td>
-                            <td class="px-4 py-3 text-center text-gray-600 dark:text-gray-300">{{ $row['avg_response_time_minutes'] }}</td>
-                        </tr>
+                            @php
+                                $name        = $row['user']->name ?? '?';
+                                $initial     = mb_strtoupper(mb_substr($name, 0, 1));
+                                $r           = $row['sla_compliance_rate'];
+                                $compPill    = $r >= 80 ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
+                                    : ($r >= 50 ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300'
+                                        : 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300');
+                                $breachCount = $row['closed_breached'];
+                            @endphp
+                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                                <td class="px-4 py-3 font-medium text-gray-900 dark:text-white">
+                                    <div class="flex items-center gap-2">
+                                        <div class="w-8 h-8 rounded-full bg-primary-100 text-primary-700 dark:bg-primary-900/40 dark:text-primary-300 flex items-center justify-center text-sm font-semibold flex-shrink-0">
+                                            {{ $initial }}
+                                        </div>
+                                        <span class="truncate">{{ $name }}</span>
+                                    </div>
+                                </td>
+                                <td class="px-4 py-3 text-center text-gray-600 dark:text-gray-300">{{ $row['total_assigned'] }}</td>
+                                <td class="px-4 py-3 text-center text-blue-600">{{ $row['currently_open'] }}</td>
+                                <td class="px-4 py-3 text-center text-orange-600">{{ $row['currently_on_hold'] }}</td>
+                                <td class="px-4 py-3 text-center text-green-600">{{ $row['closed_on_time'] }}</td>
+                                <td class="px-4 py-3 text-center">
+                                    @if($breachCount > 0)
+                                        <span class="px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">{{ $breachCount }}</span>
+                                    @else
+                                        <span class="text-gray-400 dark:text-gray-500 text-sm">{{ $breachCount }}</span>
+                                    @endif
+                                </td>
+                                <td class="px-4 py-3 text-center">
+                                    <span class="px-2 py-0.5 rounded-full text-xs font-semibold {{ $compPill }}">{{ $r }}%</span>
+                                </td>
+                                <td class="px-4 py-3 text-center text-gray-600 dark:text-gray-300">{{ $row['avg_resolution_minutes'] }}</td>
+                                <td class="px-4 py-3 text-center text-gray-600 dark:text-gray-300">{{ $row['avg_response_time_minutes'] }}</td>
+                            </tr>
                         @endforeach
                     </tbody>
                 </table>
