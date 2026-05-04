@@ -83,22 +83,24 @@
                 ['Risk Altında',            $atRisk,                                        'heroicon-o-exclamation-circle',    $atRiskColor,     '≤2sa içinde SLA'],
             ];
         @endphp
-        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6 mt-8 mb-8">
-            @foreach($cards as [$label, $value, $icon, $color, $subtitle])
-            @php $p = $palette[$color]; @endphp
-            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 flex flex-col gap-2">
-                <div class="flex items-center justify-between">
-                    <div class="w-10 h-10 rounded-xl flex items-center justify-center {{ $p['bg'] }}">
-                        @svg($icon, 'w-5 h-5 ' . $p['fg'])
+        <div class="mt-6 mb-8">
+            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
+                @foreach($cards as [$label, $value, $icon, $color, $subtitle])
+                @php $p = $palette[$color]; @endphp
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-4 flex flex-col gap-2">
+                    <div class="flex items-center justify-between">
+                        <div class="w-8 h-8 rounded-xl flex items-center justify-center {{ $p['bg'] }}">
+                            @svg($icon, 'w-4 h-4 ' . $p['fg'])
+                        </div>
+                        <span class="text-xl font-bold text-gray-800 dark:text-gray-100">{{ $value }}</span>
                     </div>
-                    <span class="text-2xl font-bold text-gray-800 dark:text-gray-100">{{ $value }}</span>
+                    <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ $label }}</p>
+                    @if($subtitle)
+                        <p class="text-[11px] text-gray-400 dark:text-gray-500">{{ $subtitle }}</p>
+                    @endif
                 </div>
-                <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ $label }}</p>
-                @if($subtitle)
-                    <p class="text-[11px] text-gray-400 dark:text-gray-500">{{ $subtitle }}</p>
-                @endif
+                @endforeach
             </div>
-            @endforeach
         </div>
         @endif
 
