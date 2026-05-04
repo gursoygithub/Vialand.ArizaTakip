@@ -1,9 +1,24 @@
 # Models Guide
 
-## Task → Ticket Rename (in progress)
+## Task → Ticket Rename (complete)
 - Primary model: `App\Models\Ticket` (table: `tickets`)
-- Backward-compat alias: `App\Models\Task extends Ticket` — no logic
-- All **new** code uses `Ticket`, never `Task`
+- The legacy `Task` model alias and the `tasks()` relation methods on
+  Employee/Unit/SubArea/User/Technician have all been removed; every
+  caller now uses `Ticket` and `tickets()` directly.
+- The legacy schema columns `unit_description`, `completed_by`,
+  `due_date`, and `sla_outcome` were dropped by
+  `2026_05_04_120000_drop_legacy_columns_from_tickets`. Their model-level
+  `$fillable` / `$casts` / `completedBy()` relation / `booted()` write
+  hook were removed alongside.
+- Defensive references to `TaskStatusEnum::PENDING` / `COMPLETED` /
+  `WINTER_MAINTENANCE` remain in a small set of places (terminal-status
+  arrays in `TicketService`, `TicketObserver`, `CheckSlaBreaches`,
+  `TicketResource`, `ViewTicket`, `TicketStatsOverview`,
+  `TicketStatusChangedNotification`). These are intentional — they
+  ensure pre-Reform tickets that exist in production data still render
+  in lists/timelines/notifications. **Do not add new uses of these
+  enum cases**; the Legacy Task Migration Rule below applies to new
+  code.
 
 ## Turkish → English Column Mapping
 | Turkish (legacy) | English (current) | Table |
@@ -19,7 +34,7 @@
 | cozum_suresi_dakika | deadline_minutes | sla_policies |
 
 ## Required Relationships
-- **Ticket**: area, subArea, unit, group, employee, createdBy, completedBy, closedBy, statusHistories, mutes
+- **Ticket**: area, subArea, unit, group, employee, createdBy, closedBy, reopenedBy, statusHistories, mutes
 - **TicketStatusHistory**: ticket, changedBy
 - **TicketMute**: ticket, user (composite-unique on `(ticket_id, user_id)`)
 - **Group**: company, area, unit, manager (Employee), members (GroupMember has employee)
