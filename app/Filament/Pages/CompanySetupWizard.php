@@ -471,15 +471,17 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
                 }
 
                 // HARD 2: for every (area, unit) the user has STARTED defining
-                // policies for, the default scope (sub_area_id IS NULL) must
-                // cover both Acil and Yüksek. Critical priorities can't fall
-                // back to "whatever the resolver picks" — every breach there
-                // costs us. Units the user hasn't touched yet are excluded so
+                // policies for, Acil and Yüksek must each be defined in AT
+                // LEAST ONE scope — default (sub_area_id IS NULL) OR any
+                // specific lokasyon. Defining Acil+Yüksek for every lokasyon
+                // of an area satisfies the rule even if the default scope is
+                // empty. Units the user hasn't touched yet are excluded so
                 // the wizard isn't a wall.
                 //
-                // SOFT (parallel pass): same predicate but for Düşük/Orta. A
-                // missing default there falls through to L3 (area+priority),
-                // which is acceptable but worth surfacing as a notification.
+                // SOFT (parallel pass): same predicate for Düşük/Orta — a
+                // missing critical-tier row in any scope falls through to
+                // L3/L4 (area+priority / global), which is acceptable but
+                // worth surfacing as a warning.
                 $criticalMissing = [];
                 $standardMissing = [];
 
@@ -501,18 +503,25 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
                             continue;
                         }
 
-                        $defaultPriorities = SlaPolicy::where('area_id', $area->id)
+                        // Any scope counts — pull every distinct priority
+                        // present for this (area, unit) regardless of
+                        // sub_area_id. select+distinct+get keeps the query
+                        // portable across MySQL/SQLite (count(DISTINCT col1,
+                        // col2) is MySQL-only).
+                        $coveredPriorities = SlaPolicy::where('area_id', $area->id)
                             ->where('unit_id', $unitId)
-                            ->whereNull('sub_area_id')
+                            ->select('priority')
+                            ->distinct()
+                            ->get()
                             ->pluck('priority')
                             ->map(fn ($p) => (int) (is_object($p) ? $p->value : $p))
                             ->all();
 
                         $criticalGap = [];
-                        if (!in_array(TaskPriorityEnum::Urgent->value, $defaultPriorities, true)) {
+                        if (!in_array(TaskPriorityEnum::Urgent->value, $coveredPriorities, true)) {
                             $criticalGap[] = 'Acil eksik';
                         }
-                        if (!in_array(TaskPriorityEnum::High->value, $defaultPriorities, true)) {
+                        if (!in_array(TaskPriorityEnum::High->value, $coveredPriorities, true)) {
                             $criticalGap[] = 'Yüksek eksik';
                         }
                         if (!empty($criticalGap)) {
@@ -520,10 +529,10 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
                         }
 
                         $standardGap = [];
-                        if (!in_array(TaskPriorityEnum::Medium->value, $defaultPriorities, true)) {
+                        if (!in_array(TaskPriorityEnum::Medium->value, $coveredPriorities, true)) {
                             $standardGap[] = 'Orta eksik';
                         }
-                        if (!in_array(TaskPriorityEnum::Low->value, $defaultPriorities, true)) {
+                        if (!in_array(TaskPriorityEnum::Low->value, $coveredPriorities, true)) {
                             $standardGap[] = 'Düşük eksik';
                         }
                         if (!empty($standardGap)) {
