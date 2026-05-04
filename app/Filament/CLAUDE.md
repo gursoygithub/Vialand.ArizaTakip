@@ -71,3 +71,36 @@
   for the compact three-dot menu, with `ViewAction`, `EditAction`,
   `DeleteAction` in that order. Apply per-action `->visible(...)` gates
   inside the group rather than hiding the whole group
+
+## Legacy Task Migration Rule
+The codebase was migrated from a "Task" system to a "Ticket" (Reform)
+system. The following are BANNED in all new and existing code:
+
+**Relations**
+- `$record->tasks()` → use `$record->tickets()` instead
+- Any relation named `tasks` on any model
+
+**Columns / fields — never display or query**
+- `due_date` → use `sla_deadline` or `closed_at`
+- `completed_by` → use `closed_by`
+- `unit_description` → legacy field, always empty in modern data
+- `completedBy` relation → use `closedBy`
+
+**Enum values — never use these legacy statuses**
+- `TaskStatusEnum::PENDING` (value 0)
+- `TaskStatusEnum::COMPLETED` (value 1)
+- `TaskStatusEnum::WINTER_MAINTENANCE` (value 2)
+Use only Reform-era statuses: `OPEN`, `ASSIGNED`, `IN_PROGRESS`,
+`ON_HOLD`, `RESOLVED`, `CLOSED`, `CANCELLED`.
+
+**Banned patterns**
+- `formatStateUsing(fn ($state) => "<strong>{$state}</strong>")->html()`
+  XSS risk — never interpolate user input into HTML.
+
+**Performance source**
+- `sla_outcome` (`'SUCCESS'`/`'FAILED'`) → use `sla_breached` (boolean).
+  Canonical Reform-era SLA signal used by `PerformanceService` and all
+  dashboards.
+
+When encountering any of the above in existing code: flag and fix.
+When writing new code: never use any of the above.

@@ -92,26 +92,32 @@ class UnitResource extends Resource
         $user = auth()->user();
         $hasTaskPermission = $user->hasRole('super_admin') || $user->can('view_all_tasks');
 
+        // Permission-scoping closure shared across the three count subqueries.
+        // When the viewer can't see all tickets, restrict counts to tickets
+        // they own or that are assigned to them.
+        $scope = function ($q) use ($user, $hasTaskPermission) {
+            return $q->when(!$hasTaskPermission, fn ($q) => $q->where(fn ($q) => $q
+                ->where('created_by', $user->id)
+                ->orWhere('employee_id', $user->employee?->id)
+            ));
+        };
+
         return $table
             ->modifyQueryUsing(fn (Builder $query) => $query->withCount([
-                'tasks as pending_tasks_count' => fn($q) => $q
-                    ->where('status', TaskStatusEnum::PENDING)
-                    ->when(!$hasTaskPermission, fn($q) => $q->where(fn($q) => $q
-                        ->where('created_by', $user->id)
-                        ->orWhere('employee_id', $user->employee?->id)
-                    )),
-                'tasks as completed_tasks_count' => fn($q) => $q
-                    ->where('status', TaskStatusEnum::COMPLETED)
-                    ->when(!$hasTaskPermission, fn($q) => $q->where(fn($q) => $q
-                        ->where('created_by', $user->id)
-                        ->orWhere('employee_id', $user->employee?->id)
-                    )),
-                'tasks as winter_maintenance_tasks_count' => fn($q) => $q
-                    ->where('status', TaskStatusEnum::WINTER_MAINTENANCE)
-                    ->when(!$hasTaskPermission, fn($q) => $q->where(fn($q) => $q
-                        ->where('created_by', $user->id)
-                        ->orWhere('employee_id', $user->employee?->id)
-                    )),
+                'tickets'                                  => $scope,
+                'tickets as active_tickets_count'          => fn ($q) => $scope($q)->whereIn('status', [
+                    TaskStatusEnum::OPEN,
+                    TaskStatusEnum::ASSIGNED,
+                    TaskStatusEnum::IN_PROGRESS,
+                    TaskStatusEnum::ON_HOLD,
+                ]),
+                'tickets as breached_tickets_count'        => fn ($q) => $scope($q)
+                    ->where('sla_breached', true)
+                    ->whereNotIn('status', [
+                        TaskStatusEnum::RESOLVED,
+                        TaskStatusEnum::CLOSED,
+                        TaskStatusEnum::CANCELLED,
+                    ]),
             ]))
             ->defaultSort('updated_at', 'desc')
             ->paginated([5, 10, 25, 50])
@@ -123,42 +129,24 @@ class UnitResource extends Resource
                     ->color('primary')
                     ->searchable()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('pending_tasks_count')
-                    ->label(__('ui.pending'))
-                    ->icon('heroicon-o-clock')
-                    ->badge()
-                    ->color(\App\Enums\TaskStatusEnum::PENDING->getColor()),
 
-                Tables\Columns\TextColumn::make('completed_tasks_count')
-                    ->label(__('ui.completed'))
-                    ->icon('heroicon-o-check-circle')
+                Tables\Columns\TextColumn::make('tickets_count')
+                    ->label('Toplam Talep')
                     ->badge()
-                    ->color(\App\Enums\TaskStatusEnum::COMPLETED->getColor()),
+                    ->sortable(),
 
-                Tables\Columns\TextColumn::make('winter_maintenance_tasks_count')
-                    ->label(__('ui.winter_maintenance'))
-                    ->icon('heroicon-o-lifebuoy')
+                Tables\Columns\TextColumn::make('active_tickets_count')
+                    ->label('Aktif')
                     ->badge()
-                    ->color(\App\Enums\TaskStatusEnum::WINTER_MAINTENANCE->getColor()),
-//                Tables\Columns\TextColumn::make('pending_tasks_count')
-//                    ->label(__('ui.pending'))
-//                    ->icon('heroicon-o-clock')
-//                    ->getStateUsing(fn ($record) => $record->tasks()
-//                        ->where('status', \App\Enums\TaskStatusEnum::PENDING)->count())
-//                    ->badge()
-//                    ->color(\App\Enums\TaskStatusEnum::PENDING->getColor()),
-//                Tables\Columns\TextColumn::make('completed_tasks_count')
-//                    ->label(__('ui.completed'))
-//                    ->icon('heroicon-o-check-circle')
-//                    ->getStateUsing(fn ($record) => $record->tasks()->where('status', \App\Enums\TaskStatusEnum::COMPLETED)->count())
-//                    ->badge()
-//                    ->color(\App\Enums\TaskStatusEnum::COMPLETED->getColor()),
-//                Tables\Columns\TextColumn::make('winter_maintenance_tasks_count')
-//                    ->label(__('ui.winter_maintenance'))
-//                    ->icon('heroicon-o-lifebuoy')
-//                    ->getStateUsing(fn ($record) => $record->tasks()->where('status', \App\Enums\TaskStatusEnum::WINTER_MAINTENANCE)->count())
-//                    ->badge()
-//                    ->color(\App\Enums\TaskStatusEnum::WINTER_MAINTENANCE->getColor()),
+                    ->color(fn ($state) => $state > 0 ? 'warning' : 'gray')
+                    ->sortable(),
+
+                Tables\Columns\TextColumn::make('breached_tickets_count')
+                    ->label('İhlal')
+                    ->badge()
+                    ->color(fn ($state) => $state > 0 ? 'danger' : 'gray')
+                    ->sortable(),
+
                 Tables\Columns\TextColumn::make('createdBy.name')
                     ->visible(fn () => auth()->user()->hasRole('super_admin') || auth()->user()->can('view_all_units'))
                     ->label(__('ui.created_by'))
@@ -225,6 +213,6 @@ class UnitResource extends Resource
 
     public static function canDelete(Model $record): bool
     {
-        return $record->tasks()->count() === 0 && (auth()->user()?->hasRole('super_admin') || $record->created_by === auth()->id());
+        return $record->tickets()->count() === 0 && (auth()->user()?->hasRole('super_admin') || $record->created_by === auth()->id());
     }
 }

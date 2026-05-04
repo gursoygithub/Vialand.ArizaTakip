@@ -57,7 +57,7 @@ class TicketResource extends Resource
                 TaskStatusEnum::OPEN->value,
                 TaskStatusEnum::ASSIGNED->value,
                 TaskStatusEnum::IN_PROGRESS->value,
-                TaskStatusEnum::PENDING->value,
+                TaskStatusEnum::ON_HOLD->value,
             ])
             ->count();
 
