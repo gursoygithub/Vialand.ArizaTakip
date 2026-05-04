@@ -59,6 +59,43 @@ class TicketObserver
         if ($isTerminal && $ticket->sla_deadline && now()->lte($ticket->sla_deadline)) {
             $ticket->sla_breached = false;
         }
+
+        // SLA deadline recalculation on priority change. Only applies to
+        // existing non-terminal tickets — creating() owns the initial
+        // snapshot. Rebases from now() + the resolved policy's
+        // deadline_minutes and re-adds total_on_hold_minutes so a ticket
+        // that has been on hold keeps the extension it earned. The
+        // sla_breached flip above is intentionally NOT recomputed here:
+        // per the recalc rule we don't reassign the breach flag in this
+        // block — it'll be re-evaluated on the next save.
+        $priorityRecalcTerminal = [
+            TaskStatusEnum::RESOLVED,
+            TaskStatusEnum::CLOSED,
+            TaskStatusEnum::CANCELLED,
+        ];
+
+        if ($ticket->exists
+            && $ticket->isDirty('priority')
+            && $ticket->area_id
+            && $ticket->priority
+            && !in_array($ticket->status, $priorityRecalcTerminal, true)) {
+            $priorityValue = is_object($ticket->priority)
+                ? $ticket->priority->value
+                : $ticket->priority;
+
+            $policy = $this->slaService->resolvePolicy(
+                $ticket->area_id,
+                $ticket->sub_area_id,
+                $ticket->unit_id,
+                $priorityValue
+            );
+
+            if ($policy) {
+                $ticket->sla_deadline = now()
+                    ->addMinutes($policy->deadline_minutes)
+                    ->addMinutes((int) $ticket->total_on_hold_minutes);
+            }
+        }
     }
 
     public function creating(Ticket $ticket): void
