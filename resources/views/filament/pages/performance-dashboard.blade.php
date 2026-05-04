@@ -1,4 +1,20 @@
 <x-filament-panels::page>
+    {{-- Tailwind safelist: every per-color utility used by the dynamic
+         summary card icons (compliance / reopen / at-risk pick their
+         color at render time, so JIT may not see all variants in source
+         scans). Keeping every literal class string in the source ensures
+         they're emitted in the build. Hidden from the page. --}}
+    <div class="hidden
+        bg-blue-50 text-blue-600 bg-blue-900/30 text-blue-400
+        bg-indigo-50 text-indigo-600 bg-indigo-900/30 text-indigo-400
+        bg-amber-50 text-amber-600 bg-amber-900/30 text-amber-400
+        bg-red-50 text-red-600 bg-red-900/30 text-red-400
+        bg-emerald-50 text-emerald-600 bg-emerald-900/30 text-emerald-400
+        bg-violet-50 text-violet-600 bg-violet-900/30 text-violet-400
+        bg-sky-50 text-sky-600 bg-sky-900/30 text-sky-400
+        bg-orange-50 text-orange-600 bg-orange-900/30 text-orange-400
+    "></div>
+
     {{-- Outer container: section spacing is now driven by <hr> separators
          between each major block, so space-y-* on the wrapper would
          double-stack with my-6 on the rules. --}}
@@ -40,67 +56,53 @@
 
         <hr class="border-t border-gray-100 dark:border-gray-700 my-6">
 
-        {{-- 10 summary cards — top-row icon tile + value, label below in
-             uppercase. Optional subtitle for reopen/risk cards. Palette
-             keys map to fully-spelled Tailwind classes so JIT picks them
-             up reliably. --}}
+        {{-- 10 summary cards — icon tile on top, value + label below.
+             Color resolves at render time for compliance / risk; safelist
+             at the top of this file holds every variant so JIT picks
+             them up. --}}
         @if(!empty($overview))
-        @php
-            $palette = [
-                'blue'    => ['bg' => 'bg-blue-50 dark:bg-blue-900/30',       'fg' => 'text-blue-500 dark:text-blue-400'],
-                'indigo'  => ['bg' => 'bg-indigo-50 dark:bg-indigo-900/30',   'fg' => 'text-indigo-500 dark:text-indigo-400'],
-                'amber'   => ['bg' => 'bg-amber-50 dark:bg-amber-900/30',     'fg' => 'text-amber-500 dark:text-amber-400'],
-                'red'     => ['bg' => 'bg-red-50 dark:bg-red-900/30',         'fg' => 'text-red-500 dark:text-red-400'],
-                'emerald' => ['bg' => 'bg-emerald-50 dark:bg-emerald-900/30', 'fg' => 'text-emerald-500 dark:text-emerald-400'],
-                'green'   => ['bg' => 'bg-green-50 dark:bg-green-900/30',     'fg' => 'text-green-500 dark:text-green-400'],
-                'orange'  => ['bg' => 'bg-orange-50 dark:bg-orange-900/30',   'fg' => 'text-orange-500 dark:text-orange-400'],
-                'violet'  => ['bg' => 'bg-violet-50 dark:bg-violet-900/30',   'fg' => 'text-violet-500 dark:text-violet-400'],
-                'sky'     => ['bg' => 'bg-sky-50 dark:bg-sky-900/30',         'fg' => 'text-sky-500 dark:text-sky-400'],
-            ];
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mt-6 mb-8">
 
-            $compliance      = $overview['sla_compliance_rate'];
-            $complianceColor = $compliance >= 80 ? 'green' : ($compliance >= 50 ? 'orange' : 'red');
+            @foreach([
+                ['label' => 'Toplam Talep',       'value' => $overview['total_assigned'],          'icon' => 'inbox',              'color' => 'blue'],
+                ['label' => 'Açık Talepler',      'value' => $overview['currently_open'],          'icon' => 'folder-open',        'color' => 'indigo'],
+                ['label' => 'Beklemede',          'value' => $overview['currently_on_hold'],       'icon' => 'pause-circle',       'color' => 'amber'],
+                ['label' => 'Toplam İhlal',       'value' => $overview['total_breached'],          'icon' => 'exclamation-triangle','color' => 'red'],
+                ['label' => 'Zamanında Kapanan',  'value' => $overview['closed_on_time'],          'icon' => 'check-circle',       'color' => 'emerald'],
+                ['label' => 'Uyum Oranı',         'value' => $overview['sla_compliance_rate'].'%','icon' => 'shield-check',       'color' => $overview['sla_compliance_rate'] >= 80 ? 'emerald' : ($overview['sla_compliance_rate'] >= 50 ? 'amber' : 'red')],
+                ['label' => 'Ort. Çözüm',         'value' => $overview['avg_resolution_minutes'].' dk','icon' => 'clock',           'color' => 'violet'],
+                ['label' => 'Ort. Yanıt',         'value' => $overview['avg_response_time_minutes'].' dk','icon' => 'bolt',          'color' => 'sky'],
+                ['label' => 'Yeniden Açılma',     'value' => $overview['reopen_rate'].'%',         'icon' => 'arrow-path',         'color' => 'orange', 'sub' => $overview['reopen_count'].' adet'],
+                ['label' => 'Risk Altında',       'value' => $overview['at_risk'],                 'icon' => 'exclamation-circle', 'color' => $overview['at_risk'] === 0 ? 'emerald' : ($overview['at_risk'] <= 5 ? 'amber' : 'red'), 'sub' => '≤2sa içinde SLA'],
+            ] as $card)
+                <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-4 flex flex-col gap-3 hover:shadow-md transition-shadow">
 
-            // Reopen: green <5%, orange <15%, red ≥15%
-            $reopenRate  = $overview['reopen_rate'] ?? 0;
-            $reopenColor = $reopenRate < 5 ? 'green' : ($reopenRate < 15 ? 'orange' : 'red');
-
-            // At-risk: green = 0, orange ≤ 5, red > 5
-            $atRisk      = $overview['at_risk'] ?? 0;
-            $atRiskColor = $atRisk === 0 ? 'green' : ($atRisk > 5 ? 'red' : 'orange');
-
-            // [label, value, heroicon, color key, subtitle?]
-            $cards = [
-                [__('ui.total_tickets'),    $overview['total_assigned'],                    'heroicon-o-inbox',                 'blue',           null],
-                [__('ui.open_tickets'),     $overview['currently_open'],                    'heroicon-o-folder-open',           'indigo',         null],
-                ['Beklemede',               $overview['currently_on_hold'],                 'heroicon-o-pause-circle',          'amber',          null],
-                ['Toplam İhlal',            $overview['total_breached'],                    'heroicon-o-exclamation-triangle',  'red',            null],
-                ['Zamanında Kapanan',       $overview['closed_on_time'],                    'heroicon-o-check-circle',          'emerald',        null],
-                [__('ui.compliance_rate'),  $compliance . '%',                              'heroicon-o-shield-check',          $complianceColor, null],
-                ['Ort. Çözüm',              $overview['avg_resolution_minutes'] . ' dk',    'heroicon-o-clock',                 'violet',         null],
-                ['Ort. Yanıt',              $overview['avg_response_time_minutes'] . ' dk', 'heroicon-o-bolt',                  'sky',            null],
-                ['Yeniden Açılma',          $reopenRate . '%',                              'heroicon-o-arrow-path',            'orange',         ($overview['reopen_count'] ?? 0) . ' adet'],
-                ['Risk Altında',            $atRisk,                                        'heroicon-o-exclamation-circle',    $atRiskColor,     '≤2sa içinde SLA'],
-            ];
-        @endphp
-        <div class="mt-6 mb-8">
-            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
-                @foreach($cards as [$label, $value, $icon, $color, $subtitle])
-                @php $p = $palette[$color]; @endphp
-                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-4 flex flex-col gap-2">
                     <div class="flex items-center justify-between">
-                        <div class="w-8 h-8 rounded-xl flex items-center justify-center {{ $p['bg'] }}">
-                            @svg($icon, 'w-4 h-4 ' . $p['fg'])
+                        <div class="w-10 h-10 rounded-lg bg-{{ $card['color'] }}-50 dark:bg-{{ $card['color'] }}-900/30 flex items-center justify-center">
+                            <x-filament::icon
+                                :icon="'heroicon-o-' . $card['icon']"
+                                class="w-5 h-5 text-{{ $card['color'] }}-600 dark:text-{{ $card['color'] }}-400"
+                            />
                         </div>
-                        <span class="text-xl font-bold text-gray-800 dark:text-gray-100">{{ $value }}</span>
                     </div>
-                    <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ $label }}</p>
-                    @if($subtitle)
-                        <p class="text-[11px] text-gray-400 dark:text-gray-500">{{ $subtitle }}</p>
-                    @endif
+
+                    <div>
+                        <p class="text-2xl font-bold text-gray-900 dark:text-gray-100 leading-tight">
+                            {{ $card['value'] }}
+                        </p>
+                        <p class="text-xs font-medium text-gray-500 dark:text-gray-400 mt-1">
+                            {{ $card['label'] }}
+                        </p>
+                        @if(isset($card['sub']))
+                            <p class="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                                {{ $card['sub'] }}
+                            </p>
+                        @endif
+                    </div>
+
                 </div>
-                @endforeach
-            </div>
+            @endforeach
+
         </div>
         @endif
 
