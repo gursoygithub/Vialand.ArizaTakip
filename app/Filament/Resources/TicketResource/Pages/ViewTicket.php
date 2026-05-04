@@ -61,6 +61,7 @@ class ViewTicket extends ViewRecord
         $record       = $this->getRecord();
         $inProgressAt = $record->statusHistories()
             ->where('to_status', TaskStatusEnum::IN_PROGRESS->value)
+            ->where('created_at', '>=', $record->assigned_at)
             ->orderBy('created_at')
             ->first()
             ?->created_at;
