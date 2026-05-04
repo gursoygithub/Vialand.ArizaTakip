@@ -90,6 +90,11 @@ class TicketService
                 $ticket->closed_at    = null;
                 $ticket->closed_by    = null;
                 $ticket->resolved_at  = null;
+                // Reset assigned_at so the lifecycle strip's "İşleme Alındı"
+                // filter (created_at >= assigned_at) scopes to the new
+                // assignment cycle. TicketObserver::saving re-stamps it to
+                // now() because employee_id is preserved across the reopen.
+                $ticket->assigned_at  = null;
 
                 if ($ticket->area_id && $ticket->priority) {
                     $priorityValue = is_object($ticket->priority)
