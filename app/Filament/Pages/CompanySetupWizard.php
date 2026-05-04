@@ -829,10 +829,16 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
                         ViewField::make('default_users')
                             ->hiddenLabel()
                             ->view('filament.pages.company-setup-wizard.partials.users-default')
-                            ->viewData(fn (Forms\Get $get) => [
-                                'users' => $this->defaultUsersFor((int) ($get('companyId') ?? 0)),
-                                'roles' => $this->assignableRoles(),
-                            ]),
+                            ->viewData(function (Forms\Get $get) {
+                                $companyId = (int) ($get('companyId') ?? 0);
+                                $stats = $this->companyUserStats($companyId);
+                                return [
+                                    'users'                => $this->defaultUsersFor($companyId),
+                                    'roles'                => $this->assignableRoles(),
+                                    'employee_count'       => $stats['employee_count'],
+                                    'matched_users_count'  => $stats['matched_users_count'],
+                                ];
+                            }),
                     ]),
 
                 Section::make('Mevcut Rol Atamaları')
@@ -842,10 +848,16 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
                         ViewField::make('roled_users')
                             ->hiddenLabel()
                             ->view('filament.pages.company-setup-wizard.partials.users-roled')
-                            ->viewData(fn (Forms\Get $get) => [
-                                'users' => $this->roledUsersFor((int) ($get('companyId') ?? 0)),
-                                'roles' => $this->assignableRoles(),
-                            ]),
+                            ->viewData(function (Forms\Get $get) {
+                                $companyId = (int) ($get('companyId') ?? 0);
+                                $stats = $this->companyUserStats($companyId);
+                                return [
+                                    'users'                => $this->roledUsersFor($companyId),
+                                    'roles'                => $this->assignableRoles(),
+                                    'employee_count'       => $stats['employee_count'],
+                                    'matched_users_count'  => $stats['matched_users_count'],
+                                ];
+                            }),
                     ]),
             ]);
     }
@@ -1474,6 +1486,38 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
                 ])->values()->all(),
                 'member_count' => $group->members->count(),
             ])->values()->all();
+    }
+
+    /**
+     * Counts that drive the empty-state copy in the role-management
+     * partials. The Employee → User bridge is by email equality (Users
+     * are materialised on first LDAP login, not by employee:sync), so
+     * a brand-new deploy will have N employees and 0 users — and both
+     * panel sections need to say "no logins yet" rather than "everyone
+     * has a role / nothing to do".
+     *
+     * @return array{employee_count: int, matched_users_count: int}
+     */
+    protected function companyUserStats(int $companyId): array
+    {
+        if (!$companyId) {
+            return ['employee_count' => 0, 'matched_users_count' => 0];
+        }
+
+        $emails = Employee::where('company_id', $companyId)
+            ->pluck('email')
+            ->filter()
+            ->all();
+
+        $employeeCount = Employee::where('company_id', $companyId)->count();
+        $matchedUsersCount = empty($emails)
+            ? 0
+            : User::whereIn('email', $emails)->count();
+
+        return [
+            'employee_count'      => $employeeCount,
+            'matched_users_count' => $matchedUsersCount,
+        ];
     }
 
     protected function defaultUsersFor(int $companyId): array
