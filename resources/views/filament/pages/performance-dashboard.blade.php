@@ -15,15 +15,13 @@
         bg-orange-50 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400
     "></div>
 
-    {{-- Outer container: section spacing is driven by space-y-8 on this
-         wrapper. Direct children are: filter card, summary cards grid,
-         Öncelik Dağılımı card, Bölge Dağılımı card, Teknisyen Performansı
-         card. Each is conditionally rendered, but @if/@endif don't add
-         DOM nodes — only the inner wrapper div surfaces, so space-y-8
-         only applies between rendered siblings. Per-section wrappers
-         must NOT carry mb-* / mt-*; otherwise they compound with the
-         parent's space-y. --}}
-    <div class="space-y-8">
+    {{-- Outer container: section spacing is driven by mt-8 on each major
+         section wrapper EXCEPT the first (filter form). margin-top is
+         used in preference to margin-bottom because Filament's panel
+         layout is more predictable about respecting top margins than
+         collapsing bottom margins; space-y-* on the parent was tried
+         but fought with conditionally-rendered (@if) sections. --}}
+    <div>
 
         {{-- Filters --}}
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-4">
@@ -64,21 +62,17 @@
              color resolves at render time for compliance / reopen / risk;
              every variant is in the safelist at the top of this file. --}}
         @if(!empty($overview))
-        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 mt-8">
             @foreach([
-                // Row 1 — executive headline metrics
+                // 7 KPI-focused cards. Operational metrics (Açık, Beklemede,
+                // Risk Altında) live on Genel Bakış, not here.
                 ['label'=>'Uyum','value'=>$overview['sla_compliance_rate'].'%','icon'=>'shield-check','color'=>$overview['sla_compliance_rate']>=80?'emerald':($overview['sla_compliance_rate']>=50?'amber':'red')],
-                ['label'=>'Risk Altında','value'=>$overview['at_risk'],'sub'=>'≤2sa SLA','icon'=>'exclamation-circle','color'=>$overview['at_risk']===0?'emerald':($overview['at_risk']<=5?'amber':'red')],
                 ['label'=>'İhlal','value'=>$overview['total_breached'],'icon'=>'exclamation-triangle','color'=>'red'],
                 ['label'=>'Yeniden Açılma','value'=>$overview['reopen_rate'].'%','sub'=>$overview['reopen_count'].' adet','icon'=>'arrow-path','color'=>'orange'],
-                ['label'=>'Açık','value'=>$overview['currently_open'],'icon'=>'folder-open','color'=>'indigo'],
-
-                // Row 2 — secondary / operational metrics
-                ['label'=>'Beklemede','value'=>$overview['currently_on_hold'],'icon'=>'pause-circle','color'=>'amber'],
-                ['label'=>'Toplam Talep','value'=>$overview['total_assigned'],'icon'=>'inbox','color'=>'blue'],
                 ['label'=>'Zamanında','value'=>$overview['closed_on_time'],'icon'=>'check-circle','color'=>'emerald'],
                 ['label'=>'Ort. Çözüm','value'=>$overview['avg_resolution_minutes'].'dk','icon'=>'clock','color'=>'violet'],
                 ['label'=>'Ort. Yanıt','value'=>$overview['avg_response_time_minutes'].'dk','icon'=>'bolt','color'=>'sky'],
+                ['label'=>'Toplam Talep','value'=>$overview['total_assigned'],'icon'=>'inbox','color'=>'blue'],
             ] as $card)
                 <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-3 hover:shadow-md transition">
                     <div class="flex items-center gap-3">
@@ -114,7 +108,7 @@
                 4 => 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
             ];
         @endphp
-        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 mt-8">
             <h3 class="text-sm font-semibold uppercase tracking-widest text-gray-400 mb-6">
                 Öncelik Dağılımı
             </h3>
@@ -174,7 +168,7 @@
              belong together; explicit border-t is added between groups
              via $loop->first. --}}
         @if($regionBreakdown->isNotEmpty())
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow overflow-hidden">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow overflow-hidden mt-8">
             <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
                 <h3 class="font-semibold text-gray-900 dark:text-white border-l-4 border-primary-500 pl-3">Bölge Dağılımı</h3>
             </div>
@@ -226,7 +220,7 @@
         {{-- Per-person table — avatar initial before name, 3-tier compliance
              pill, breach count rendered as red badge when >0 / dim gray when 0. --}}
         @if($teamStats->isNotEmpty())
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow overflow-hidden">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow overflow-hidden mt-8">
             <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
                 <h3 class="font-semibold text-gray-900 dark:text-white border-l-4 border-primary-500 pl-3">{{ __('ui.technician_performance') }}</h3>
             </div>
