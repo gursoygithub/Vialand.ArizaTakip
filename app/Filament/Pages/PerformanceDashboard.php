@@ -46,6 +46,16 @@ class PerformanceDashboard extends Page implements HasForms, HasTable
         return __('ui.performance_dashboard');
     }
 
+    /**
+     * Override Filament's default page-heading fallback (which would derive
+     * "Performance Dashboard" from the class basename) so the heading bar
+     * matches the navigation label in Turkish.
+     */
+    public function getTitle(): string
+    {
+        return __('ui.performance_dashboard');
+    }
+
     public static function canAccess(): bool
     {
         return auth()->user()?->can('report.view') ?? false;
