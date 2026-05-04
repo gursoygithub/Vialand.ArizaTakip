@@ -14,6 +14,8 @@ use App\Notifications\TicketAssignedNotification;
 use App\Notifications\TicketCommentNotification;
 use App\Notifications\TicketReassignedNotification;
 use App\Notifications\TicketStatusChangedNotification;
+use App\Observers\TicketObserver;
+use App\Enums\TaskPriorityEnum;
 use Illuminate\Notifications\Notification as BaseNotification;
 use Illuminate\Support\Facades\DB;
 
@@ -300,7 +302,16 @@ class TicketService
                     ->delete();
             }
 
-            $ticket->update(['employee_id' => $employeeId]);
+            // Suppress TicketObserver::updated's reassignment notification —
+            // notifyAssignee / transition() below own that path. Without the
+            // guard the new assignee gets two TicketAssignedNotification rows
+            // (one per writer).
+            TicketObserver::$skipReassignNotification = true;
+            try {
+                $ticket->update(['employee_id' => $employeeId]);
+            } finally {
+                TicketObserver::$skipReassignNotification = false;
+            }
 
             // OPEN → ASSIGNED: real status transition + history + notification
             // all handled inside transition().
@@ -421,6 +432,33 @@ class TicketService
             $ticket->ticket_no . ' • Size Atandı',
             $actorName . ' tarafından atandı — ' . $area . ' / ' . $priority,
             url('/tickets/' . $ticket->id),
+        );
+    }
+
+    /**
+     * Fan out a "priority changed" alert to participants. Reuses
+     * TicketCommentNotification for the bell entry (free-form body) and the
+     * shared FCM path; mail is intentionally skipped — TicketCommentNotification's
+     * via() returns ['database'] only, so notifyParticipants drives the database
+     * + FCM channels and never the mail one.
+     */
+    public function notifyPriorityChange(
+        Ticket $ticket,
+        TaskPriorityEnum $oldPriority,
+        TaskPriorityEnum $newPriority,
+        User $actor,
+    ): void {
+        $oldLabel  = $oldPriority->getLabel();
+        $newLabel  = $newPriority->getLabel();
+        $actorName = $this->actorDisplayName($actor);
+        $body      = $actorName . ' önceliği ' . $oldLabel . ' → ' . $newLabel . ' olarak değiştirdi';
+
+        $this->notifyParticipants(
+            $ticket,
+            $actor,
+            new TicketCommentNotification($ticket, $actor, $body),
+            $ticket->ticket_no . ' • Öncelik Güncellendi',
+            $body,
         );
     }
 

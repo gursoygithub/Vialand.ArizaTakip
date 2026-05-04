@@ -12,6 +12,14 @@ use App\Services\SlaService;
 
 class TicketObserver
 {
+    /**
+     * Toggle to skip the assignment notification fired from updated().
+     * TicketService::reassign sets this around its $ticket->update(...) so
+     * the observer does not double-fire alongside the service's own
+     * notifyAssignee / transition path.
+     */
+    public static bool $skipReassignNotification = false;
+
     public function __construct(private SlaService $slaService) {}
 
     /**
@@ -110,7 +118,8 @@ class TicketObserver
         // TicketStatusChanged event, so we only handle pure reassignments here.
         if ($ticket->wasChanged('employee_id')
             && $ticket->employee_id
-            && !$ticket->wasChanged('status')) {
+            && !$ticket->wasChanged('status')
+            && !static::$skipReassignNotification) {
             $this->notifyAssignedUser($ticket);
         }
     }

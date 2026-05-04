@@ -9,6 +9,7 @@
 
 namespace App\Policies;
 
+use App\Enums\TaskStatusEnum;
 use App\Models\Ticket;
 use App\Models\User;
 use Illuminate\Auth\Access\HandlesAuthorization;
@@ -34,6 +35,18 @@ class TicketPolicy
 
     public function update(User $user, Ticket $ticket): bool
     {
+        // Terminal-state lock: tickets in a final lifecycle state are
+        // immutable for everyone — including super_admin. Reopening goes
+        // through TicketService::transition (CLOSED → IN_PROGRESS), not
+        // the Edit page.
+        if (in_array($ticket->status, [
+            TaskStatusEnum::RESOLVED,
+            TaskStatusEnum::CLOSED,
+            TaskStatusEnum::CANCELLED,
+        ], true)) {
+            return false;
+        }
+
         if ($user->hasRole('super_admin')) {
             return true;
         }

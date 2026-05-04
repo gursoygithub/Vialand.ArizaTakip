@@ -1,37 +1,41 @@
 @php
     $record = $getRecord();
 
-    $inProgressAt = $record
-        ?->statusHistories()
-        ?->where('to_status', \App\Enums\TaskStatusEnum::IN_PROGRESS->value)
-        ?->orderBy('created_at')
-        ?->first()
-        ?->created_at;
-
     $steps = [
-        ['icon' => '📅', 'label' => 'Açıldı',         'date' => $record?->created_at],
-        ['icon' => '👤', 'label' => 'Atandı',          'date' => $record?->assigned_at],
-        ['icon' => '⚙️', 'label' => 'İşleme Alındı',  'date' => $inProgressAt],
-        ['icon' => '✅', 'label' => 'Çözüldü',         'date' => $record?->resolved_at],
-        ['icon' => '🔒', 'label' => 'Kapatıldı',       'date' => $record?->closed_at],
+        ['label' => 'Açıldı',         'date' => $record?->created_at],
+        ['label' => 'Atandı',          'date' => $record?->assigned_at],
+        ['label' => 'İşleme Alındı',  'date' => $inProgressAt ?? null],
+        ['label' => 'Çözüldü',         'date' => $record?->resolved_at],
+        ['label' => 'Kapatıldı',       'date' => $record?->closed_at],
     ];
 @endphp
 
-<div class="flex items-start gap-2 flex-wrap py-2">
-    @foreach($steps as $step)
-        <div class="flex items-center gap-1">
-            <div class="flex flex-col items-center min-w-[90px]">
-                <span class="text-lg">{{ $step['icon'] }}</span>
-                <span class="text-xs font-medium {{ $step['date'] ? 'text-gray-800 dark:text-gray-200' : 'text-gray-400' }}">
+<div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm px-6 py-4 mb-2">
+    <div class="flex items-start justify-between w-full">
+        @foreach($steps as $i => $step)
+            @php $done = (bool) $step['date']; @endphp
+
+            <div class="flex flex-col items-center flex-shrink-0">
+                <div class="w-8 h-8 rounded-full flex items-center justify-center text-sm
+                    {{ $done
+                        ? 'bg-primary-600 text-white font-bold'
+                        : 'border-2 border-gray-300 dark:border-gray-600 text-gray-400 bg-white dark:bg-gray-800' }}">
+                    {{ $i + 1 }}
+                </div>
+                <div class="text-xs font-medium mt-1 text-center
+                    {{ $done ? 'text-gray-800 dark:text-gray-100' : 'text-gray-400' }}">
                     {{ $step['label'] }}
-                </span>
-                <span class="text-xs {{ $step['date'] ? 'text-gray-600 dark:text-gray-400' : 'text-gray-300' }}">
-                    {{ $step['date'] ? $step['date']->translatedFormat('d M H:i') : '—' }}
-                </span>
+                </div>
+                <div class="text-xs mt-0.5 text-center
+                    {{ $done ? 'text-gray-500 dark:text-gray-400' : 'text-gray-300' }}">
+                    {{ $done ? $step['date']->translatedFormat('d M Y H:i') : '—' }}
+                </div>
             </div>
+
             @if(!$loop->last)
-                <div class="w-8 h-px bg-gray-300 dark:bg-gray-600 mb-3"></div>
+                <div class="flex-1 h-0.5 mt-4 mx-1
+                    {{ $done ? 'bg-primary-500' : 'bg-gray-200 dark:bg-gray-700' }}"></div>
             @endif
-        </div>
-    @endforeach
+        @endforeach
+    </div>
 </div>
