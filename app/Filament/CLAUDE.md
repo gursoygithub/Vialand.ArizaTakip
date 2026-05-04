@@ -21,21 +21,21 @@
 - Form: `task_date` and `description` paired in `Grid(2)` with `task_date->maxDate(today)` and `description->required()->minLength(10)`; attachments use multi-file upload (max 5, 10 MB each, jpeg/png/webp/pdf)
 
 ### View page (`Pages/ViewTicket`)
-- Lifecycle strip (`filament.partials.ticket-lifecycle-strip`) at top: 5 numbered steps — Açıldı / Atandı / İşleme Alındı / Çözüldü / Kapatıldı; each step is "done" iff its date column has a value (`created_at`, `assigned_at`, first IN_PROGRESS history row, `resolved_at`, `closed_at`)
+- Lifecycle strip (`filament.partials.ticket-lifecycle-strip`) at top: 5 numbered steps — Açıldı / Atandı / İşleme Alındı / Çözüldü / Kapatıldı. Step "done" sources: `created_at`, `assigned_at`, first IN_PROGRESS `ticket_status_histories` row **scoped to `created_at >= assigned_at`** (the scope makes the strip reflect the *current* assignment cycle after a reopen), `resolved_at`, `closed_at`
 - **Talep Geçmişi** (timeline) uses `ViewEntry` (not `TextEntry`) — TextEntry's prose typography clamps the partial to ~600px; ViewEntry renders the partial directly for true full width
 - Timeline renderer (`renderTimeline`) handles 4 entry shapes: creation (from=null), transition (from!=to), reassignment (from==to AND note starts with `REASSIGN_NOTE_PREFIX`), comment (from==to, plain note). Comment cards expose Edit/Delete chips inside the 10-min window via `wire:click="mountAction('editComment'|'deleteComment', { history_id: N })"` mounted by `editCommentAction` / `deleteCommentAction`
 - Header action visibility (source-of-truth — see top-of-file comment in `ViewTicket.php`):
   - `İşleme Al` / `Çözüldü` / `Beklemede` → assigned employee's user OR `super_admin`
   - `İptal Et` / `Kapat` → creator OR `super_admin`
-  - `Yeniden Aç` (CLOSED/RESOLVED/COMPLETED → IN_PROGRESS) → `ticket.reopen` OR `super_admin`
-  - `Ata` / `Yeniden Ata` → `ticket.assign` AND **not** the creator (terminal-state hides it)
+  - `Yeniden Aç` (CLOSED/RESOLVED/COMPLETED → **ASSIGNED**) → `ticket.reopen` OR `super_admin`. Rendered by `buildTransitionActions` when `$to === ASSIGNED && $from ∈ terminal-set`; the OPEN → ASSIGNED case is still skipped in favor of the dedicated `Ata` action
+  - `Ata` / `Yeniden Ata` → `ticket.assign` AND **not** the creator (terminal-state hides it; reopen is a separate button)
   - `Düzenle` / `Sil` → creator OR `super_admin`
   - `Not Ekle` / `Takibi Aç`/`Bırak` → any participant (creator / current assignee / anyone in `ticket_status_histories.changed_by`)
 - Assign action options: prefer active group members (when `group_id` set), fall back to active employees in same company, capped at 500
 
 ### Edit page (`Pages/EditTicket`)
 - **Hard 403 at `mount()`** — only ticket creator OR `super_admin` may reach it; `ticket.view.*` are read-only scopes and do NOT grant write access
-- Terminal-state lock: `TicketPolicy::update` returns `false` for RESOLVED/CLOSED/CANCELLED **including super_admin** — reopen must go through `TicketService::transition` (CLOSED → IN_PROGRESS), never via the Edit page
+- Terminal-state lock: `TicketPolicy::update` returns `false` for RESOLVED/CLOSED/CANCELLED **including super_admin** — reopen must go through `TicketService::transition` (CLOSED/RESOLVED → ASSIGNED), never via the Edit page
 - `beforeSave` snapshots the original priority; `afterSave` calls `TicketService::notifyPriorityChange(...)` if priority changed (DB+FCM only, no mail)
 - Priority change also triggers `TicketObserver::saving` to rebase `sla_deadline = now() + policy.deadline_minutes + total_on_hold_minutes` (non-terminal only)
 - Redirects to `view` page after save

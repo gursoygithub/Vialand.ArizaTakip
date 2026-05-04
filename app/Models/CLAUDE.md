@@ -53,7 +53,8 @@
 
 ## Lifecycle Timestamps (Ticket)
 - `created_at` / `assigned_at` / `on_hold_since` / `resolved_at` / `closed_at` / `closed_by` — written by `TicketObserver` + `TicketService::transition` matchers
-- The view-page lifecycle strip and `Talep Geçmişi` timeline both consume these directly; the strip queries the first IN_PROGRESS row from `ticket_status_histories` for the "İşleme Alındı" timestamp (no dedicated column)
+- **Reopen resets the cycle**: `TicketService::transition` (terminal → ASSIGNED) clears `closed_at` / `closed_by` / `resolved_at` / `assigned_at`; the same save's `TicketObserver::saving` re-stamps `assigned_at = now()` because `employee_id` is preserved. This makes `assigned_at` the start-of-current-cycle marker
+- The view-page lifecycle strip queries `ticket_status_histories` for the first IN_PROGRESS row **scoped to `created_at >= assigned_at`** (no dedicated column for "İşleme Alındı"); the scope ensures pre-reopen IN_PROGRESS rows are excluded
 
 ## Media
 - Collection `task_attachments` on `Ticket` — disk `s3`, **multi-file** (no `singleFile()`); the create form caps at 5 files via `maxFiles(5)`
