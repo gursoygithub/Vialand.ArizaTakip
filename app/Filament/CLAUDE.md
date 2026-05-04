@@ -35,7 +35,7 @@
 
 ### Edit page (`Pages/EditTicket`)
 - **Hard 403 at `mount()`** — only ticket creator OR `super_admin` may reach it; `ticket.view.*` are read-only scopes and do NOT grant write access
-- Terminal-state lock: `TicketPolicy::update` returns `false` for RESOLVED/CLOSED/CANCELLED **including super_admin** — reopen must go through `TicketService::transition` (CLOSED/RESOLVED → ASSIGNED), never via the Edit page
+- Terminal-state lock: `TicketPolicy::update` AND `TicketPolicy::delete` both return `false` for RESOLVED/CLOSED/CANCELLED **including super_admin** — reopen must go through `TicketService::transition` (CLOSED/RESOLVED → ASSIGNED), never via the Edit page; the same rule blocks deletion of finalised tickets (reopen first, then delete)
 - `beforeSave` snapshots the original priority; `afterSave` calls `TicketService::notifyPriorityChange(...)` if priority changed (DB+FCM only, no mail)
 - Priority change also triggers `TicketObserver::saving` to rebase `sla_deadline = now() + policy.deadline_minutes + total_on_hold_minutes` (non-terminal only)
 - Redirects to `view` page after save

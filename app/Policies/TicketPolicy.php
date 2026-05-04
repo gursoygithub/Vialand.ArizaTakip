@@ -37,8 +37,8 @@ class TicketPolicy
     {
         // Terminal-state lock: tickets in a final lifecycle state are
         // immutable for everyone — including super_admin. Reopening goes
-        // through TicketService::transition (CLOSED → IN_PROGRESS), not
-        // the Edit page.
+        // through TicketService::transition (CLOSED/RESOLVED → ASSIGNED),
+        // not the Edit page.
         if (in_array($ticket->status, [
             TaskStatusEnum::RESOLVED,
             TaskStatusEnum::CLOSED,
@@ -66,6 +66,19 @@ class TicketPolicy
 
     public function delete(User $user, Ticket $ticket): bool
     {
+        // Terminal-state lock: mirrors update(). A finalised ticket is
+        // immutable for everyone — including super_admin — so it cannot
+        // be soft-deleted either. To delete a closed/resolved/cancelled
+        // ticket, reopen it first via TicketService::transition
+        // (CLOSED/RESOLVED → ASSIGNED).
+        if (in_array($ticket->status, [
+            TaskStatusEnum::RESOLVED,
+            TaskStatusEnum::CLOSED,
+            TaskStatusEnum::CANCELLED,
+        ], true)) {
+            return false;
+        }
+
         if ($user->hasRole('super_admin')) {
             return true;
         }
