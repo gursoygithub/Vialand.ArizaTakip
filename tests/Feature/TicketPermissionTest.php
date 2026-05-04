@@ -143,4 +143,84 @@ class TicketPermissionTest extends TestCase
         $this->assertFalse($policy->close($technician, $ticket));
         $this->assertTrue($policy->close($supervisor, $ticket));
     }
+
+    public function test_terminal_state_blocks_delete_including_super_admin(): void
+    {
+        $area    = Area::factory()->create(['name' => 'T-DEL', 'status' => \App\Enums\ActiveStatusEnum::ACTIVE]);
+        $subArea = SubArea::factory()->create(['area_id' => $area->id]);
+        $unit    = Unit::factory()->create();
+
+        $creator = User::factory()->create();
+        $creator->assignRole('technician');
+
+        $superAdmin = User::factory()->create();
+        $superAdmin->assignRole('super_admin');
+
+        $policy = new TicketPolicy();
+
+        foreach ([TaskStatusEnum::RESOLVED, TaskStatusEnum::CLOSED, TaskStatusEnum::CANCELLED] as $status) {
+            $ticket = Ticket::factory()->create([
+                'area_id'     => $area->id,
+                'sub_area_id' => $subArea->id,
+                'unit_id'     => $unit->id,
+                'created_by'  => $creator->id,
+                'status'      => $status,
+            ]);
+
+            $this->assertFalse(
+                $policy->delete($creator, $ticket),
+                "Creator should not be able to delete a {$status->value} ticket",
+            );
+            $this->assertFalse(
+                $policy->delete($superAdmin, $ticket),
+                "super_admin should not be able to delete a {$status->value} ticket",
+            );
+        }
+    }
+
+    public function test_non_terminal_delete_allowed_for_creator_and_super_admin(): void
+    {
+        $area    = Area::factory()->create(['name' => 'NT-DEL', 'status' => \App\Enums\ActiveStatusEnum::ACTIVE]);
+        $subArea = SubArea::factory()->create(['area_id' => $area->id]);
+        $unit    = Unit::factory()->create();
+
+        $creator = User::factory()->create();
+        $creator->assignRole('technician');
+
+        $superAdmin = User::factory()->create();
+        $superAdmin->assignRole('super_admin');
+
+        $stranger = User::factory()->create();
+        $stranger->assignRole('technician');
+
+        $policy = new TicketPolicy();
+
+        foreach ([
+            TaskStatusEnum::OPEN,
+            TaskStatusEnum::ASSIGNED,
+            TaskStatusEnum::IN_PROGRESS,
+            TaskStatusEnum::ON_HOLD,
+        ] as $status) {
+            $ticket = Ticket::factory()->create([
+                'area_id'     => $area->id,
+                'sub_area_id' => $subArea->id,
+                'unit_id'     => $unit->id,
+                'created_by'  => $creator->id,
+                'status'      => $status,
+            ]);
+
+            $this->assertTrue(
+                $policy->delete($creator, $ticket),
+                "Creator should be able to delete their own {$status->value} ticket",
+            );
+            $this->assertTrue(
+                $policy->delete($superAdmin, $ticket),
+                "super_admin should be able to delete a {$status->value} ticket",
+            );
+            $this->assertFalse(
+                $policy->delete($stranger, $ticket),
+                "A stranger should not be able to delete someone else's {$status->value} ticket",
+            );
+        }
+    }
 }
