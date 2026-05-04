@@ -223,4 +223,89 @@ class TicketPermissionTest extends TestCase
             );
         }
     }
+
+    public function test_reopen_allowed_for_creator_and_super_admin_on_terminal_tickets(): void
+    {
+        $area    = Area::factory()->create(['name' => 'REO-OK', 'status' => \App\Enums\ActiveStatusEnum::ACTIVE]);
+        $subArea = SubArea::factory()->create(['area_id' => $area->id]);
+        $unit    = Unit::factory()->create();
+
+        $creator = User::factory()->create();
+        $creator->assignRole('technician');
+
+        $superAdmin = User::factory()->create();
+        $superAdmin->assignRole('super_admin');
+
+        $stranger = User::factory()->create();
+        $stranger->assignRole('technician');
+
+        $policy = new TicketPolicy();
+
+        foreach ([TaskStatusEnum::RESOLVED, TaskStatusEnum::CLOSED] as $status) {
+            $ticket = Ticket::factory()->create([
+                'area_id'     => $area->id,
+                'sub_area_id' => $subArea->id,
+                'unit_id'     => $unit->id,
+                'created_by'  => $creator->id,
+                'status'      => $status,
+            ]);
+
+            $this->assertTrue(
+                $policy->reopen($creator, $ticket),
+                "Creator should be able to reopen their own {$status->value} ticket",
+            );
+            $this->assertTrue(
+                $policy->reopen($superAdmin, $ticket),
+                "super_admin should be able to reopen a {$status->value} ticket",
+            );
+            $this->assertFalse(
+                $policy->reopen($stranger, $ticket),
+                "A stranger should not be able to reopen someone else's {$status->value} ticket",
+            );
+        }
+    }
+
+    public function test_reopen_denied_for_non_eligible_statuses_including_cancelled(): void
+    {
+        $area    = Area::factory()->create(['name' => 'REO-NO', 'status' => \App\Enums\ActiveStatusEnum::ACTIVE]);
+        $subArea = SubArea::factory()->create(['area_id' => $area->id]);
+        $unit    = Unit::factory()->create();
+
+        $creator = User::factory()->create();
+        $creator->assignRole('technician');
+
+        $superAdmin = User::factory()->create();
+        $superAdmin->assignRole('super_admin');
+
+        $policy = new TicketPolicy();
+
+        // CANCELLED is included here on purpose: even though the user is
+        // creator-or-super_admin, the policy refuses up-front because the
+        // matrix has no path back from CANCELLED. Non-terminal statuses are
+        // also rejected — there's nothing to "reopen" yet.
+        foreach ([
+            TaskStatusEnum::OPEN,
+            TaskStatusEnum::ASSIGNED,
+            TaskStatusEnum::IN_PROGRESS,
+            TaskStatusEnum::ON_HOLD,
+            TaskStatusEnum::CANCELLED,
+        ] as $status) {
+            $ticket = Ticket::factory()->create([
+                'area_id'     => $area->id,
+                'sub_area_id' => $subArea->id,
+                'unit_id'     => $unit->id,
+                'created_by'  => $creator->id,
+                'status'      => $status,
+            ]);
+
+            $this->assertFalse(
+                $policy->reopen($creator, $ticket),
+                "Creator should not be able to reopen a {$status->value} ticket (only RESOLVED/CLOSED are eligible)",
+            );
+            $this->assertFalse(
+                $policy->reopen($superAdmin, $ticket),
+                "super_admin should not be able to reopen a {$status->value} ticket (only RESOLVED/CLOSED are eligible)",
+            );
+        }
+    }
 }
