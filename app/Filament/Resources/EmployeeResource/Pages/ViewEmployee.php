@@ -152,10 +152,10 @@ class ViewEmployee extends ViewRecord
                             }),
                     ]),
 
-                // 4. Birim Bazlı SLA Dağılımı — kept on the legacy
-                //    sla_outcome column (still maintained by the Ticket
-                //    booted hook on close); a future change can migrate
-                //    this to the same sla_breached basis as section 3.
+                // 4. Birim Bazlı SLA Dağılımı — backed by sla_breached.
+                //    "Sealed" cohort = closed_on_time + breached, matching
+                //    section 3's denominator. Cancelled tickets excluded;
+                //    units with no sealed tickets are dropped via HAVING.
                 Section::make('Birim Bazlı SLA Dağılımı')
                     ->description('Personelin hangi birimde ne kadar başarılı olduğunun dökümü.')
                     ->icon('heroicon-o-rectangle-group')
@@ -163,22 +163,27 @@ class ViewEmployee extends ViewRecord
                         Infolists\Components\RepeatableEntry::make('unit_performance')
                             ->label('')
                             ->getStateUsing(function ($record) {
-                                return $record->tasks()
-                                    ->whereIn('sla_outcome', ['SUCCESS', 'FAILED'])
+                                return $record->tickets()
+                                    ->whereNotIn('status', [TaskStatusEnum::CANCELLED->value])
                                     ->selectRaw('
                                         unit_id,
-                                        COUNT(*) as total_tasks,
-                                        COUNT(CASE WHEN sla_outcome = "SUCCESS" THEN 1 END) as success_count,
-                                        (COUNT(CASE WHEN sla_outcome = "SUCCESS" THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0)) as success_rate
+                                        SUM(CASE WHEN closed_at IS NOT NULL AND closed_at <= sla_deadline THEN 1 ELSE 0 END) as on_time_count,
+                                        SUM(CASE WHEN sla_breached = 1 THEN 1 ELSE 0 END) as breached_count
                                     ')
                                     ->groupBy('unit_id')
+                                    ->havingRaw('(on_time_count + breached_count) > 0')
                                     ->with('unit')
                                     ->get()
                                     ->map(function ($stat) {
+                                        $sealed = (int) $stat->on_time_count + (int) $stat->breached_count;
+                                        $rate   = $sealed > 0
+                                            ? round(((int) $stat->on_time_count / $sealed) * 100, 1)
+                                            : 0;
+
                                         return [
                                             'unit_name'  => $stat->unit?->name ?? 'Tanımsız Birim',
-                                            'stats'      => "{$stat->success_count} / {$stat->total_tasks}",
-                                            'percentage' => round($stat->success_rate, 1) . '%',
+                                            'stats'      => "{$stat->on_time_count} / {$sealed}",
+                                            'percentage' => $rate . '%',
                                         ];
                                     });
                             })
@@ -190,7 +195,7 @@ class ViewEmployee extends ViewRecord
                                     ->weight('bold'),
 
                                 TextEntry::make('stats')
-                                    ->label('Başarı / Toplam')
+                                    ->label('Zamanında / Sealed')
                                     ->color('gray'),
 
                                 TextEntry::make('percentage')
@@ -202,8 +207,8 @@ class ViewEmployee extends ViewRecord
                             ]),
                     ]),
 
-                // 5. Öncelik Bazlı SLA Dağılımı — same legacy basis as
-                //    section 4; see note above.
+                // 5. Öncelik Bazlı SLA Dağılımı — same sla_breached basis
+                //    as section 4, grouped by priority.
                 Section::make('Öncelik Bazlı SLA Dağılımı')
                     ->description('Personelin görev önceliklerine göre performans dökümü.')
                     ->icon('heroicon-o-funnel')
@@ -211,27 +216,32 @@ class ViewEmployee extends ViewRecord
                         Infolists\Components\RepeatableEntry::make('priority_performance')
                             ->label('')
                             ->getStateUsing(function ($record) {
-                                return $record->tasks()
-                                    ->whereIn('sla_outcome', ['SUCCESS', 'FAILED'])
+                                return $record->tickets()
+                                    ->whereNotIn('status', [TaskStatusEnum::CANCELLED->value])
                                     ->selectRaw('
                                         priority,
-                                        COUNT(*) as total_tasks,
-                                        COUNT(CASE WHEN sla_outcome = "SUCCESS" THEN 1 END) as success_count,
-                                        (COUNT(CASE WHEN sla_outcome = "SUCCESS" THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0)) as success_rate
+                                        SUM(CASE WHEN closed_at IS NOT NULL AND closed_at <= sla_deadline THEN 1 ELSE 0 END) as on_time_count,
+                                        SUM(CASE WHEN sla_breached = 1 THEN 1 ELSE 0 END) as breached_count
                                     ')
                                     ->groupBy('priority')
+                                    ->havingRaw('(on_time_count + breached_count) > 0')
                                     ->get()
                                     ->map(function ($stat) {
                                         $priorityEnum = $stat->priority instanceof \App\Enums\TaskPriorityEnum
                                             ? $stat->priority
                                             : \App\Enums\TaskPriorityEnum::tryFrom($stat->priority);
 
+                                        $sealed = (int) $stat->on_time_count + (int) $stat->breached_count;
+                                        $rate   = $sealed > 0
+                                            ? round(((int) $stat->on_time_count / $sealed) * 100, 1)
+                                            : 0;
+
                                         return [
                                             'priority_label' => $priorityEnum?->getLabel() ?? 'Bilinmiyor',
                                             'priority_color' => $priorityEnum?->getColor() ?? 'gray',
-                                            'stats'          => "{$stat->success_count} / {$stat->total_tasks}",
-                                            'percentage'     => round($stat->success_rate, 1) . '%',
-                                            'raw_percentage' => $stat->success_rate,
+                                            'stats'          => "{$stat->on_time_count} / {$sealed}",
+                                            'percentage'     => $rate . '%',
+                                            'raw_percentage' => $rate,
                                         ];
                                     });
                             })
@@ -245,7 +255,7 @@ class ViewEmployee extends ViewRecord
                                     ->color(fn ($record) => $record['priority_color']),
 
                                 TextEntry::make('stats')
-                                    ->label('Başarı / Toplam')
+                                    ->label('Zamanında / Sealed')
                                     ->icon('heroicon-m-clipboard-document-check')
                                     ->color('gray'),
 
