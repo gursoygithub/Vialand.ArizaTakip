@@ -15,14 +15,18 @@
         bg-orange-50 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400
     "></div>
 
-    {{-- Outer container: section spacing is driven by mb-8 (or mb-10 for
-         the cards grid) on each major section's wrapper. No <hr> rules,
-         no space-y-* on the parent — both would compound with mb-8 and
-         create over-large gaps. --}}
-    <div>
+    {{-- Outer container: section spacing is driven by space-y-8 on this
+         wrapper. Direct children are: filter card, summary cards grid,
+         Öncelik Dağılımı card, Bölge Dağılımı card, Teknisyen Performansı
+         card. Each is conditionally rendered, but @if/@endif don't add
+         DOM nodes — only the inner wrapper div surfaces, so space-y-8
+         only applies between rendered siblings. Per-section wrappers
+         must NOT carry mb-* / mt-*; otherwise they compound with the
+         parent's space-y. --}}
+    <div class="space-y-8">
 
         {{-- Filters --}}
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-4 mb-8">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-4">
             <form wire:submit.prevent="loadStats" class="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('ui.date_from') }}</label>
@@ -60,7 +64,7 @@
              color resolves at render time for compliance / reopen / risk;
              every variant is in the safelist at the top of this file. --}}
         @if(!empty($overview))
-        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-10">
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
             @foreach([
                 ['label'=>'Toplam Talep','value'=>$overview['total_assigned'],'icon'=>'inbox','color'=>'blue'],
                 ['label'=>'Açık','value'=>$overview['currently_open'],'icon'=>'folder-open','color'=>'indigo'],
@@ -107,7 +111,7 @@
                 4 => 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
             ];
         @endphp
-        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 mb-8">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
             <h3 class="text-sm font-semibold uppercase tracking-widest text-gray-400 mb-6">
                 Öncelik Dağılımı
             </h3>
@@ -167,7 +171,7 @@
              belong together; explicit border-t is added between groups
              via $loop->first. --}}
         @if($regionBreakdown->isNotEmpty())
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow overflow-hidden mb-8">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow overflow-hidden">
             <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
                 <h3 class="font-semibold text-gray-900 dark:text-white border-l-4 border-primary-500 pl-3">Bölge Dağılımı</h3>
             </div>
@@ -219,7 +223,7 @@
         {{-- Per-person table — avatar initial before name, 3-tier compliance
              pill, breach count rendered as red badge when >0 / dim gray when 0. --}}
         @if($teamStats->isNotEmpty())
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow overflow-hidden mb-8">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow overflow-hidden">
             <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
                 <h3 class="font-semibold text-gray-900 dark:text-white border-l-4 border-primary-500 pl-3">{{ __('ui.technician_performance') }}</h3>
             </div>
