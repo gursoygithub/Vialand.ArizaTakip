@@ -19,14 +19,14 @@ Widgets, or Observers (observers trigger services, they don't contain logic).
 - `canEditComment(TicketStatusHistory, User): bool` / `updateComment(...)` / `deleteComment(...)` — author + 10-min window + must be from==to AND not a `REASSIGN_NOTE_PREFIX` row. `updateComment` also fans out a "Not güncellendi" notification via notifyParticipants
 - `allowedNextStatuses(?TaskStatusEnum $from): array` — used by `ViewTicket::buildTransitionActions` to render one button per allowed next status
 - `markResolved` / `markClosed` / `markCancelled` set the **terminal SLA outcome** (`sla_breached` true/false based on `now()` vs `sla_deadline`); `markCancelled` clears breach flag (cancelled excluded from SLA)
-- **Reopen path** (any of CLOSED/COMPLETED/RESOLVED/CANCELLED → IN_PROGRESS): clears `closed_at`/`closed_by`/`resolved_at`, **rebases `sla_deadline` from now() + policy.deadline_minutes + total_on_hold_minutes**, unconditionally resets `sla_breached = false` (saving() may flip it back if rebase failed)
+- **Reopen path** (any of CLOSED/COMPLETED/RESOLVED/CANCELLED → **ASSIGNED**): clears `closed_at`/`closed_by`/`resolved_at`, **rebases `sla_deadline` from now() + policy.deadline_minutes + total_on_hold_minutes**, unconditionally resets `sla_breached = false` (saving() may flip it back if rebase failed). The block keys on `$toStatus === ASSIGNED` AND `$from` ∈ terminal-set; reopens land back on the assignee, not on IN_PROGRESS
 - Transition map (from → allowed to):
   - `open → [assigned, in_progress, cancelled]`
   - `assigned → [in_progress, on_hold, cancelled]`
   - `in_progress → [resolved, on_hold, cancelled]`
   - `on_hold → [in_progress, cancelled]`
-  - `resolved → [closed, in_progress]`
-  - `closed → [in_progress]` (reopen — permission gated separately by `ticket.reopen`)
+  - `resolved → [closed, assigned]` (reopen target is ASSIGNED, not IN_PROGRESS)
+  - `closed → [assigned]` (reopen — permission gated separately by `ticket.reopen`)
   - `cancelled → []` (terminal — no path back; reopen-recalc still resets state if matrix opens later)
 
 ## FcmService (`App\Services\FcmService`)

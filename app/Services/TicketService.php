@@ -32,8 +32,8 @@ class TicketService
         TaskStatusEnum::ASSIGNED->value    => [TaskStatusEnum::IN_PROGRESS, TaskStatusEnum::ON_HOLD, TaskStatusEnum::CANCELLED],
         TaskStatusEnum::IN_PROGRESS->value => [TaskStatusEnum::RESOLVED, TaskStatusEnum::ON_HOLD, TaskStatusEnum::CANCELLED],
         TaskStatusEnum::ON_HOLD->value     => [TaskStatusEnum::IN_PROGRESS, TaskStatusEnum::CANCELLED],
-        TaskStatusEnum::RESOLVED->value    => [TaskStatusEnum::CLOSED, TaskStatusEnum::IN_PROGRESS],
-        TaskStatusEnum::CLOSED->value      => [TaskStatusEnum::IN_PROGRESS], // reopen — permission gated separately
+        TaskStatusEnum::RESOLVED->value    => [TaskStatusEnum::CLOSED, TaskStatusEnum::ASSIGNED],
+        TaskStatusEnum::CLOSED->value      => [TaskStatusEnum::ASSIGNED], // reopen — permission gated separately
         TaskStatusEnum::CANCELLED->value   => [], // terminal
 
         // Legacy
@@ -84,9 +84,9 @@ class TicketService
             // reopened ticket gets a fresh deadline. CANCELLED is included
             // in the source set per the reopen-recalc rule even though the
             // current transition matrix doesn't expose CANCELLED →
-            // IN_PROGRESS — the reset is in place if/when that path opens.
+            // ASSIGNED — the reset is in place if/when that path opens.
             if (in_array($from, [TaskStatusEnum::CLOSED, TaskStatusEnum::COMPLETED, TaskStatusEnum::RESOLVED, TaskStatusEnum::CANCELLED], true)
-                && $toStatus === TaskStatusEnum::IN_PROGRESS) {
+                && $toStatus === TaskStatusEnum::ASSIGNED) {
                 $ticket->closed_at    = null;
                 $ticket->closed_by    = null;
                 $ticket->resolved_at  = null;
