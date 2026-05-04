@@ -12,6 +12,14 @@ use App\Services\SlaService;
 
 class TicketObserver
 {
+    /**
+     * Toggle to skip the assignment notification fired from updated().
+     * TicketService::reassign sets this around its $ticket->update(...) so
+     * the observer does not double-fire alongside the service's own
+     * notifyAssignee / transition path.
+     */
+    public static bool $skipReassignNotification = false;
+
     public function __construct(private SlaService $slaService) {}
 
     /**
@@ -27,6 +35,43 @@ class TicketObserver
     {
         if ($ticket->employee_id && empty($ticket->assigned_at)) {
             $ticket->assigned_at = now();
+        }
+
+        // SLA deadline recalculation on priority change. Only applies to
+        // existing non-terminal tickets — creating() owns the initial
+        // snapshot. Rebases from now() + the resolved policy's
+        // deadline_minutes and re-adds total_on_hold_minutes so a ticket
+        // that has been on hold keeps the extension it earned. Runs BEFORE
+        // the breach flip below so the flip evaluates the freshly-calculated
+        // deadline within the same save. We still don't assign sla_breached
+        // here — the flip is the canonical writer.
+        $priorityRecalcTerminal = [
+            TaskStatusEnum::RESOLVED,
+            TaskStatusEnum::CLOSED,
+            TaskStatusEnum::CANCELLED,
+        ];
+
+        if ($ticket->exists
+            && $ticket->isDirty('priority')
+            && $ticket->area_id
+            && $ticket->priority
+            && !in_array($ticket->status, $priorityRecalcTerminal, true)) {
+            $priorityValue = is_object($ticket->priority)
+                ? $ticket->priority->value
+                : $ticket->priority;
+
+            $policy = $this->slaService->resolvePolicy(
+                $ticket->area_id,
+                $ticket->sub_area_id,
+                $ticket->unit_id,
+                $priorityValue
+            );
+
+            if ($policy) {
+                $ticket->sla_deadline = now()
+                    ->addMinutes($policy->deadline_minutes)
+                    ->addMinutes((int) $ticket->total_on_hold_minutes);
+            }
         }
 
         // Keep the indexed sla_breached column in sync with the live deadline
@@ -110,7 +155,8 @@ class TicketObserver
         // TicketStatusChanged event, so we only handle pure reassignments here.
         if ($ticket->wasChanged('employee_id')
             && $ticket->employee_id
-            && !$ticket->wasChanged('status')) {
+            && !$ticket->wasChanged('status')
+            && !static::$skipReassignNotification) {
             $this->notifyAssignedUser($ticket);
         }
     }

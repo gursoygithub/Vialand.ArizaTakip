@@ -64,3 +64,7 @@ Filament returns **404, not 403**, on model-bound routes (view/edit) when
 the model's `query()` scope filters the record out for the user. Tests
 that hit those routes should accept `[403, 404]` as both indicate denial.
 Index/create/page routes do return 403 cleanly.
+
+## Reopen Coverage (`tests/Feature/TicketReopenTest.php`)
+- Two scenarios covered: `RESOLVED → ASSIGNED` and `CLOSED → ASSIGNED`. Both assert the same 7 invariants (status, `assigned_at` re-stamp, deadline rebase, `sla_breached=false`, cleared timestamps, history row, `TicketStatusChangedNotification` to assignee). The CLOSED variant additionally checks `closed_at` and `closed_by` are nulled.
+- **`CANCELLED → ASSIGNED` is intentionally NOT tested.** The transition matrix keeps `cancelled → []` (terminal — no path back); the source set in `TicketService::transition`'s reopen branch still includes `CANCELLED` as defensive code in case the matrix opens that arm later, but until it does the path is unreachable from any caller. Add a test only after the matrix is opened — otherwise the test would have to fabricate an invalid transition to exercise dead code.

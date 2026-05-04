@@ -23,17 +23,44 @@ class InitSeeder extends Seeder
 
         $checkUserTable = User::count();
         if ($checkUserTable == 0) {
+            // employee_id and tc_no are NOT NULL on the users table.
+            // LDAP-bound users get them populated via AttributeHandler on
+            // first sync, but the bootstrap super-admin pre-dates LDAP and
+            // needs deterministic synthetic placeholders. We use the same
+            // `E######` convention as UserFactory so the row sorts cleanly
+            // alongside test fixtures, with a fixed sentinel `000001` so
+            // re-seeding finds the existing row rather than colliding on
+            // the column's UNIQUE index (if/when one is added).
             User::create([
-                'name' => 'Super Admin',
-                'username' => $adminUsername,
-                'email' => env('APP_ADMIN_EMAIL', 'sa@app.com'),
-                'password' => bcrypt($adminPassword),
-                'status' => UserStatusEnum::ACTIVE,
-                'created_by' => 1,
+                'employee_id' => env('APP_ADMIN_EMPLOYEE_ID', 'E000001'),
+                'tc_no'       => env('APP_ADMIN_TC_NO', '00000000000'),
+                'name'        => 'Super Admin',
+                'username'    => $adminUsername,
+                'email'       => env('APP_ADMIN_EMAIL', 'sa@app.com'),
+                'password'    => bcrypt($adminPassword),
+                'status'      => UserStatusEnum::ACTIVE,
+                'created_by'  => 1,
             ]);
         }
 
-        Artisan::call('shield:generate', ['--all' => true]);
+        // shield:generate prompts for `--panel` interactively when more than
+        // one panel exists (or just to confirm). Under `db:seed
+        // --no-interaction` that prompt throws NonInteractiveValidationException.
+        // Pass the panel and the non-interaction flag explicitly so the
+        // seeder is callable from CI / migrate:fresh without manual prep.
+        //
+        // --ignore-existing-policies is critical: without it, --all would
+        // overwrite TicketPolicy / GroupPolicy / SlaPolicyPolicy with
+        // auto-generated stubs that use the WRONG permission names
+        // (`view_ticket` instead of our namespaced `ticket.view.all`).
+        // The project root CLAUDE.md documents the manual `git checkout`
+        // workaround for this; the flag obviates it entirely.
+        Artisan::call('shield:generate', [
+            '--all'                       => true,
+            '--panel'                     => 'dashboard',
+            '--no-interaction'            => true,
+            '--ignore-existing-policies'  => true,
+        ]);
 
         $user = User::where('username', $adminUsername)->first();
 

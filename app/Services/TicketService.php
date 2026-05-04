@@ -14,6 +14,8 @@ use App\Notifications\TicketAssignedNotification;
 use App\Notifications\TicketCommentNotification;
 use App\Notifications\TicketReassignedNotification;
 use App\Notifications\TicketStatusChangedNotification;
+use App\Observers\TicketObserver;
+use App\Enums\TaskPriorityEnum;
 use Illuminate\Notifications\Notification as BaseNotification;
 use Illuminate\Support\Facades\DB;
 
@@ -30,8 +32,8 @@ class TicketService
         TaskStatusEnum::ASSIGNED->value    => [TaskStatusEnum::IN_PROGRESS, TaskStatusEnum::ON_HOLD, TaskStatusEnum::CANCELLED],
         TaskStatusEnum::IN_PROGRESS->value => [TaskStatusEnum::RESOLVED, TaskStatusEnum::ON_HOLD, TaskStatusEnum::CANCELLED],
         TaskStatusEnum::ON_HOLD->value     => [TaskStatusEnum::IN_PROGRESS, TaskStatusEnum::CANCELLED],
-        TaskStatusEnum::RESOLVED->value    => [TaskStatusEnum::CLOSED, TaskStatusEnum::IN_PROGRESS],
-        TaskStatusEnum::CLOSED->value      => [TaskStatusEnum::IN_PROGRESS], // reopen — permission gated separately
+        TaskStatusEnum::RESOLVED->value    => [TaskStatusEnum::CLOSED, TaskStatusEnum::ASSIGNED],
+        TaskStatusEnum::CLOSED->value      => [TaskStatusEnum::ASSIGNED], // reopen — permission gated separately
         TaskStatusEnum::CANCELLED->value   => [], // terminal
 
         // Legacy
@@ -77,13 +79,48 @@ class TicketService
                 default                     => null,
             };
 
-            // Reopen path — clear closed_at so future closes record new timestamp
-            if (in_array($from, [TaskStatusEnum::CLOSED, TaskStatusEnum::COMPLETED, TaskStatusEnum::RESOLVED], true)
-                && $toStatus === TaskStatusEnum::IN_PROGRESS) {
+            // Reopen path — clear closed_at so future closes record new
+            // timestamp, and rebase the SLA window from now() so the
+            // reopened ticket gets a fresh deadline. CANCELLED is included
+            // in the source set per the reopen-recalc rule even though the
+            // current transition matrix doesn't expose CANCELLED →
+            // ASSIGNED — the reset is in place if/when that path opens.
+            if (in_array($from, [TaskStatusEnum::CLOSED, TaskStatusEnum::COMPLETED, TaskStatusEnum::RESOLVED, TaskStatusEnum::CANCELLED], true)
+                && $toStatus === TaskStatusEnum::ASSIGNED) {
                 $ticket->closed_at    = null;
                 $ticket->closed_by    = null;
                 $ticket->resolved_at  = null;
-                $ticket->sla_breached = $ticket->sla_deadline ? now()->isAfter($ticket->sla_deadline) : false;
+                // Reset assigned_at so the lifecycle strip's "İşleme Alındı"
+                // filter (created_at >= assigned_at) scopes to the new
+                // assignment cycle. TicketObserver::saving re-stamps it to
+                // now() because employee_id is preserved across the reopen.
+                $ticket->assigned_at  = null;
+
+                if ($ticket->area_id && $ticket->priority) {
+                    $priorityValue = is_object($ticket->priority)
+                        ? $ticket->priority->value
+                        : $ticket->priority;
+
+                    $policy = $this->slaService->resolvePolicy(
+                        $ticket->area_id,
+                        $ticket->sub_area_id,
+                        $ticket->unit_id,
+                        $priorityValue
+                    );
+
+                    if ($policy) {
+                        $ticket->sla_deadline = now()
+                            ->addMinutes($policy->deadline_minutes)
+                            ->addMinutes((int) $ticket->total_on_hold_minutes);
+                    }
+                }
+
+                // Reset unconditionally per spec — the breach flip in
+                // TicketObserver::saving may flip this back to true on the
+                // immediate save if no policy was found and the old
+                // deadline is in the past, which is correct: the ticket
+                // really is still in breach against its un-rebased deadline.
+                $ticket->sla_breached = false;
             }
 
             $ticket->status = $toStatus;
@@ -300,7 +337,16 @@ class TicketService
                     ->delete();
             }
 
-            $ticket->update(['employee_id' => $employeeId]);
+            // Suppress TicketObserver::updated's reassignment notification —
+            // notifyAssignee / transition() below own that path. Without the
+            // guard the new assignee gets two TicketAssignedNotification rows
+            // (one per writer).
+            TicketObserver::$skipReassignNotification = true;
+            try {
+                $ticket->update(['employee_id' => $employeeId]);
+            } finally {
+                TicketObserver::$skipReassignNotification = false;
+            }
 
             // OPEN → ASSIGNED: real status transition + history + notification
             // all handled inside transition().
@@ -425,6 +471,33 @@ class TicketService
     }
 
     /**
+     * Fan out a "priority changed" alert to participants. Reuses
+     * TicketCommentNotification for the bell entry (free-form body) and the
+     * shared FCM path; mail is intentionally skipped — TicketCommentNotification's
+     * via() returns ['database'] only, so notifyParticipants drives the database
+     * + FCM channels and never the mail one.
+     */
+    public function notifyPriorityChange(
+        Ticket $ticket,
+        TaskPriorityEnum $oldPriority,
+        TaskPriorityEnum $newPriority,
+        User $actor,
+    ): void {
+        $oldLabel  = $oldPriority->getLabel();
+        $newLabel  = $newPriority->getLabel();
+        $actorName = $this->actorDisplayName($actor);
+        $body      = $actorName . ' önceliği ' . $oldLabel . ' → ' . $newLabel . ' olarak değiştirdi';
+
+        $this->notifyParticipants(
+            $ticket,
+            $actor,
+            new TicketCommentNotification($ticket, $actor, $body),
+            $ticket->ticket_no . ' • Öncelik Güncellendi',
+            $body,
+        );
+    }
+
+    /**
      * Add a comment without changing status.
      * Stored in ticket_status_histories with from_status = to_status = current.
      */
@@ -440,7 +513,10 @@ class TicketService
             'note'        => $note,
         ]);
 
-        // Creator + assignee minus actor — single bell entry per recipient.
+        // Full participant set (creator + current assignee + anyone in
+        // ticket_status_histories.changed_by) minus actor and muted users —
+        // see notifyParticipants → getTicketParticipants. Mirrors the
+        // visibility rule of the "Not Ekle" button on ViewTicket.
         $actorName = $this->actorDisplayName($by);
         $this->notifyParticipants(
             $ticket,
@@ -532,6 +608,18 @@ class TicketService
         }
 
         $history->update(['note' => $newNote]);
+
+        $ticket = Ticket::find($history->ticket_id);
+        if ($ticket) {
+            $actorName = $this->actorDisplayName($by);
+            $this->notifyParticipants(
+                $ticket,
+                $by,
+                new TicketCommentNotification($ticket, $by, 'Not güncellendi: ' . mb_substr($newNote, 0, 100)),
+                $ticket->ticket_no . ' • Not Güncellendi',
+                $actorName . ' notu düzenledi',
+            );
+        }
     }
 
     public function isAllowed(?TaskStatusEnum $from, TaskStatusEnum $to): bool

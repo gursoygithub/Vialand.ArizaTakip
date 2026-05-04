@@ -20,6 +20,7 @@
                         </div>
                     </div>
                     <div class="flex items-center gap-2">
+                        {{ ($this->editGroupAction)(['group_id' => $group['id']]) }}
                         {{ ($this->addMembersAction)(['group_id' => $group['id']]) }}
                         {{ ($this->deleteGroupAction)(['group_id' => $group['id']]) }}
                     </div>

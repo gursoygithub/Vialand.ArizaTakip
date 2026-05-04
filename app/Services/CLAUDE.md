@@ -12,14 +12,22 @@ Widgets, or Observers (observers trigger services, they don't contain logic).
 - `checkBreach(Ticket $ticket): bool` — true when deadline is in the past and ticket is not closed
 
 ## TicketService (`App\Services\TicketService`)
-- `transition(Ticket $ticket, TaskStatusEnum $toStatus, User $by, ?string $note = null): Ticket` — validates the allowed transition, writes a `TicketStatusHistory` row, stamps timestamps
-- `markResolved` / `markClosed` / `markCancelled` set the **terminal SLA outcome** (`sla_breached` true/false based on `now()` vs `sla_deadline`); reopen path recomputes the flag too
+- `transition(Ticket, TaskStatusEnum $to, User $by, ?string $note = null): Ticket` — validates against transition matrix, stamps timestamps, writes `TicketStatusHistory`, dispatches `TicketStatusChanged` event, fans out notifications via `dispatchTransitionNotifications`
+- `reassign(Ticket, int $employeeId, User $by, ?string $note = null): Ticket` — sets `TicketObserver::$skipReassignNotification` around the update to avoid double-fire; auto-clears mute for new assignee BEFORE update; notifies creator (unless creator is actor/new assignee)
+- `addComment(Ticket, User, string $note): TicketStatusHistory` — from==to row + `TicketCommentNotification` to participants
+- `notifyPriorityChange(Ticket, TaskPriorityEnum $old, TaskPriorityEnum $new, User $actor): void` — bell + FCM only (uses `TicketCommentNotification` whose `via()` returns `['database']`); never sends mail. Body: `"{actor} önceliği {old} → {new} olarak değiştirdi"`
+- `canEditComment(TicketStatusHistory, User): bool` / `updateComment(...)` / `deleteComment(...)` — author + 10-min window + must be from==to AND not a `REASSIGN_NOTE_PREFIX` row. `updateComment` also fans out a "Not güncellendi" notification via notifyParticipants
+- `allowedNextStatuses(?TaskStatusEnum $from): array` — used by `ViewTicket::buildTransitionActions` to render one button per allowed next status
+- `markResolved` / `markClosed` / `markCancelled` set the **terminal SLA outcome** (`sla_breached` true/false based on `now()` vs `sla_deadline`); `markCancelled` clears breach flag (cancelled excluded from SLA)
+- **Reopen path** (any of CLOSED/COMPLETED/RESOLVED/CANCELLED → **ASSIGNED**): clears `closed_at`/`closed_by`/`resolved_at`/`assigned_at`, **rebases `sla_deadline` from now() + policy.deadline_minutes + total_on_hold_minutes**, unconditionally resets `sla_breached = false` (saving() may flip it back if rebase failed). The block keys on `$toStatus === ASSIGNED` AND `$from` ∈ terminal-set; reopens land back on the assignee, not on IN_PROGRESS. `assigned_at = null` lets `TicketObserver::saving` re-stamp it to `now()` (since `employee_id` is preserved across reopen) — this scopes the lifecycle strip's "İşleme Alındı" filter (`created_at >= assigned_at`) to the new cycle
 - Transition map (from → allowed to):
-  - `open → [assigned, cancelled]`
+  - `open → [assigned, in_progress, cancelled]`
   - `assigned → [in_progress, on_hold, cancelled]`
   - `in_progress → [resolved, on_hold, cancelled]`
   - `on_hold → [in_progress, cancelled]`
-  - `resolved → [closed, in_progress]`
+  - `resolved → [closed, assigned]` (reopen target is ASSIGNED, not IN_PROGRESS)
+  - `closed → [assigned]` (reopen — permission gated separately by `ticket.reopen`)
+  - `cancelled → []` (terminal — no path back; reopen-recalc still resets state if matrix opens later)
 
 ## FcmService (`App\Services\FcmService`)
 - `sendToUser(User, string $title, string $body, ?string $url): void` / `sendToUsers(Collection, …)` — fans out to each user's `fcm_tokens` rows
@@ -27,10 +35,14 @@ Widgets, or Observers (observers trigger services, they don't contain logic).
 - Tokens stored in `fcm_tokens` (`user_id`, `token`, `last_seen_at`)
 
 ## PerformanceService (`App\Services\PerformanceService`)
-- `getStats(User $user, Carbon $from, Carbon $to): array`
-  Returns: total, on_time, breach_count, compliance_rate, avg_resolution_minutes
-- `getTeamStats(int $areaId, Carbon $from, Carbon $to): Collection`
-  Per-person stats for all employees in an area
+- `getStats(User $user, Carbon $from, Carbon $to, ?User $viewer = null): array` — per-user stats. Resolves User → Employee by email, scopes by `Ticket::scopeVisibleBy($viewer)` AND `whereBetween('created_at', [$from, $to])`. Cancelled tickets excluded.
+- `getTeamStats(int $areaId, Carbon $from, Carbon $to, ?User $viewer = null): Collection` — per-person stats for every employee in the area's groups (deduped). N+1 by design (one `getStats` query per employee).
+- `getOverview(Carbon $from, Carbon $to, ?User $viewer = null): array` — dashboard headline. Returns the full `aggregate()` shape PLUS `priority_breakdown` (per-priority [label, total, closed_on_time, breached, compliance_rate], cancelled excluded, only priorities with total>0), `reopen_count` (rows in `ticket_status_histories` with `from_status IN [RESOLVED,CLOSED] AND to_status = ASSIGNED`, scoped to visible tickets, dated within `[$from,$to]`), and `reopen_rate` (`reopen_count / total_assigned * 100`).
+- `getRegionBreakdown(Carbon $from, Carbon $to, ?User $viewer = null): Collection` — per-area roll-up. **Excludes CANCELLED** so totals match `aggregate()`'s per-person numbers.
+- `aggregate()` (private) emits these metric keys per cohort:
+  - `total_assigned`, `closed_on_time`, `closed_breached` (legacy name — same as total_breached), `total_breached` (canonical headline; same value as `closed_breached`, both count `sla_breached=true` after cancelled-rejection), `at_risk` (active tickets with `sla_deadline ≤ now()+2h`, not yet flipped, `status NOT IN [RESOLVED,CLOSED,ON_HOLD]`), `currently_open`, `currently_on_hold`, `avg_resolution_minutes`, `sla_compliance_rate`, `avg_response_time_minutes`.
+  - Plus 7 backward-compat aliases: `total`, `closed`, `on_time`, `breach_count`, `compliance_rate`, `open`, `breached`.
+- Dashboard blade (`resources/views/filament/pages/performance-dashboard.blade.php`) consumes `total_breached` (card "Toplam İhlal"), `priority_breakdown` (compact table), `reopen_rate` + `reopen_count` (card "Yeniden Açılma" — green <5%, orange <15%, red ≥15%), `at_risk` (card "Risk Altında" — green=0, orange>0, red>5), and mounts `\App\Filament\Widgets\SlaComplianceTrendChart` via `@livewire(...)` (the chart's window is hard-coded to the last 30 days and does NOT honour the page's date filter).
 
 ## Repository Pattern
 - Contracts: `App\Repositories\Contracts\TicketRepositoryInterface`

@@ -29,11 +29,6 @@ class Employee extends Model
 
     // --- İlişkiler ---
 
-    public function tasks()
-    {
-        return $this->hasMany(\App\Models\Ticket::class, 'employee_id');
-    }
-
     public function tickets()
     {
         return $this->hasMany(\App\Models\Ticket::class, 'employee_id');
@@ -78,34 +73,54 @@ class Employee extends Model
     // --- PERFORMANS MANTIĞI ---
 
     /**
-     * Bu metot görev her kapandığında tetiklenir.
-     * Personelin kendi atandığı birimlerin zorluk eşiğine göre puanını hesaplar ve DB'ye yazar.
+     * Triggered whenever a ticket closes. Recomputes performance_score and
+     * current_threshold against the sla_breached signal — the canonical
+     * Reform-era SLA outcome consumed by PerformanceService and the
+     * dashboards.
+     *
+     * "Sealed" cohort = closed-on-time + breached. A ticket counts as
+     * on-time when sla_breached=false AND closed_at is set; breached when
+     * sla_breached=true (whether closed or still active). Cancelled
+     * tickets sit outside the cohort (markCancelled clears sla_breached
+     * and they have no closed_at OR closed_at without an SLA cohort).
      */
     public function refreshPerformanceMetrics()
     {
-        // Sadece politikası olan ve sonucu SUCCESS veya FAILED olarak mühürlenmiş görevleri al
-        // Boş (null) olanlar hesaplamaya dahil edilmez
-        $stats = $this->tasks()
-            ->whereIn('sla_outcome', ['SUCCESS', 'FAILED'])
-            ->selectRaw('COUNT(*) as total, COUNT(CASE WHEN sla_outcome = "SUCCESS" THEN 1 END) as success_count')
+        $stats = $this->tickets()
+            ->selectRaw('
+                SUM(CASE WHEN sla_breached = 0 AND closed_at IS NOT NULL THEN 1 ELSE 0 END) as success_count,
+                SUM(CASE WHEN sla_breached = 1 THEN 1 ELSE 0 END) as failed_count
+            ')
             ->first();
 
-        // Eğer personelin hiç mühürlü görevi yoksa puanı 0 yap ve çık
-        if (!$stats || $stats->total == 0) {
+        $success = (int) ($stats->success_count ?? 0);
+        $failed  = (int) ($stats->failed_count ?? 0);
+        $total   = $success + $failed;
+
+        if ($total === 0) {
             $this->update(['performance_score' => 0]);
             return;
         }
 
-        $actualRate = ($stats->success_count / $stats->total) * 100;
+        $actualRate = ($success / $total) * 100;
 
-        // Eşik değeri hesaplanırken de sadece mühürlü görevlerin birimlerine bak
-        $unitIds = $this->tasks()->whereIn('sla_outcome', ['SUCCESS', 'FAILED'])->pluck('unit_id')->unique();
+        // Threshold averaged across the units this employee has actually
+        // closed/breached tickets for (same cohort definition).
+        $unitIds = $this->tickets()
+            ->where(function ($q) {
+                $q->where('sla_breached', true)
+                  ->orWhere(function ($q) {
+                      $q->where('sla_breached', false)->whereNotNull('closed_at');
+                  });
+            })
+            ->pluck('unit_id')
+            ->unique();
 
         $averageThreshold = SlaPolicy::whereIn('unit_id', $unitIds)->avg('success_threshold') ?? 61;
 
         $this->update([
             'performance_score' => $actualRate,
-            'current_threshold' => $averageThreshold
+            'current_threshold' => $averageThreshold,
         ]);
     }
 
@@ -139,10 +154,13 @@ class Employee extends Model
 
     public function getUnitPerformanceStats()
     {
-        return $this->tasks()
+        return $this->tickets()
             ->select('unit_id')
-            ->selectRaw('count(*) as total')
-            ->selectRaw('count(case when sla_outcome = "SUCCESS" then 1 end) as success_count')
+            ->selectRaw('
+                SUM(CASE WHEN sla_breached = 0 AND closed_at IS NOT NULL THEN 1 ELSE 0 END) +
+                SUM(CASE WHEN sla_breached = 1 THEN 1 ELSE 0 END) as total
+            ')
+            ->selectRaw('SUM(CASE WHEN sla_breached = 0 AND closed_at IS NOT NULL THEN 1 ELSE 0 END) as success_count')
             ->groupBy('unit_id')
             ->with('unit')
             ->get();

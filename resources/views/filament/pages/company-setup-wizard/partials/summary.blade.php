@@ -40,12 +40,6 @@
                     <strong>Gruplar:</strong> {{ number_format($stats['group_count']) }} grup,
                     {{ number_format($stats['group_member_count'] ?? 0) }} üye
                 </li>
-                <li class="flex items-center gap-2">
-                    <x-heroicon-o-check-circle class="w-5 h-5 text-green-600" />
-                    <strong>Kullanıcılar:</strong>
-                    {{ number_format($stats['users_with_roles'] ?? 0) }} kullanıcı rollendirildi,
-                    {{ number_format($stats['users_default'] ?? 0) }} hâlâ default
-                </li>
             </ul>
 
             @if (!empty($stats['missing_list']))

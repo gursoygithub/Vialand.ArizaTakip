@@ -41,7 +41,7 @@ class ViewTicket extends ViewRecord
      * the per-status logic lives in buildTransitionActions::$allowedFn):
      *   İşleme Al / Çözüldü / Beklemede → assigned personnel OR super_admin
      *   İptal Et / Kapat               → creator OR super_admin
-     *   Yeniden Aç                     → ticket.reopen OR super_admin
+     *   Yeniden Aç                     → creator OR super_admin (TicketPolicy::reopen)
      *   Yeniden Ata                    → ticket.assign AND not creator
      *   Düzenle / Sil                  → creator OR super_admin
      *   Not Ekle                       → any participant
@@ -58,22 +58,27 @@ class ViewTicket extends ViewRecord
 
     public function infolist(Infolist $infolist): Infolist
     {
+        $record       = $this->getRecord();
+        $inProgressAt = $record->statusHistories()
+            ->where('to_status', TaskStatusEnum::IN_PROGRESS->value)
+            ->where('created_at', '>=', $record->assigned_at)
+            ->orderBy('created_at')
+            ->first()
+            ?->created_at;
+
         return $infolist
             ->schema([
                 // ── HEADER ──
                 Section::make()
                     ->extraAttributes(['class' => 'rounded-xl'])
                     ->schema([
-                        Grid::make(3)->schema([
-                            TextEntry::make('ticket_no')
-                                ->label(__('ui.ticket_no'))
-                                ->icon('heroicon-o-ticket')
-                                ->iconColor('primary')
-                                ->size(TextEntry\TextEntrySize::Large)
-                                ->weight(FontWeight::Bold)
-                                ->copyable()
-                                ->copyMessage('Talep no kopyalandı'),
+                        \Filament\Infolists\Components\ViewEntry::make('lifecycle_strip')
+                            ->view('filament.partials.ticket-lifecycle-strip', [
+                                'inProgressAt' => $inProgressAt,
+                            ])
+                            ->columnSpanFull(),
 
+                        Grid::make(3)->schema([
                             TextEntry::make('status')
                                 ->label(__('ui.status'))
                                 ->badge()
@@ -85,6 +90,14 @@ class ViewTicket extends ViewRecord
                                 ->badge()
                                 ->color(fn ($state) => $state->getColor())
                                 ->icon(fn ($state) => $state->getIcon()),
+
+                            TextEntry::make('sla_deadline')
+                                ->label('SLA Son Tarihi')
+                                ->dateTime('d M Y H:i')
+                                ->color(fn (Ticket $record) => $record->sla_deadline?->isPast() ? 'danger' : 'success')
+                                ->icon('heroicon-o-clock')
+                                ->badge()
+                                ->placeholder('—'),
                         ]),
 
                         Grid::make(3)->schema([
@@ -92,10 +105,10 @@ class ViewTicket extends ViewRecord
                                 ->label('Oluşturan')
                                 ->icon('heroicon-o-user'),
 
-                            TextEntry::make('created_at')
-                                ->label('Oluşturulma Tarihi')
-                                ->icon('heroicon-o-calendar')
-                                ->dateTime(),
+                            TextEntry::make('group.name')
+                                ->label('İlgili Grup')
+                                ->icon('heroicon-o-user-group')
+                                ->placeholder('—'),
 
                             TextEntry::make('employee.name')
                                 ->label('Atanan Personel')
@@ -106,6 +119,14 @@ class ViewTicket extends ViewRecord
                                 ->color('warning'),
                         ]),
 
+                    ]),
+
+                // ── TICKET DETAIL ──
+                Section::make(__('ui.ticket_information'))
+                    ->icon('heroicon-o-clipboard-document-list')
+                    ->extraAttributes(['class' => 'rounded-xl'])
+                    ->collapsible()
+                    ->schema([
                         Grid::make(3)->schema([
                             TextEntry::make('area.name')
                                 ->label('Bölge')
@@ -116,29 +137,15 @@ class ViewTicket extends ViewRecord
                                 ->icon('heroicon-o-map')
                                 ->placeholder('—'),
 
-                            TextEntry::make('group.name')
-                                ->label('Grup')
-                                ->icon('heroicon-o-user-group')
-                                ->placeholder('—'),
-                        ]),
-                    ]),
-
-                // ── TICKET DETAIL ──
-                Section::make(__('ui.ticket_information'))
-                    ->icon('heroicon-o-clipboard-document-list')
-                    ->extraAttributes(['class' => 'rounded-xl'])
-                    ->collapsible()
-                    ->schema([
-                        Grid::make(2)->schema([
                             TextEntry::make('unit.name')
                                 ->label('Birim')
                                 ->icon('heroicon-o-wrench-screwdriver'),
-
-                            TextEntry::make('task_date')
-                                ->label('Arıza Tarihi')
-                                ->icon('heroicon-o-calendar-days')
-                                ->date(),
                         ]),
+
+                        TextEntry::make('task_date')
+                            ->label('Arıza Tarihi')
+                            ->icon('heroicon-o-calendar-days')
+                            ->date(),
 
                         TextEntry::make('description')
                             ->label('Açıklama')
@@ -146,69 +153,6 @@ class ViewTicket extends ViewRecord
                             ->prose()
                             ->columnSpanFull()
                             ->extraAttributes(['class' => 'bg-gray-50 dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700']),
-                    ]),
-
-                // ── SLA & TIMESTAMPS ──
-                Section::make(__('ui.sla_information'))
-                    ->icon('heroicon-o-clock')
-                    ->extraAttributes(['class' => 'rounded-xl'])
-                    ->collapsible()
-                    ->visible(fn (Ticket $record) => $record->sla_deadline !== null)
-                    ->schema([
-                        // Atanma Tarihi removed — duplicates the timeline's
-                        // ASSIGNED row and is irrelevant for tickets that
-                        // bypass the ASSIGNED status entirely.
-                        Grid::make(3)->schema([
-                            TextEntry::make('sla_deadline')
-                                ->label('SLA Son Tarihi')
-                                ->icon('heroicon-o-clock')
-                                ->color(fn (Ticket $record) => $record->sla_breached ? 'danger' : 'success')
-                                ->dateTime()
-                                ->placeholder('—'),
-
-                            TextEntry::make('resolved_at')
-                                ->label('Çözüm Tarihi')
-                                ->icon('heroicon-o-check-circle')
-                                ->iconColor('success')
-                                ->dateTime()
-                                ->placeholder('—'),
-
-                            TextEntry::make('closed_at')
-                                ->label('Kapatma Tarihi')
-                                ->icon('heroicon-o-lock-closed')
-                                ->iconColor('gray')
-                                ->dateTime()
-                                ->placeholder('—'),
-                        ]),
-
-                        Grid::make(2)->schema([
-                            TextEntry::make('total_on_hold_minutes')
-                                ->label('Toplam Bekleme Süresi')
-                                ->icon('heroicon-o-pause-circle')
-                                ->iconColor('gray')
-                                ->formatStateUsing(fn ($state) => ((int) $state) . ' dk')
-                                ->visible(fn (Ticket $record) => (int) $record->total_on_hold_minutes > 0),
-
-                            // Outcome derived from resolved_at vs sla_deadline
-                            // — never read the persisted column for live UI.
-                            TextEntry::make('sla_outcome')
-                                ->label(__('ui.sla_breached'))
-                                ->state(function (Ticket $record): string {
-                                    $finalAt  = $record->resolved_at ?? $record->closed_at;
-                                    $breached = $finalAt
-                                        ? $finalAt->gt($record->sla_deadline)
-                                        : now()->gt($record->sla_deadline);
-                                    return $breached ? 'İhlal' : 'Zamanında';
-                                })
-                                ->badge()
-                                ->icon(fn (?string $state) => str_contains($state ?? '', 'İhlal')
-                                    ? 'heroicon-o-x-circle'
-                                    : 'heroicon-o-check-circle')
-                                ->color(fn (?string $state) => str_contains($state ?? '', 'İhlal')
-                                    ? 'danger'
-                                    : 'success')
-                                ->visible(fn (Ticket $record) => $record->status?->isClosed() && $record->sla_deadline),
-                        ]),
                     ]),
 
                 // ── TALEP GEÇMİŞİ — always visible, not collapsible ──
@@ -510,19 +454,21 @@ class ViewTicket extends ViewRecord
         $actions = [];
 
         foreach ($next as $to) {
-            // ASSIGNED is handled by the dedicated Ata/Yeniden Ata header
-            // action which also captures employee_id; skip the auto-generated
-            // status-only button.
-            if ($to === TaskStatusEnum::ASSIGNED) {
-                continue;
-            }
-
-            $isReopenPath = $to === TaskStatusEnum::IN_PROGRESS
+            $isReopenPath = $to === TaskStatusEnum::ASSIGNED
                 && in_array($ticket->status, [
                     TaskStatusEnum::RESOLVED,
                     TaskStatusEnum::CLOSED,
                     TaskStatusEnum::COMPLETED,
                 ], true);
+
+            // Skip the auto-generated ASSIGNED button for OPEN → ASSIGNED —
+            // the dedicated Ata/Yeniden Ata header action handles that case
+            // (it also captures employee_id). Reopen (terminal → ASSIGNED)
+            // keeps its own button so TicketPolicy::reopen can gate it
+            // independently and the existing employee_id is preserved.
+            if ($to === TaskStatusEnum::ASSIGNED && !$isReopenPath) {
+                continue;
+            }
 
             $label = $isReopenPath
                 ? 'Yeniden Aç'
@@ -539,7 +485,11 @@ class ViewTicket extends ViewRecord
                 }
 
                 if ($isReopenPath) {
-                    return $user->can('ticket.reopen');
+                    // Reopen: creator only (super_admin handled above).
+                    // The legacy `ticket.reopen` permission no longer
+                    // gates this — TicketPolicy::reopen() is the canonical
+                    // server-side check, enforced via ->before() below.
+                    return (int) $ticket->created_by === (int) $user->id;
                 }
 
                 return match ($to) {
@@ -559,7 +509,7 @@ class ViewTicket extends ViewRecord
                 };
             };
 
-            $actions[] = Actions\Action::make('to_' . $to->value)
+            $action = Actions\Action::make('to_' . $to->value)
                 ->label($label)
                 ->icon($to->getIcon())
                 ->color($to->getColor())
@@ -587,6 +537,17 @@ class ViewTicket extends ViewRecord
                             ->send();
                     }
                 });
+
+            // Server-side gate for the reopen path: blocks direct
+            // mountAction / URL manipulation even when the visible()
+            // check is bypassed. Throws AuthorizationException → 403.
+            if ($isReopenPath) {
+                $action = $action->before(function () use ($ticket) {
+                    \Illuminate\Support\Facades\Gate::authorize('reopen', $ticket);
+                });
+            }
+
+            $actions[] = $action;
         }
 
         return $actions;

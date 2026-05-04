@@ -12,7 +12,6 @@ use App\Models\GroupMember;
 use App\Models\SlaPolicy;
 use App\Models\SubArea;
 use App\Models\Unit;
-use App\Models\User;
 use Filament\Actions\Action;
 use Filament\Actions\Concerns\InteractsWithActions;
 use Filament\Actions\Contracts\HasActions;
@@ -32,12 +31,9 @@ use Filament\Forms\Form;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Support\Enums\MaxWidth;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Facades\DB;
-use Spatie\Permission\Models\Role;
 
 /**
- * 6-step setup wizard scoped to a single company. Steps save independently
+ * 5-step setup wizard scoped to a single company. Steps save independently
  * via Filament action modals — the wizard's "submit" simply redirects.
  *
  * Schema quirk: sla_policies.sub_area_id is NOT NULL (see database/CLAUDE.md),
@@ -62,7 +58,7 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
     /**
      * Soft-warning steps the user has explicitly clicked through.
      * Cleared whenever companyId changes (different company → different state).
-     * Step keys: 'areas', 'sla', 'groups', 'users'.
+     * Step keys: 'areas', 'sla', 'groups'.
      */
     public array $softConfirmedSteps = [];
 
@@ -108,22 +104,39 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
         return $form
             ->statePath('data')
             ->schema([
-                // Wizard renders its own header tabs and prev/İleri buttons,
-                // but the Tamamla submit lives in the page footer (see
-                // getFooterActions). Passing an Action object to
-                // ->submitAction() doesn't wire requiresConfirmation()
-                // correctly — modal infra needs to be registered as a page
-                // action, not a form-component action.
+                // Tamamla rides in the wizard's submit slot via an Htmlable
+                // (the wizard's submitAction signature is `string|Htmlable|null`).
+                // We can't pass an Action object directly because the wizard's
+                // blade calls requiresConfirmation() handling at render-time
+                // and silently drops the modal — that path only wires up if
+                // the action lives as a page action and is mounted via
+                // mountAction(). So the slot gets a tiny button that calls
+                // mountAction('submit'), which in turn opens the page-level
+                // submitAction() defined below (with the confirmation modal).
+                // Bonus: the wizard already wraps its submit slot in
+                // x-bind:class="{ hidden: ! isLastStep(), block: isLastStep() }"
+                // so the button is auto-hidden until the last step — no
+                // server-side step counter needed.
                 Wizard::make([
                     $this->stepCompany(),
                     $this->stepAreas(),
                     $this->stepSla(),
                     $this->stepGroups(),
-                    $this->stepUsers(),
                     $this->stepSummary(),
                 ])
                     ->persistStepInQueryString()
-                    ->submitAction(null),
+                    ->submitAction(new \Illuminate\Support\HtmlString(<<<'HTML'
+                        <button
+                            type="button"
+                            wire:click="mountAction('submit')"
+                            class="fi-btn fi-btn-color-primary fi-btn-size-md inline-flex items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold outline-none transition duration-75 focus-visible:ring-2 bg-primary-600 text-white hover:bg-primary-500 focus-visible:ring-primary-500/50"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-5 w-5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                            </svg>
+                            Tamamla
+                        </button>
+                    HTML)),
             ]);
     }
 
@@ -273,9 +286,13 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
                     // Different company = different state. Drop any soft
                     // confirmations the user already clicked through, otherwise
                     // a "no SLAs" warning skipped on company A would silently
-                    // skip the same warning on company B.
-                    ->afterStateUpdated(function () {
+                    // skip the same warning on company B. Also reset the SLA
+                    // scope so a sub_area from the previous company doesn't
+                    // leak into the matrix (which would silently filter it
+                    // down to zero rows).
+                    ->afterStateUpdated(function (Forms\Set $set) {
                         $this->softConfirmedSteps = [];
+                        $set('slaScopeSubAreaId', null);
                     }),
 
                 ViewField::make('summary_card')
@@ -421,34 +438,22 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
                     throw new \Filament\Support\Exceptions\Halt;
                 }
 
-                // Per-area SLA presence check. An area with ZERO policies is
-                // unusable for tickets — SlaService falls back at area+unit
-                // level, but if NO row exists for the area_id at all the
-                // resolver returns null and tickets get a NULL sla_deadline.
-                // That's a hard block. An area with SOME policies but not
-                // every (unit × priority) combination is recoverable via
-                // fallback for some priorities and acceptable as a soft
-                // warning.
-                $units = Unit::pluck('id');
-                $unitCount = $units->count();
-                $expectedPerArea = $unitCount * 4;
+                // HARD 1: an area with ZERO policies is unusable — no L1/L2/L3
+                // path can match, leaving only the global L4 fallback which
+                // may not exist. Block until at least one row is defined.
+                $units = Unit::orderBy('name')->get(['id', 'name']);
 
                 $areasWithNoSla = [];
-                $areasWithPartialSla = [];
-
                 foreach ($areas as $area) {
-                    $count = SlaPolicy::where('area_id', $area->id)
-                        ->whereIn('unit_id', $units)
-                        ->count();
+                    $any = SlaPolicy::where('area_id', $area->id)
+                        ->whereIn('unit_id', $units->pluck('id'))
+                        ->exists();
 
-                    if ($count === 0) {
+                    if (!$any) {
                         $areasWithNoSla[] = $area->name;
-                    } elseif ($count < $expectedPerArea) {
-                        $areasWithPartialSla[] = $area->name;
                     }
                 }
 
-                // HARD: any area with zero SLA → block.
                 if (!empty($areasWithNoSla)) {
                     $list = implode(', ', $areasWithNoSla);
                     Notification::make()
@@ -460,17 +465,93 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
                     throw new \Filament\Support\Exceptions\Halt;
                 }
 
-                // SOFT: areas with partial coverage. Surface the count so the
-                // user sees how big the gap is before clicking through.
-                if (!empty($areasWithPartialSla)) {
-                    $stats = $this->companyStats($companyId);
-                    $missing = (int) ($stats['missing_sla_combos'] ?? 0);
+                // HARD 2: for every (area, unit) the user has STARTED defining
+                // policies for, Acil and Yüksek must each be defined in AT
+                // LEAST ONE scope — default (sub_area_id IS NULL) OR any
+                // specific lokasyon. Defining Acil+Yüksek for every lokasyon
+                // of an area satisfies the rule even if the default scope is
+                // empty. Units the user hasn't touched yet are excluded so
+                // the wizard isn't a wall.
+                //
+                // SOFT (parallel pass): same predicate for Düşük/Orta — a
+                // missing critical-tier row in any scope falls through to
+                // L3/L4 (area+priority / global), which is acceptable but
+                // worth surfacing as a warning.
+                $criticalMissing = [];
+                $standardMissing = [];
 
-                    $this->softGate(
-                        'sla',
-                        'Eksik SLA Kombinasyonları',
-                        "$missing kombinasyon eksik. Eksik kombinasyonlar için SLA bulunamazsa ticket'lar SLA'sız açılacaktır. Devam etmek istiyor musunuz?",
-                    );
+                foreach ($areas as $area) {
+                    $touchedUnitIds = SlaPolicy::where('area_id', $area->id)
+                        ->whereIn('unit_id', $units->pluck('id'))
+                        ->select('unit_id')
+                        ->distinct()
+                        ->pluck('unit_id')
+                        ->all();
+
+                    if (empty($touchedUnitIds)) {
+                        continue;
+                    }
+
+                    foreach ($touchedUnitIds as $unitId) {
+                        $unit = $units->firstWhere('id', $unitId);
+                        if (!$unit) {
+                            continue;
+                        }
+
+                        // Any scope counts — pull every distinct priority
+                        // present for this (area, unit) regardless of
+                        // sub_area_id. select+distinct+get keeps the query
+                        // portable across MySQL/SQLite (count(DISTINCT col1,
+                        // col2) is MySQL-only).
+                        $coveredPriorities = SlaPolicy::where('area_id', $area->id)
+                            ->where('unit_id', $unitId)
+                            ->select('priority')
+                            ->distinct()
+                            ->get()
+                            ->pluck('priority')
+                            ->map(fn ($p) => (int) (is_object($p) ? $p->value : $p))
+                            ->all();
+
+                        $criticalGap = [];
+                        if (!in_array(TaskPriorityEnum::Urgent->value, $coveredPriorities, true)) {
+                            $criticalGap[] = 'Acil eksik';
+                        }
+                        if (!in_array(TaskPriorityEnum::High->value, $coveredPriorities, true)) {
+                            $criticalGap[] = 'Yüksek eksik';
+                        }
+                        if (!empty($criticalGap)) {
+                            $criticalMissing[] = $area->name . ' / ' . $unit->name . ' (' . implode(', ', $criticalGap) . ')';
+                        }
+
+                        $standardGap = [];
+                        if (!in_array(TaskPriorityEnum::Medium->value, $coveredPriorities, true)) {
+                            $standardGap[] = 'Orta eksik';
+                        }
+                        if (!in_array(TaskPriorityEnum::Low->value, $coveredPriorities, true)) {
+                            $standardGap[] = 'Düşük eksik';
+                        }
+                        if (!empty($standardGap)) {
+                            $standardMissing[] = $area->name . ' / ' . $unit->name . ' (' . implode(', ', $standardGap) . ')';
+                        }
+                    }
+                }
+
+                if (!empty($criticalMissing)) {
+                    Notification::make()
+                        ->title('Acil ve Yüksek öncelik SLA\'ları eksik')
+                        ->body('Aşağıdaki birimler için Acil ve Yüksek öncelik SLA\'ları tanımlanmadan devam edilemez: ' . implode(', ', $criticalMissing))
+                        ->danger()
+                        ->persistent()
+                        ->send();
+                    throw new \Filament\Support\Exceptions\Halt;
+                }
+
+                if (!empty($standardMissing)) {
+                    Notification::make()
+                        ->title('Düşük/Orta öncelik SLA\'ları eksik')
+                        ->body('Bazı birimler için Düşük/Orta öncelik SLA\'ları eksik. Bu kombinasyonlarda genel SLA politikası uygulanacaktır. Eksikler: ' . implode(', ', $standardMissing))
+                        ->warning()
+                        ->send();
                 }
             })
             ->schema([
@@ -480,14 +561,43 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
                     ->visible(fn (Forms\Get $get) => blank($get('companyId'))),
 
                 Section::make('SLA Matrisi')
-                    ->description('Hücreye tıklayarak öncelik bazlı SLA dakikalarını düzenleyin.')
+                    ->description('Lokasyon kapsamını seçin, ardından hücrelere tıklayarak öncelik bazlı SLA dakikalarını düzenleyin. Varsayılan kapsamdaki ayarlar tüm lokasyonlar için geçerli olur; belirli bir lokasyon seçerseniz o lokasyon için ayrı SLA tanımlayabilirsiniz.')
                     ->visible(fn (Forms\Get $get) => filled($get('companyId')))
                     ->schema([
+                        // Scope selector: empty value = "default for the area"
+                        // (matches L2 in SlaService::resolvePolicy). Selecting a
+                        // specific lokasyon filters the matrix to that area and
+                        // edits L1 (location-specific) rows.
+                        Select::make('slaScopeSubAreaId')
+                            ->label('Lokasyon Kapsamı')
+                            ->placeholder('Varsayılan (tüm lokasyonlar)')
+                            ->helperText('Boş bırakırsanız tüm lokasyonlar için geçerli varsayılan SLA tanımlanır. Bir lokasyon seçerseniz o lokasyon için ayrı SLA tanımlanır ve matris yalnızca ilgili bölgeyi gösterir.')
+                            ->live()
+                            ->options(function (Forms\Get $get) {
+                                $companyId = (int) ($get('companyId') ?? 0);
+                                if (!$companyId) {
+                                    return [];
+                                }
+
+                                $areaIds = Area::where('company_id', $companyId)->pluck('id');
+
+                                return SubArea::whereIn('area_id', $areaIds)
+                                    ->with('area:id,name')
+                                    ->orderBy('area_id')
+                                    ->orderBy('name')
+                                    ->get()
+                                    ->mapWithKeys(fn (SubArea $sa) => [
+                                        $sa->id => ($sa->area?->name ?? '—') . ' → ' . $sa->name,
+                                    ])
+                                    ->all();
+                            }),
+
                         ViewField::make('sla_grid')
                             ->hiddenLabel()
                             ->view('filament.pages.company-setup-wizard.partials.sla-grid')
                             ->viewData(fn (Forms\Get $get) => $this->slaGridData(
-                                (int) ($get('companyId') ?? 0)
+                                (int) ($get('companyId') ?? 0),
+                                $get('slaScopeSubAreaId') ? (int) $get('slaScopeSubAreaId') : null,
                             )),
                     ]),
             ]);
@@ -674,69 +784,7 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    // STEP 5 — Kullanıcı Rolleri
-    // ─────────────────────────────────────────────────────────────────────
-
-    protected function stepUsers(): Step
-    {
-        return Step::make('Kullanıcı Rolleri')
-            ->icon('heroicon-o-user-circle')
-            ->description('Şirket kullanıcılarının rollerini ayarlayın')
-            ->afterValidation(function () {
-                $companyId = (int) ($this->data['companyId'] ?? 0);
-                if (!$companyId) {
-                    return;
-                }
-
-                $defaultUsers = $this->defaultUsersFor($companyId);
-                $count = count($defaultUsers);
-                if ($count === 0) {
-                    return;
-                }
-
-                // SOFT: still some users on default role.
-                $this->softGate(
-                    'users',
-                    'Default rolünde kullanıcılar var',
-                    "$count kullanıcı hâlâ default rolünde. Eksik tanımlamalarla devam etmek istediğinizden emin misiniz?",
-                );
-            })
-            ->schema([
-                Placeholder::make('users_empty_company')
-                    ->hiddenLabel()
-                    ->content('Devam etmek için Adım 1\'de bir şirket seçin.')
-                    ->visible(fn (Forms\Get $get) => blank($get('companyId'))),
-
-                Section::make('Rol Atanmamış Kullanıcılar')
-                    ->description('Sadece "default" rolüne sahip, henüz yetki atanmamış kullanıcılar.')
-                    ->visible(fn (Forms\Get $get) => filled($get('companyId')))
-                    ->schema([
-                        ViewField::make('default_users')
-                            ->hiddenLabel()
-                            ->view('filament.pages.company-setup-wizard.partials.users-default')
-                            ->viewData(fn (Forms\Get $get) => [
-                                'users' => $this->defaultUsersFor((int) ($get('companyId') ?? 0)),
-                                'roles' => $this->assignableRoles(),
-                            ]),
-                    ]),
-
-                Section::make('Mevcut Rol Atamaları')
-                    ->description('Bu şirkete bağlı kullanıcılar ve mevcut rolleri.')
-                    ->visible(fn (Forms\Get $get) => filled($get('companyId')))
-                    ->schema([
-                        ViewField::make('roled_users')
-                            ->hiddenLabel()
-                            ->view('filament.pages.company-setup-wizard.partials.users-roled')
-                            ->viewData(fn (Forms\Get $get) => [
-                                'users' => $this->roledUsersFor((int) ($get('companyId') ?? 0)),
-                                'roles' => $this->assignableRoles(),
-                            ]),
-                    ]),
-            ]);
-    }
-
-    // ─────────────────────────────────────────────────────────────────────
-    // STEP 6 — Özet
+    // STEP 5 — Özet
     // ─────────────────────────────────────────────────────────────────────
 
     protected function stepSummary(): Step
@@ -835,6 +883,29 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
             });
     }
 
+    public function editSubAreaAction(): Action
+    {
+        return Action::make('editSubArea')
+            ->label('Yeniden adlandır')
+            ->icon('heroicon-o-pencil')
+            ->modalHeading('Lokasyon Adını Değiştir')
+            ->fillForm(function (array $arguments): array {
+                $sub = SubArea::find($arguments['sub_area_id'] ?? null);
+                return $sub ? ['name' => $sub->name] : [];
+            })
+            ->form([
+                TextInput::make('name')->label('Lokasyon Adı')->required(),
+            ])
+            ->action(function (array $arguments, array $data) {
+                $sub = SubArea::find($arguments['sub_area_id'] ?? null);
+                if (!$sub) {
+                    return;
+                }
+                $sub->update(['name' => $data['name']]);
+                Notification::make()->title('Lokasyon güncellendi')->success()->send();
+            });
+    }
+
     public function deleteSubAreaAction(): Action
     {
         return Action::make('deleteSubArea')
@@ -858,14 +929,32 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
         return Action::make('setSla')
             ->label('SLA Ayarla')
             ->icon('heroicon-o-clock')
-            ->modalHeading('SLA Politikası')
+            ->modalHeading(function (array $arguments): string {
+                $subAreaId = $arguments['sub_area_id'] ?? null;
+                if ($subAreaId) {
+                    $sub = SubArea::find((int) $subAreaId);
+                    return 'SLA Politikası — Lokasyon: ' . ($sub?->name ?? '—');
+                }
+                return 'SLA Politikası — Varsayılan (Bölge Geneli)';
+            })
             ->fillForm(function (array $arguments): array {
-                $areaId = (int) ($arguments['area_id'] ?? 0);
-                $unitId = (int) ($arguments['unit_id'] ?? 0);
-                $rows = SlaPolicy::where('area_id', $areaId)
-                    ->where('unit_id', $unitId)
-                    ->get()
+                $areaId    = (int) ($arguments['area_id'] ?? 0);
+                $unitId    = (int) ($arguments['unit_id'] ?? 0);
+                $subAreaId = $arguments['sub_area_id'] ?? null;
+                $subAreaId = $subAreaId ? (int) $subAreaId : null;
+
+                $query = SlaPolicy::where('area_id', $areaId)
+                    ->where('unit_id', $unitId);
+
+                if ($subAreaId === null) {
+                    $query->whereNull('sub_area_id');
+                } else {
+                    $query->where('sub_area_id', $subAreaId);
+                }
+
+                $rows = $query->get()
                     ->keyBy(fn ($p) => $this->priorityKey((int) $p->getRawOriginal('priority')));
+
                 return [
                     'low_min'      => $rows->get('low')?->deadline_minutes,
                     'medium_min'   => $rows->get('medium')?->deadline_minutes,
@@ -894,23 +983,32 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
                     ->numeric()->minValue(0)->maxValue(100)->default(80),
             ])
             ->action(function (array $arguments, array $data) {
-                $areaId = (int) ($arguments['area_id'] ?? 0);
-                $unitId = (int) ($arguments['unit_id'] ?? 0);
+                $areaId    = (int) ($arguments['area_id'] ?? 0);
+                $unitId    = (int) ($arguments['unit_id'] ?? 0);
+                $subAreaId = $arguments['sub_area_id'] ?? null;
+                $subAreaId = $subAreaId ? (int) $subAreaId : null;
+
                 if (!$areaId || !$unitId) {
                     return;
                 }
 
-                // sla_policies.sub_area_id is NOT NULL — pin to the area's
-                // first sub_area. SlaService falls back at area+unit+priority.
-                $subAreaId = SubArea::where('area_id', $areaId)
-                    ->orderBy('id')
-                    ->value('id');
-                if (!$subAreaId) {
-                    Notification::make()
-                        ->title('Önce bu bölgeye en az bir lokasyon ekleyin')
-                        ->danger()
-                        ->send();
-                    return;
+                // Defensive: if a sub_area was specified, make sure it actually
+                // belongs to the target area. Without this check, a stale or
+                // forged argument could write a row whose area_id and
+                // sub_area_id point at unrelated rows — which would still
+                // resolve at L1 but represent a logical inconsistency.
+                if ($subAreaId !== null) {
+                    $belongs = SubArea::where('id', $subAreaId)
+                        ->where('area_id', $areaId)
+                        ->exists();
+                    if (!$belongs) {
+                        Notification::make()
+                            ->title('Geçersiz lokasyon kapsamı')
+                            ->body('Seçilen lokasyon bu bölgeye ait değil.')
+                            ->danger()
+                            ->send();
+                        return;
+                    }
                 }
 
                 $threshold = (int) ($data['success_pct'] ?? 80);
@@ -925,17 +1023,27 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
                 foreach ($priorityFields as $priorityValue => $field) {
                     $minutes = $data[$field] ?? null;
 
-                    $existing = SlaPolicy::where('area_id', $areaId)
+                    // The schema-level UNIQUE on (area, sub_area, unit, priority,
+                    // deleted_at) treats NULL as distinct in MySQL/SQLite, so the
+                    // upsert key must be enforced application-side here via
+                    // whereNull / where on the same tuple the user is editing.
+                    $existingQuery = SlaPolicy::where('area_id', $areaId)
                         ->where('unit_id', $unitId)
-                        ->where('priority', $priorityValue)
-                        ->first();
+                        ->where('priority', $priorityValue);
+
+                    if ($subAreaId === null) {
+                        $existingQuery->whereNull('sub_area_id');
+                    } else {
+                        $existingQuery->where('sub_area_id', $subAreaId);
+                    }
+
+                    $existing = $existingQuery->first();
 
                     if (filled($minutes)) {
                         if ($existing) {
                             $existing->update([
                                 'deadline_minutes'  => (int) $minutes,
                                 'success_threshold' => $threshold,
-                                'sub_area_id'       => $existing->sub_area_id ?: $subAreaId,
                             ]);
                         } else {
                             SlaPolicy::create([
@@ -954,6 +1062,139 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
                 }
 
                 Notification::make()->title('SLA güncellendi')->success()->send();
+            });
+    }
+
+    public function editGroupAction(): Action
+    {
+        return Action::make('editGroup')
+            ->label('Düzenle')
+            ->icon('heroicon-o-pencil')
+            ->modalHeading('Grup Düzenle')
+            ->fillForm(function (array $arguments): array {
+                $group = Group::find($arguments['group_id'] ?? null);
+                if (!$group) {
+                    return [];
+                }
+                return [
+                    'name'        => $group->name,
+                    'area_id'     => $group->area_id,
+                    'unit_id'     => $group->unit_id,
+                    'employee_id' => $group->employee_id,
+                ];
+            })
+            ->form(fn (array $arguments) => [
+                TextInput::make('name')
+                    ->label('Grup Adı')
+                    ->required()
+                    ->validationMessages(['required' => 'Grup adı zorunludur.']),
+
+                // Mirror the addGroup constraint (only SLA-bearing areas), but
+                // union the group's CURRENT area into the option list even if
+                // it no longer satisfies the predicate — otherwise the field
+                // would render blank and the user would lose track of where
+                // the group lives. The fallback option is suffixed
+                // "(kapsam dışı)" so the user sees the constraint mismatch
+                // before saving.
+                Select::make('area_id')
+                    ->label('Bölge')
+                    ->helperText('Sadece SLA politikası tanımlanmış bölgeler listelenmektedir.')
+                    ->options(function () use ($arguments) {
+                        $companyId = (int) ($this->data['companyId'] ?? 0);
+
+                        $areas = Area::query()
+                            ->where('company_id', $companyId)
+                            ->where('status', ActiveStatusEnum::ACTIVE->value)
+                            ->whereHas('slaPolicies')
+                            ->orderBy('name')
+                            ->pluck('name', 'id')
+                            ->toArray();
+
+                        $group = Group::with('area')->find($arguments['group_id'] ?? null);
+                        if ($group && $group->area && !isset($areas[$group->area_id])) {
+                            $areas[$group->area_id] = $group->area->name . ' (kapsam dışı)';
+                        }
+
+                        return $areas;
+                    })
+                    ->required()
+                    ->searchable()
+                    ->live()
+                    ->afterStateUpdated(fn (Forms\Set $set) => $set('unit_id', null))
+                    ->validationMessages(['required' => 'Bölge alanı zorunludur.']),
+
+                Select::make('unit_id')
+                    ->label('Birim')
+                    ->options(function (Forms\Get $get) use ($arguments) {
+                        $areaId = $get('area_id');
+
+                        if (!$areaId) {
+                            return Unit::orderBy('name')->pluck('name', 'id')->toArray();
+                        }
+
+                        $unitIds = SlaPolicy::where('area_id', $areaId)
+                            ->distinct()
+                            ->pluck('unit_id');
+
+                        $units = $unitIds->isEmpty()
+                            ? []
+                            : Unit::whereIn('id', $unitIds)
+                                ->orderBy('name')
+                                ->pluck('name', 'id')
+                                ->toArray();
+
+                        // Same defensive fallback as area_id above.
+                        $group = Group::with('unit')->find($arguments['group_id'] ?? null);
+                        if ($group && $group->unit && (int) $group->area_id === (int) $areaId
+                            && !isset($units[$group->unit_id])) {
+                            $units[$group->unit_id] = $group->unit->name . ' (kapsam dışı)';
+                        }
+
+                        return $units;
+                    })
+                    ->helperText(function (Forms\Get $get): string {
+                        $areaId = $get('area_id');
+
+                        if (!$areaId) {
+                            return 'Önce bölge seçiniz.';
+                        }
+
+                        $hasSla = SlaPolicy::where('area_id', $areaId)->exists();
+
+                        if (!$hasSla) {
+                            return 'Bu bölge için henüz SLA tanımlanmamış. SLA adımına dönünüz.';
+                        }
+
+                        return 'Sadece SLA tanımlı birimler listelenmektedir.';
+                    })
+                    ->required()
+                    ->searchable()
+                    ->validationMessages(['required' => 'Birim alanı zorunludur.']),
+
+                Select::make('employee_id')
+                    ->label('Amir')
+                    ->options(fn () => Employee::query()
+                        ->where('company_id', (int) ($this->data['companyId'] ?? 0))
+                        ->where('status', ActiveStatusEnum::ACTIVE->value)
+                        ->orderBy('name')
+                        ->limit(500)
+                        ->pluck('name', 'id'))
+                    ->required()
+                    ->searchable()
+                    ->validationMessages(['required' => 'Amir alanı zorunludur.']),
+            ])
+            ->action(function (array $arguments, array $data) {
+                $group = Group::find($arguments['group_id'] ?? null);
+                if (!$group) {
+                    return;
+                }
+                $group->update([
+                    'name'        => $data['name'],
+                    'area_id'     => (int) $data['area_id'],
+                    'unit_id'     => (int) $data['unit_id'],
+                    'employee_id' => (int) $data['employee_id'],
+                ]);
+                Notification::make()->title('Grup güncellendi')->success()->send();
             });
     }
 
@@ -1035,71 +1276,6 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
             });
     }
 
-    public function assignRoleAction(): Action
-    {
-        return Action::make('assignRole')
-            ->label('Rol Ata')
-            ->icon('heroicon-o-shield-check')
-            ->modalHeading('Rol Ata')
-            ->form([
-                Select::make('role')
-                    ->label('Rol')
-                    ->options(fn () => $this->assignableRoles())
-                    ->required(),
-            ])
-            ->action(function (array $arguments, array $data) {
-                $user = User::find($arguments['user_id'] ?? null);
-                if (!$user || empty($data['role'])) {
-                    return;
-                }
-                $user->syncRoles([$data['role']]);
-                Notification::make()
-                    ->title($user->name . ' → ' . $data['role'])
-                    ->success()
-                    ->send();
-            });
-    }
-
-    public function grantExtraCompanyAction(): Action
-    {
-        return Action::make('grantExtraCompany')
-            ->label('Ekstra Şirket Erişimi')
-            ->icon('heroicon-o-building-office-2')
-            ->modalHeading('Ekstra Şirket Erişimi Ver')
-            ->form(fn (array $arguments) => [
-                Select::make('company_ids')
-                    ->label('Şirketler')
-                    ->multiple()
-                    ->searchable()
-                    ->options(function () use ($arguments) {
-                        $user = User::find($arguments['user_id'] ?? null);
-                        $own = $user?->employee?->company_id;
-                        return Company::query()
-                            ->when($own, fn (Builder $q) => $q->where('id', '!=', $own))
-                            ->orderBy('name')
-                            ->pluck('name', 'id')
-                            ->toArray();
-                    })
-                    ->required(),
-            ])
-            ->action(function (array $arguments, array $data) {
-                $userId = (int) ($arguments['user_id'] ?? 0);
-                if (!$userId || empty($data['company_ids'])) {
-                    return;
-                }
-                foreach ($data['company_ids'] as $companyId) {
-                    DB::table('user_company_access')->updateOrInsert(
-                        ['user_id' => $userId, 'company_id' => (int) $companyId],
-                        ['granted_by' => auth()->id(), 'updated_at' => now(), 'created_at' => now()]
-                    );
-                }
-                Notification::make()
-                    ->title(count($data['company_ids']) . ' şirket erişimi verildi')
-                    ->success()
-                    ->send();
-            });
-    }
-
     // ─────────────────────────────────────────────────────────────────────
     // DATA HELPERS
     // ─────────────────────────────────────────────────────────────────────
@@ -1162,21 +1338,60 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
             ])->values()->all();
     }
 
-    protected function slaGridData(int $companyId): array
+    /**
+     * Build the matrix data for the SLA editor scoped to a sub_area.
+     *
+     *  - $selectedSubAreaId === null  → editing area-wide defaults
+     *    (sub_area_id IS NULL rows). All areas of the company are shown.
+     *  - $selectedSubAreaId is set    → editing location-specific overrides
+     *    (sub_area_id = $selectedSubAreaId). Only the area owning that
+     *    sub_area is shown — other areas would be nonsensical for that
+     *    sub_area and listing them would invite the user to write rows
+     *    against an unrelated area.
+     */
+    protected function slaGridData(int $companyId, ?int $selectedSubAreaId): array
     {
+        $emptyShape = [
+            'areas'               => [], 'units' => [], 'matrix' => [],
+            'critical_count'      => 0, // Acil + Yüksek in current scope
+            'standard_count'      => 0, // Orta + Düşük in current scope
+            'location_count'      => 0, // total override rows in this company
+            'scope_sub_area_id'   => $selectedSubAreaId,
+            'scope_sub_area_name' => null,
+        ];
+
         if (!$companyId) {
-            return ['areas' => [], 'units' => [], 'matrix' => [], 'defined' => 0, 'missing' => 0];
+            return $emptyShape;
         }
 
-        $areas = Area::where('company_id', $companyId)
-            ->orderBy('name')
-            ->get(['id', 'name']);
+        $areaQuery = Area::where('company_id', $companyId);
+        $scopeSubAreaName = null;
 
+        if ($selectedSubAreaId) {
+            // Restrict to the area owning the chosen sub_area. If the chosen
+            // sub_area no longer exists (e.g. just deleted), return an empty
+            // matrix instead of falling open to all areas.
+            $sub = SubArea::find($selectedSubAreaId);
+            if (!$sub) {
+                return $emptyShape;
+            }
+            $areaQuery->where('id', $sub->area_id);
+            $scopeSubAreaName = $sub->name;
+        }
+
+        $areas = $areaQuery->orderBy('name')->get(['id', 'name']);
         $units = Unit::orderBy('name')->get(['id', 'name']);
 
-        $policies = SlaPolicy::whereIn('area_id', $areas->pluck('id'))
-            ->whereIn('unit_id', $units->pluck('id'))
-            ->get();
+        $policyQuery = SlaPolicy::whereIn('area_id', $areas->pluck('id'))
+            ->whereIn('unit_id', $units->pluck('id'));
+
+        if ($selectedSubAreaId) {
+            $policyQuery->where('sub_area_id', $selectedSubAreaId);
+        } else {
+            $policyQuery->whereNull('sub_area_id');
+        }
+
+        $policies = $policyQuery->get();
 
         $matrix = [];
         foreach ($areas as $area) {
@@ -1204,16 +1419,33 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
             }
         }
 
-        $expected = count($areas) * count($units) * 4;
-        $defined  = $policies->count();
-        $missing  = max(0, $expected - $defined);
+        // Three counters surfaced under the matrix:
+        //   - critical:  Acil + Yüksek in the currently-edited scope.
+        //   - standard:  Orta + Düşük in the currently-edited scope.
+        //   - location:  total location-specific rows across the whole
+        //                company (NOT scoped to the current view), so the
+        //                user sees the override surface even while editing
+        //                the default scope.
+        $criticalPriorities = [TaskPriorityEnum::Urgent->value, TaskPriorityEnum::High->value];
+        $standardPriorities = [TaskPriorityEnum::Medium->value, TaskPriorityEnum::Low->value];
+
+        $criticalCount = $policies->filter(fn ($p) => in_array((int) $p->getRawOriginal('priority'), $criticalPriorities, true))->count();
+        $standardCount = $policies->filter(fn ($p) => in_array((int) $p->getRawOriginal('priority'), $standardPriorities, true))->count();
+
+        $companyAreaIds = Area::where('company_id', $companyId)->pluck('id');
+        $locationCount = SlaPolicy::whereIn('area_id', $companyAreaIds)
+            ->whereNotNull('sub_area_id')
+            ->count();
 
         return [
-            'areas'   => $areas->all(),
-            'units'   => $units->all(),
-            'matrix'  => $matrix,
-            'defined' => $defined,
-            'missing' => $missing,
+            'areas'               => $areas->all(),
+            'units'               => $units->all(),
+            'matrix'              => $matrix,
+            'critical_count'      => $criticalCount,
+            'standard_count'      => $standardCount,
+            'location_count'      => $locationCount,
+            'scope_sub_area_id'   => $selectedSubAreaId,
+            'scope_sub_area_name' => $scopeSubAreaName,
         ];
     }
 
@@ -1245,56 +1477,6 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
             ])->values()->all();
     }
 
-    protected function defaultUsersFor(int $companyId): array
-    {
-        if (!$companyId) {
-            return [];
-        }
-
-        $emails = Employee::where('company_id', $companyId)->pluck('email')->filter()->all();
-
-        return User::query()
-            ->whereIn('email', $emails)
-            ->whereDoesntHave('roles', fn ($q) => $q->where('name', '!=', 'default'))
-            ->with('employee:id,email,title,company_id')
-            ->orderBy('name')
-            ->limit(200)
-            ->get()
-            ->map(fn (User $user) => [
-                'id'             => $user->id,
-                'name'           => $user->name,
-                'email'          => $user->email,
-                'title'          => $user->employee?->title ?? '—',
-                'last_ldap_sync' => $user->last_ldap_sync?->format('d.m.Y H:i') ?? '—',
-            ])->values()->all();
-    }
-
-    protected function roledUsersFor(int $companyId): array
-    {
-        if (!$companyId) {
-            return [];
-        }
-
-        $emails = Employee::where('company_id', $companyId)->pluck('email')->filter()->all();
-
-        return User::query()
-            ->whereIn('email', $emails)
-            ->whereHas('roles', fn ($q) => $q->where('name', '!=', 'default'))
-            ->with(['roles', 'employee:id,email,company_id'])
-            ->orderBy('name')
-            ->limit(200)
-            ->get()
-            ->map(fn (User $user) => [
-                'id'              => $user->id,
-                'name'            => $user->name,
-                'email'           => $user->email,
-                'role'            => $user->roles->first()?->name ?? '—',
-                'extra_companies' => DB::table('user_company_access')
-                    ->where('user_id', $user->id)
-                    ->count(),
-            ])->values()->all();
-    }
-
     protected function summaryStats(int $companyId): array
     {
         $base = $this->companyStats($companyId);
@@ -1302,16 +1484,6 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
         if (!$companyId || empty($base)) {
             return [];
         }
-
-        $emails = Employee::where('company_id', $companyId)->pluck('email')->filter()->all();
-
-        $usersWithRoles = User::whereIn('email', $emails)
-            ->whereHas('roles', fn ($q) => $q->where('name', '!=', 'default'))
-            ->count();
-
-        $usersDefault = User::whereIn('email', $emails)
-            ->whereDoesntHave('roles', fn ($q) => $q->where('name', '!=', 'default'))
-            ->count();
 
         $subAreaCount = SubArea::whereIn(
             'area_id',
@@ -1355,20 +1527,9 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
         return array_merge($base, [
             'sub_area_count'    => $subAreaCount,
             'group_member_count' => $totalMembers,
-            'users_with_roles'  => $usersWithRoles,
-            'users_default'     => $usersDefault,
             'missing_list'      => array_slice($missingList, 0, 30),
             'missing_total'     => count($missingList),
         ]);
-    }
-
-    protected function assignableRoles(): array
-    {
-        return Role::query()
-            ->where('name', '!=', 'super_admin')
-            ->orderBy('name')
-            ->pluck('name', 'name')
-            ->toArray();
     }
 
     /**

@@ -29,20 +29,16 @@ class Ticket extends Model implements HasMedia
         'group_id',
         'sub_area_id',
         'unit_id',
-        'unit_description',
         'type_id',
         'priority',
         'status',
         'employee_id',
         'assigned_person_type_id',
         'task_date',
-        'completed_by',
-        'due_date',
         'resolution_notes',
         'reopen_reason',
         'reopened_by',
         'reopened_at',
-        'sla_outcome',
         'sla_deadline',
         'sla_breached',
         'assigned_at',
@@ -59,7 +55,6 @@ class Ticket extends Model implements HasMedia
 
     protected $casts = [
         'task_date'    => 'date',
-        'due_date'     => 'datetime',
         'sla_deadline' => 'datetime',
         'assigned_at'  => 'datetime',
         'resolved_at'  => 'datetime',
@@ -139,11 +134,6 @@ class Ticket extends Model implements HasMedia
         return $this->belongsTo(User::class, 'deleted_by');
     }
 
-    public function completedBy()
-    {
-        return $this->belongsTo(User::class, 'completed_by');
-    }
-
     public function closedBy()
     {
         return $this->belongsTo(User::class, 'closed_by');
@@ -197,22 +187,16 @@ class Ticket extends Model implements HasMedia
 
     public function getSlaStatusAttribute(): string
     {
-        if (!empty($this->sla_outcome)) {
-            return $this->sla_outcome;
-        }
-
         $target = $this->target_date;
         if (!$target) {
             return 'NO_SLA';
         }
 
-        $completedAt = $this->closed_at ?? $this->due_date;
-
-        if (!$completedAt) {
+        if (!$this->closed_at) {
             return now() > $target ? 'SLA_BREACHED' : 'IN_PROGRESS';
         }
 
-        return $completedAt <= $target ? 'SUCCESS' : 'FAILED';
+        return $this->closed_at <= $target ? 'SUCCESS' : 'FAILED';
     }
 
     public function getRemainingMinutes(): int
@@ -382,35 +366,6 @@ class Ticket extends Model implements HasMedia
 
             if (empty($ticket->status)) {
                 $ticket->status = TaskStatusEnum::OPEN;
-            }
-        });
-
-        static::saving(function (Ticket $ticket) {
-            if ($ticket->due_date || $ticket->closed_at) {
-                $closedAt = $ticket->closed_at ?? $ticket->due_date;
-
-                $policy = SlaPolicy::where([
-                    'area_id'     => $ticket->area_id,
-                    'sub_area_id' => $ticket->sub_area_id,
-                    'unit_id'     => $ticket->unit_id,
-                    'priority'    => $ticket->priority,
-                ])->first();
-
-                if (!$policy) {
-                    $policy = SlaPolicy::where([
-                        'area_id'  => $ticket->area_id,
-                        'unit_id'  => $ticket->unit_id,
-                        'priority' => $ticket->priority,
-                    ])->first();
-                }
-
-                if ($policy && $policy->deadline_minutes) {
-                    $startTime  = $ticket->created_at ?? now();
-                    $targetDate = $startTime->copy()->addMinutes($policy->deadline_minutes);
-                    $ticket->sla_outcome = $closedAt <= $targetDate ? 'SUCCESS' : 'FAILED';
-                } else {
-                    $ticket->sla_outcome = null;
-                }
             }
         });
 

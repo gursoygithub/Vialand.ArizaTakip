@@ -1,9 +1,24 @@
 # Models Guide
 
-## Task → Ticket Rename (in progress)
+## Task → Ticket Rename (complete)
 - Primary model: `App\Models\Ticket` (table: `tickets`)
-- Backward-compat alias: `App\Models\Task extends Ticket` — no logic
-- All **new** code uses `Ticket`, never `Task`
+- The legacy `Task` model alias and the `tasks()` relation methods on
+  Employee/Unit/SubArea/User/Technician have all been removed; every
+  caller now uses `Ticket` and `tickets()` directly.
+- The legacy schema columns `unit_description`, `completed_by`,
+  `due_date`, and `sla_outcome` were dropped by
+  `2026_05_04_120000_drop_legacy_columns_from_tickets`. Their model-level
+  `$fillable` / `$casts` / `completedBy()` relation / `booted()` write
+  hook were removed alongside.
+- Defensive references to `TaskStatusEnum::PENDING` / `COMPLETED` /
+  `WINTER_MAINTENANCE` remain in a small set of places (terminal-status
+  arrays in `TicketService`, `TicketObserver`, `CheckSlaBreaches`,
+  `TicketResource`, `ViewTicket`, `TicketStatsOverview`,
+  `TicketStatusChangedNotification`). These are intentional — they
+  ensure pre-Reform tickets that exist in production data still render
+  in lists/timelines/notifications. **Do not add new uses of these
+  enum cases**; the Legacy Task Migration Rule below applies to new
+  code.
 
 ## Turkish → English Column Mapping
 | Turkish (legacy) | English (current) | Table |
@@ -19,7 +34,7 @@
 | cozum_suresi_dakika | deadline_minutes | sla_policies |
 
 ## Required Relationships
-- **Ticket**: area, subArea, unit, group, employee, createdBy, completedBy, closedBy, statusHistories, mutes
+- **Ticket**: area, subArea, unit, group, employee, createdBy, closedBy, reopenedBy, statusHistories, mutes
 - **TicketStatusHistory**: ticket, changedBy
 - **TicketMute**: ticket, user (composite-unique on `(ticket_id, user_id)`)
 - **Group**: company, area, unit, manager (Employee), members (GroupMember has employee)
@@ -41,10 +56,53 @@
 
 ## Observer Hooks
 - `TicketObserver` (registered in AppServiceProvider):
-  - `creating`: SlaService → set `sla_deadline`; generate `ticket_no`
-  - `saving`: stamp `assigned_at` when an employee is attached; flip `sla_breached` when deadline has passed and status is non-terminal; clear it when a terminal status resolves on time
-  - `updated`: notify on direct `employee_id` reassignment (status-change notifications go through TicketService → event)
+  - `creating`: resolve SLA policy → set `sla_deadline`; default `status` (ASSIGNED if `employee_id` set, else OPEN); stamp `assigned_at` if created already-assigned; generate `ticket_no`
+  - `saving` (every save):
+    1. Stamp `assigned_at` when `employee_id` is set and `assigned_at` is empty
+    2. **Recalculate `sla_deadline` on priority change** — only when `exists && isDirty('priority') && area_id && priority` and **status is non-terminal** (excludes RESOLVED/CLOSED/CANCELLED). Rebases as `now() + policy.deadline_minutes + total_on_hold_minutes`. Runs BEFORE the breach flip so the same save evaluates the fresh deadline. Creating path is owned by `creating()` (not this branch)
+    3. Flip `sla_breached = true` when `sla_deadline` has passed and status is non-terminal (excludes RESOLVED/CLOSED/COMPLETED/CANCELLED)
+    4. Clear `sla_breached = false` when a terminal status save sees deadline still in the future
+  - `updated`: notify on direct `employee_id` reassignment (when status didn't change AND `$skipReassignNotification` is false). Sends `TicketAssignedNotification` AND fires FCM push (actor-name-prefixed body: `"{actor} tarafından atandı — {area} / {priority}"`); respects `ticket_mutes` and `wantsNotification('ticket_assigned', 'database')`
+  - `static $skipReassignNotification` — `TicketService::reassign` toggles this around `$ticket->update(['employee_id'])` to prevent the observer from double-firing alongside the service's own notify path
 - Other models set `created_by` / `updated_by` / `deleted_by` directly in `booted()`
+
+## Lifecycle Timestamps (Ticket)
+- `created_at` / `assigned_at` / `on_hold_since` / `resolved_at` / `closed_at` / `closed_by` — written by `TicketObserver` + `TicketService::transition` matchers
+- **Reopen resets the cycle**: `TicketService::transition` (terminal → ASSIGNED) clears `closed_at` / `closed_by` / `resolved_at` / `assigned_at`; the same save's `TicketObserver::saving` re-stamps `assigned_at = now()` because `employee_id` is preserved. This makes `assigned_at` the start-of-current-cycle marker
+- The view-page lifecycle strip queries `ticket_status_histories` for the first IN_PROGRESS row **scoped to `created_at >= assigned_at`** (no dedicated column for "İşleme Alındı"); the scope ensures pre-reopen IN_PROGRESS rows are excluded
 
 ## Media
 - Collection `task_attachments` on `Ticket` — disk `s3`, **multi-file** (no `singleFile()`); the create form caps at 5 files via `maxFiles(5)`
+
+## Legacy Task Migration Rule
+The codebase was migrated from a "Task" system to a "Ticket" (Reform)
+system. The following are BANNED in all new and existing code:
+
+**Relations**
+- `$record->tasks()` → use `$record->tickets()` instead
+- Any relation named `tasks` on any model
+
+**Columns / fields — never display or query**
+- `due_date` → use `sla_deadline` or `closed_at`
+- `completed_by` → use `closed_by`
+- `unit_description` → legacy field, always empty in modern data
+- `completedBy` relation → use `closedBy`
+
+**Enum values — never use these legacy statuses**
+- `TaskStatusEnum::PENDING` (value 0)
+- `TaskStatusEnum::COMPLETED` (value 1)
+- `TaskStatusEnum::WINTER_MAINTENANCE` (value 2)
+Use only Reform-era statuses: `OPEN`, `ASSIGNED`, `IN_PROGRESS`,
+`ON_HOLD`, `RESOLVED`, `CLOSED`, `CANCELLED`.
+
+**Banned patterns**
+- `formatStateUsing(fn ($state) => "<strong>{$state}</strong>")->html()`
+  XSS risk — never interpolate user input into HTML.
+
+**Performance source**
+- `sla_outcome` (`'SUCCESS'`/`'FAILED'`) → use `sla_breached` (boolean).
+  Canonical Reform-era SLA signal used by `PerformanceService` and all
+  dashboards.
+
+When encountering any of the above in existing code: flag and fix.
+When writing new code: never use any of the above.

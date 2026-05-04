@@ -4,7 +4,6 @@ namespace App\Filament\Resources\EmployeeResource\RelationManagers;
 
 use App\Enums\ActiveStatusEnum;
 use App\Filament\Resources\GroupResource;
-use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables;
@@ -12,7 +11,6 @@ use Filament\Tables\Table;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class GroupMembershipsRelationManager extends RelationManager
 {
@@ -20,12 +18,12 @@ class GroupMembershipsRelationManager extends RelationManager
 
     protected static ?string $icon = 'heroicon-o-user-group';
 
-    protected static function getModelLabel(): ?string
+    public static function getModelLabel(): ?string
     {
         return __('ui.employee_group_membership');
     }
 
-    protected static function getPluralModelLabel(): ?string
+    public static function getPluralModelLabel(): ?string
     {
         return __('ui.employee_group_memberships');
     }
@@ -42,18 +40,13 @@ class GroupMembershipsRelationManager extends RelationManager
 
     public function form(Form $form): Form
     {
-        return $form
-            ->schema([
-                Forms\Components\TextInput::make('id')
-                    ->required()
-                    ->maxLength(255),
-            ]);
+        // No interactive form; isReadOnly() = true.
+        return $form->schema([]);
     }
 
     public function table(Table $table): Table
     {
         return $table
-            ->recordTitleAttribute('id')
             ->columns([
                 Tables\Columns\TextColumn::make('group.name')
                     ->label(__('ui.group'))
@@ -81,57 +74,45 @@ class GroupMembershipsRelationManager extends RelationManager
                     ->alignCenter()
                     ->searchable()
                     ->sortable(),
+                Tables\Columns\TextColumn::make('created_at')
+                    ->label('Üyelik Başlangıcı')
+                    ->icon('heroicon-o-calendar-days')
+                    ->date()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                    Tables\Filters\SelectFilter::make('group_id')
-                        ->label(__('ui.group'))
-                        ->options(function () {
-                            $ownerRecord = $this->getOwnerRecord();
-                            return $ownerRecord->groupMemberships()
-                                ->with('group')
-                                ->get()
-                                ->pluck('group.name', 'group_id')
-                                ->filter();
-                        })
-                        ->searchable(),
-                    Tables\Filters\SelectFilter::make('group_status')
-                        ->label(__('ui.status'))
-                        ->options(ActiveStatusEnum::class)
-                        ->query(fn (Builder $query, array $data) => $query->when(
-                            $data['value'] !== null,
-                            fn (Builder $q) => $q->whereHas('group', fn (Builder $q) => $q->where('status', $data['value']))
-                        )),
-            ])
-            ->headerActions([
-                Tables\Actions\CreateAction::make(),
+                Tables\Filters\SelectFilter::make('group_id')
+                    ->label(__('ui.group'))
+                    ->options(function () {
+                        $ownerRecord = $this->getOwnerRecord();
+                        return $ownerRecord->groupMemberships()
+                            ->with('group')
+                            ->get()
+                            ->pluck('group.name', 'group_id')
+                            ->filter();
+                    })
+                    ->searchable(),
+                Tables\Filters\SelectFilter::make('group_status')
+                    ->label(__('ui.status'))
+                    ->options(ActiveStatusEnum::class)
+                    ->query(fn (Builder $query, array $data) => $query->when(
+                        $data['value'] !== null,
+                        fn (Builder $q) => $q->whereHas('group', fn (Builder $q) => $q->where('status', $data['value']))
+                    )),
             ])
             ->actions([
+                // ViewAction navigates to the underlying Group, not the
+                // GroupMember pivot. Passing $record (a GroupMember) directly
+                // 404s because GroupResource binds on Group::id.
                 Tables\Actions\ViewAction::make()
-                    ->url(fn ($record) => GroupResource::getUrl('view', ['record' => $record])),
+                    ->url(fn ($record) => GroupResource::getUrl('view', ['record' => $record->group_id])),
             ])
-            ->bulkActions([
-                //
-            ]);
+            ->bulkActions([]);
     }
 
     public function isReadOnly(): bool
     {
-        return false;
+        return true;
     }
-
-    public function canCreate(): bool
-    {
-        return false;
-    }
-
-    protected function canEdit(Model $record): bool
-    {
-        return false;
-    }
-
-    protected function canDelete(Model $record): bool
-    {
-        return false;
-    }
-
 }
