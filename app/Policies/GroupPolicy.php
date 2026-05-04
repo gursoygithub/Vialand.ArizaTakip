@@ -1,11 +1,13 @@
 <?php
 
-// WARNING: Do NOT run `php artisan shield:generate --all` without
-// restoring this file from git afterwards.
-// shield:generate overwrites custom policy logic with stubs.
-// Run: git checkout HEAD -- app/Policies/TicketPolicy.php
-//      git checkout HEAD -- app/Policies/GroupPolicy.php
-//      git checkout HEAD -- app/Policies/SlaPolicyPolicy.php
+// WARNING: shield:generate overwrites this file with an auto-generated
+// stub that uses the wrong permission names (view_group vs the
+// project's namespaced group.view.all). Always pass
+// --ignore-existing-policies when invoking it manually:
+//   php artisan shield:generate --all --panel=dashboard --ignore-existing-policies
+// InitSeeder already does this, so migrate:fresh --seed is safe.
+// If you forget the flag, restore from git:
+//   git checkout HEAD -- app/Policies/TicketPolicy.php app/Policies/GroupPolicy.php app/Policies/SlaPolicyPolicy.php
 
 namespace App\Policies;
 
