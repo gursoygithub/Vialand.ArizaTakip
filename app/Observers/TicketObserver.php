@@ -37,37 +37,14 @@ class TicketObserver
             $ticket->assigned_at = now();
         }
 
-        // Keep the indexed sla_breached column in sync with the live deadline
-        // on every save. This is what makes filters like the "breached" tab
-        // and the navigation badge fast and accurate without depending on
-        // CheckSlaBreaches running. Terminal statuses are excluded from the
-        // flip path because their breach state is set deterministically by
-        // TicketService::transition (markClosed / markCancelled / RESOLVED).
-        $terminalStatuses = [
-            TaskStatusEnum::RESOLVED,
-            TaskStatusEnum::CLOSED,
-            TaskStatusEnum::COMPLETED,
-            TaskStatusEnum::CANCELLED,
-        ];
-
-        $isTerminal = in_array($ticket->status, $terminalStatuses, true);
-
-        if ($ticket->sla_deadline && !$isTerminal && now()->gt($ticket->sla_deadline)) {
-            $ticket->sla_breached = true;
-        }
-
-        if ($isTerminal && $ticket->sla_deadline && now()->lte($ticket->sla_deadline)) {
-            $ticket->sla_breached = false;
-        }
-
         // SLA deadline recalculation on priority change. Only applies to
         // existing non-terminal tickets — creating() owns the initial
         // snapshot. Rebases from now() + the resolved policy's
         // deadline_minutes and re-adds total_on_hold_minutes so a ticket
-        // that has been on hold keeps the extension it earned. The
-        // sla_breached flip above is intentionally NOT recomputed here:
-        // per the recalc rule we don't reassign the breach flag in this
-        // block — it'll be re-evaluated on the next save.
+        // that has been on hold keeps the extension it earned. Runs BEFORE
+        // the breach flip below so the flip evaluates the freshly-calculated
+        // deadline within the same save. We still don't assign sla_breached
+        // here — the flip is the canonical writer.
         $priorityRecalcTerminal = [
             TaskStatusEnum::RESOLVED,
             TaskStatusEnum::CLOSED,
@@ -95,6 +72,29 @@ class TicketObserver
                     ->addMinutes($policy->deadline_minutes)
                     ->addMinutes((int) $ticket->total_on_hold_minutes);
             }
+        }
+
+        // Keep the indexed sla_breached column in sync with the live deadline
+        // on every save. This is what makes filters like the "breached" tab
+        // and the navigation badge fast and accurate without depending on
+        // CheckSlaBreaches running. Terminal statuses are excluded from the
+        // flip path because their breach state is set deterministically by
+        // TicketService::transition (markClosed / markCancelled / RESOLVED).
+        $terminalStatuses = [
+            TaskStatusEnum::RESOLVED,
+            TaskStatusEnum::CLOSED,
+            TaskStatusEnum::COMPLETED,
+            TaskStatusEnum::CANCELLED,
+        ];
+
+        $isTerminal = in_array($ticket->status, $terminalStatuses, true);
+
+        if ($ticket->sla_deadline && !$isTerminal && now()->gt($ticket->sla_deadline)) {
+            $ticket->sla_breached = true;
+        }
+
+        if ($isTerminal && $ticket->sla_deadline && now()->lte($ticket->sla_deadline)) {
+            $ticket->sla_breached = false;
         }
     }
 

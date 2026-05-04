@@ -79,13 +79,43 @@ class TicketService
                 default                     => null,
             };
 
-            // Reopen path — clear closed_at so future closes record new timestamp
-            if (in_array($from, [TaskStatusEnum::CLOSED, TaskStatusEnum::COMPLETED, TaskStatusEnum::RESOLVED], true)
+            // Reopen path — clear closed_at so future closes record new
+            // timestamp, and rebase the SLA window from now() so the
+            // reopened ticket gets a fresh deadline. CANCELLED is included
+            // in the source set per the reopen-recalc rule even though the
+            // current transition matrix doesn't expose CANCELLED →
+            // IN_PROGRESS — the reset is in place if/when that path opens.
+            if (in_array($from, [TaskStatusEnum::CLOSED, TaskStatusEnum::COMPLETED, TaskStatusEnum::RESOLVED, TaskStatusEnum::CANCELLED], true)
                 && $toStatus === TaskStatusEnum::IN_PROGRESS) {
                 $ticket->closed_at    = null;
                 $ticket->closed_by    = null;
                 $ticket->resolved_at  = null;
-                $ticket->sla_breached = $ticket->sla_deadline ? now()->isAfter($ticket->sla_deadline) : false;
+
+                if ($ticket->area_id && $ticket->priority) {
+                    $priorityValue = is_object($ticket->priority)
+                        ? $ticket->priority->value
+                        : $ticket->priority;
+
+                    $policy = $this->slaService->resolvePolicy(
+                        $ticket->area_id,
+                        $ticket->sub_area_id,
+                        $ticket->unit_id,
+                        $priorityValue
+                    );
+
+                    if ($policy) {
+                        $ticket->sla_deadline = now()
+                            ->addMinutes($policy->deadline_minutes)
+                            ->addMinutes((int) $ticket->total_on_hold_minutes);
+                    }
+                }
+
+                // Reset unconditionally per spec — the breach flip in
+                // TicketObserver::saving may flip this back to true on the
+                // immediate save if no policy was found and the old
+                // deadline is in the past, which is correct: the ticket
+                // really is still in breach against its un-rebased deadline.
+                $ticket->sla_breached = false;
             }
 
             $ticket->status = $toStatus;
