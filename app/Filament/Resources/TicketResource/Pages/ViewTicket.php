@@ -41,7 +41,7 @@ class ViewTicket extends ViewRecord
      * the per-status logic lives in buildTransitionActions::$allowedFn):
      *   İşleme Al / Çözüldü / Beklemede → assigned personnel OR super_admin
      *   İptal Et / Kapat               → creator OR super_admin
-     *   Yeniden Aç                     → ticket.reopen OR super_admin
+     *   Yeniden Aç                     → creator OR super_admin (TicketPolicy::reopen)
      *   Yeniden Ata                    → ticket.assign AND not creator
      *   Düzenle / Sil                  → creator OR super_admin
      *   Not Ekle                       → any participant
@@ -464,8 +464,8 @@ class ViewTicket extends ViewRecord
             // Skip the auto-generated ASSIGNED button for OPEN → ASSIGNED —
             // the dedicated Ata/Yeniden Ata header action handles that case
             // (it also captures employee_id). Reopen (terminal → ASSIGNED)
-            // keeps its own button so ticket.reopen can gate it independently
-            // and the existing employee_id is preserved across the reopen.
+            // keeps its own button so TicketPolicy::reopen can gate it
+            // independently and the existing employee_id is preserved.
             if ($to === TaskStatusEnum::ASSIGNED && !$isReopenPath) {
                 continue;
             }
@@ -485,7 +485,11 @@ class ViewTicket extends ViewRecord
                 }
 
                 if ($isReopenPath) {
-                    return $user->can('ticket.reopen');
+                    // Reopen: creator only (super_admin handled above).
+                    // The legacy `ticket.reopen` permission no longer
+                    // gates this — TicketPolicy::reopen() is the canonical
+                    // server-side check, enforced via ->before() below.
+                    return (int) $ticket->created_by === (int) $user->id;
                 }
 
                 return match ($to) {
@@ -505,7 +509,7 @@ class ViewTicket extends ViewRecord
                 };
             };
 
-            $actions[] = Actions\Action::make('to_' . $to->value)
+            $action = Actions\Action::make('to_' . $to->value)
                 ->label($label)
                 ->icon($to->getIcon())
                 ->color($to->getColor())
@@ -533,6 +537,17 @@ class ViewTicket extends ViewRecord
                             ->send();
                     }
                 });
+
+            // Server-side gate for the reopen path: blocks direct
+            // mountAction / URL manipulation even when the visible()
+            // check is bypassed. Throws AuthorizationException → 403.
+            if ($isReopenPath) {
+                $action = $action->before(function () use ($ticket) {
+                    \Illuminate\Support\Facades\Gate::authorize('reopen', $ticket);
+                });
+            }
+
+            $actions[] = $action;
         }
 
         return $actions;

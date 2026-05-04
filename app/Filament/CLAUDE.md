@@ -27,7 +27,7 @@
 - Header action visibility (source-of-truth — see top-of-file comment in `ViewTicket.php`):
   - `İşleme Al` / `Çözüldü` / `Beklemede` → assigned employee's user OR `super_admin`
   - `İptal Et` / `Kapat` → creator OR `super_admin`
-  - `Yeniden Aç` (CLOSED/RESOLVED/COMPLETED → **ASSIGNED**) → `ticket.reopen` OR `super_admin`. Rendered by `buildTransitionActions` when `$to === ASSIGNED && $from ∈ terminal-set`; the OPEN → ASSIGNED case is still skipped in favor of the dedicated `Ata` action
+  - `Yeniden Aç` (CLOSED/RESOLVED/COMPLETED → **ASSIGNED**) → creator OR `super_admin` (`TicketPolicy::reopen`). Rendered by `buildTransitionActions` when `$to === ASSIGNED && $from ∈ terminal-set`; the OPEN → ASSIGNED case is still skipped in favor of the dedicated `Ata` action. Server-side gate enforced via `->before(fn () => Gate::authorize('reopen', $ticket))` so a forged mountAction call is rejected with 403 even if `visible()` is bypassed. The legacy `ticket.reopen` Spatie permission is no longer consulted
   - `Ata` / `Yeniden Ata` → `ticket.assign` AND **not** the creator (terminal-state hides it; reopen is a separate button)
   - `Düzenle` / `Sil` → creator OR `super_admin`
   - `Not Ekle` / `Takibi Aç`/`Bırak` → any participant (creator / current assignee / anyone in `ticket_status_histories.changed_by`)

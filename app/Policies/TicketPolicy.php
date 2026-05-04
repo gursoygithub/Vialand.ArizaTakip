@@ -64,6 +64,25 @@ class TicketPolicy
         return $user->can('ticket.close');
     }
 
+    /**
+     * Reopen a terminal ticket back to ASSIGNED. The matrix only allows
+     * RESOLVED/CLOSED → ASSIGNED, so this policy refuses anything else
+     * up front. Restricted to the original creator OR super_admin —
+     * the legacy `ticket.reopen` permission is no longer consulted.
+     */
+    public function reopen(User $user, Ticket $ticket): bool
+    {
+        if (in_array($ticket->status, [
+            TaskStatusEnum::RESOLVED,
+            TaskStatusEnum::CLOSED,
+        ], true) === false) {
+            return false;
+        }
+
+        return $ticket->created_by === $user->id
+            || $user->hasRole('super_admin');
+    }
+
     public function delete(User $user, Ticket $ticket): bool
     {
         // Terminal-state lock: mirrors update(). A finalised ticket is
