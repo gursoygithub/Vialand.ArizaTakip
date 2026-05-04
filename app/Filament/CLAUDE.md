@@ -30,6 +30,10 @@
   feedback for mixed selections. Removing the `->bulkActions(...)` block
   also removes the auto-rendered selection checkbox column.
 - Form: `task_date` and `description` paired in `Grid(2)` with `task_date->maxDate(today)` and `description->required()->minLength(10)`; attachments use multi-file upload (max 5, 10 MB each, jpeg/png/webp/pdf)
+- Filters (in `->filters([...])` on the list table):
+  - `area_id`, `status`, `priority`, `employee_id` — all `->multiple()` so users can slice across multiple values at once. `area_id` and `employee_id` are relationship-driven (`->relationship(...)` + `->searchable()->preload()`); `status` and `priority` build options from their respective enum cases.
+  - `created_at` — custom `Filter::make` with `from`/`to` `DatePicker`s, `whereDate('created_at', '>=', from)` / `whereDate('created_at', '<=', to)`. Day-granularity, each bound independent.
+  - `sla_status` — column-backed only: options are `breached` (→ `Ticket::scopeSlaBreached`) and `no_sla` (→ `whereNull('sla_deadline')`). The previous `on_time` / `warning` options were dropped because their raw `TIMESTAMPDIFF` SQL was MySQL-only (broken on the SQLite test path) and ignored the on-hold pause + `total_on_hold_minutes` credit, leaving them inconsistent with the per-row live label. **Use `Ticket::getSlaStatusLabel()` for live elapsed/warning display per row; this filter is for the persisted breach/no-policy axis only.**
 
 ### View page (`Pages/ViewTicket`)
 - Lifecycle strip (`filament.partials.ticket-lifecycle-strip`) at top: 5 numbered steps — Açıldı / Atandı / İşleme Alındı / Çözüldü / Kapatıldı. Step "done" sources: `created_at`, `assigned_at`, first IN_PROGRESS `ticket_status_histories` row **scoped to `created_at >= assigned_at`** (the scope makes the strip reflect the *current* assignment cycle after a reopen), `resolved_at`, `closed_at`
