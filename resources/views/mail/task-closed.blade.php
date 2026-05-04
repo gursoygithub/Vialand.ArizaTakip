@@ -133,12 +133,16 @@
                                         <td style="padding-bottom: 12px; color: #333;"><strong>{{ $closed_by?->name }}</strong></td>
                                     </tr>
                                     <tr>
-                                        <td style="padding-bottom: 12px; color: #888;">{{ __('ui.due_date') }}</td>
+                                        <td style="padding-bottom: 12px; color: #888;">Kapanma</td>
                                         <td style="padding-bottom: 12px; color: #333;">
-                                            {{ $task->due_date?->format('d.m.Y H:i') }}
+                                            {{ $task->closed_at?->format('d.m.Y H:i') }}
                                             @php
-                                                $targetDate = $task->created_at->addMinutes($policy?->deadline_minutes ?? 0);
-                                                $isSuccess = $task->due_date <= $targetDate;
+                                                // SLA outcome derived from sla_breached, the canonical
+                                                // Reform-era signal. Falls back to closed_at vs sla_deadline
+                                                // when sla_breached isn't set (legacy data).
+                                                $isSuccess = !$task->sla_breached
+                                                    && $task->sla_deadline
+                                                    && $task->closed_at?->lte($task->sla_deadline);
                                             @endphp
                                             <span style="margin-left: 10px; display: inline-block; padding: 2px 8px; border-radius: 4px; background-color: {{ $isSuccess ? '#d4edda' : '#f8d7da' }}; color: {{ $isSuccess ? '#155724' : '#721c24' }}; font-size: 11px; font-weight: bold;">
                                                 {{ $isSuccess ? __('ui.resolved_on_time') : __('ui.sla_breached') }}
@@ -154,9 +158,15 @@
 
                                             @if ($task->created_at)
                                                 @php
+                                                    // Wall-clock from creation to close. For terminal
+                                                    // statuses use closed_at; for active still use now().
+                                                    $isCompleted = in_array($task->status, [
+                                                        \App\Enums\TaskStatusEnum::CLOSED,
+                                                        \App\Enums\TaskStatusEnum::RESOLVED,
+                                                    ], true);
                                                     $start = $task->created_at;
-                                                    $end = ($task->status->value === \App\Enums\TaskStatusEnum::COMPLETED->value && $task->due_date)
-                                                        ? $task->due_date
+                                                    $end   = $isCompleted && $task->closed_at
+                                                        ? $task->closed_at
                                                         : now();
 
                                                     $diffText = $start->diffForHumans($end, [
@@ -164,8 +174,6 @@
                                                         'parts' => 3,
                                                         'join' => ' ',
                                                     ]);
-
-                                                    $isCompleted = ($task->status->value === \App\Enums\TaskStatusEnum::COMPLETED->value);
                                                     $bgColor = $isCompleted ? '#d4edda' : '#fff3cd';
                                                     $textColor = $isCompleted ? '#155724' : '#856404';
                                                     $borderColor = $isCompleted ? '#c3e6cb' : '#ffeeba';
