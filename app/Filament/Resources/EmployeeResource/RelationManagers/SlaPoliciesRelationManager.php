@@ -2,16 +2,14 @@
 
 namespace App\Filament\Resources\EmployeeResource\RelationManagers;
 
-use App\Enums\ActiveStatusEnum;
-use Filament\Forms;
+use App\Enums\TaskPriorityEnum;
+use Carbon\CarbonInterval;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\Relation;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class SlaPoliciesRelationManager extends RelationManager
 {
@@ -19,15 +17,12 @@ class SlaPoliciesRelationManager extends RelationManager
 
     protected static ?string $icon = 'heroicon-o-document-check';
 
-    /**
-     * @return string|null
-     */
     public static function getModelLabel(): ?string
     {
         return __('ui.employee_sla_policy');
     }
 
-    protected static function getPluralModelLabel(): ?string
+    public static function getPluralModelLabel(): ?string
     {
         return __('ui.employee_sla_policies');
     }
@@ -65,35 +60,44 @@ class SlaPoliciesRelationManager extends RelationManager
                     ->searchable()
                     ->sortable(),
 
+                // Priority with enum-resolved label and color, matching the
+                // way priority is rendered in the Tickets list and on the
+                // performance dashboard.
                 Tables\Columns\TextColumn::make('priority')
                     ->label(__('ui.priority'))
+                    ->badge()
+                    ->formatStateUsing(fn ($state) => $state instanceof TaskPriorityEnum ? $state->getLabel() : $state)
+                    ->color(fn ($state) => $state instanceof TaskPriorityEnum ? $state->getColor() : 'gray')
                     ->sortable(),
 
+                // Human-readable deadline ("4sa", "1g 6sa") instead of raw
+                // minute count. CarbonInterval handles the locale.
                 Tables\Columns\TextColumn::make('deadline_minutes')
                     ->label(__('ui.time_in_minutes'))
                     ->icon('heroicon-o-clock')
                     ->badge()
-                    ->alignCenter(),
+                    ->alignCenter()
+                    ->formatStateUsing(fn ($state) =>
+                        $state ? CarbonInterval::minutes((int) $state)->cascade()->forHumans(['short' => true]) : '—'
+                    ),
 
-//                Tables\Columns\TextColumn::make('pivot.status')
-//                    ->label('Durum')
-//                    ->badge(),
-
-                Tables\Columns\TextColumn::make('pivot.created_at')
-                    ->label('Atanma')
-                    ->dateTime(),
-
-
-                Tables\Columns\TextColumn::make('pivot.createdBy.name')
-                    ->visible(fn () => auth()->user()->hasRole('super_admin') || auth()->user()->can('view_all_sla_policies'))
-                    ->label(__('ui.created_by'))
-                    ->icon('heroicon-o-user')
+                Tables\Columns\TextColumn::make('success_threshold')
+                    ->label('Başarı Eşiği')
+                    ->formatStateUsing(fn ($state) => $state !== null ? '%' . round($state, 1) : '—')
+                    ->alignCenter()
                     ->toggleable(isToggledHiddenByDefault: true),
 
                 Tables\Columns\TextColumn::make('pivot.created_at')
-                    ->label(__('ui.created_at'))
+                    ->label('Atanma')
                     ->icon('heroicon-o-calendar-days')
-                    ->dateTime(),
+                    ->dateTime()
+                    ->sortable(),
+
+                Tables\Columns\TextColumn::make('pivot.createdBy.name')
+                    ->visible(fn () => auth()->user()?->hasRole('super_admin'))
+                    ->label(__('ui.created_by'))
+                    ->icon('heroicon-o-user')
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 Tables\Columns\TextColumn::make('pivot.updatedBy.name')
                     ->label(__('ui.updated_by'))
@@ -103,13 +107,10 @@ class SlaPoliciesRelationManager extends RelationManager
                 Tables\Columns\TextColumn::make('pivot.updated_at')
                     ->label(__('ui.updated_at'))
                     ->icon('heroicon-o-calendar-days')
-                    ->getStateUsing(fn ($record) => $record->updated_by ? $record->updated_at : null)
                     ->dateTime()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
-            ->filters([
-                //Tables\Filters\TrashedFilter::make(),
-            ])
+            ->filters([])
             ->headerActions([
                 Tables\Actions\AttachAction::make()
                     ->label('Yeni SLA Ata')
@@ -117,12 +118,11 @@ class SlaPoliciesRelationManager extends RelationManager
                     ->color('info')
                     ->preloadRecordSelect()
                     ->recordSelectOptionsQuery(fn (Builder $query) =>
-                    $query->with(['area', 'subArea', 'unit'])
+                        $query->with(['area', 'subArea', 'unit'])
                     )
                     ->recordTitle(fn ($record) =>
-                    "{$record->area?->name} > {$record->subArea?->name} > {$record->unit?->name} [{$record->priority->getLabel()}]"
+                        "{$record->area?->name} > {$record->subArea?->name} > {$record->unit?->name} [{$record->priority->getLabel()}]"
                     )
-                    ->recordSelectSearchColumns([])
                     ->form(fn (Tables\Actions\AttachAction $action): array => [
                         $action->getRecordSelect()
                             ->searchable()
@@ -142,7 +142,6 @@ class SlaPoliciesRelationManager extends RelationManager
                             }),
                     ])
                     ->mutateFormDataUsing(function (array $data): array {
-                        //$data['status'] = ActiveStatusEnum::ACTIVE->value;
                         $data['created_by'] = auth()->id();
                         return $data;
                     }),
@@ -156,11 +155,18 @@ class SlaPoliciesRelationManager extends RelationManager
                     ->modalDescription('Bu SLA politikasını personelden kaldırmak istediğinize emin misiniz?')
                     ->modalSubmitActionLabel('Onayla'),
             ])
+            // Suppress the default DetachBulkAction. Bulk detach has no
+            // pre-flight feedback for mixed selections; per-row Detach is
+            // the deliberate path. Matches the bulk-action removal pattern
+            // applied to TicketResource.
+            ->bulkActions([])
             ->modifyQueryUsing(fn (Builder $query) =>
-            $query->whereNull('employee_sla_policies.deleted_at')
+                $query->whereNull('employee_sla_policies.deleted_at')
             );
     }
 
+    // AttachAction + DetachAction need isReadOnly = false to remain wired up.
+    // canEdit isn't overridden because there is no EditAction registered.
     public function isReadOnly(): bool
     {
         return false;
