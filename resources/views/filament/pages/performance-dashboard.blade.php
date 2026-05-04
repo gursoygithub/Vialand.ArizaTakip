@@ -83,10 +83,10 @@
                 ['Risk Altında',            $atRisk,                                        'heroicon-o-exclamation-circle',    $atRiskColor,     '≤2sa içinde SLA'],
             ];
         @endphp
-        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-5 mt-8 mb-8">
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6 mt-8 mb-8">
             @foreach($cards as [$label, $value, $icon, $color, $subtitle])
             @php $p = $palette[$color]; @endphp
-            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-5 flex flex-col gap-2">
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 flex flex-col gap-2">
                 <div class="flex items-center justify-between">
                     <div class="w-10 h-10 rounded-xl flex items-center justify-center {{ $p['bg'] }}">
                         @svg($icon, 'w-5 h-5 ' . $p['fg'])
