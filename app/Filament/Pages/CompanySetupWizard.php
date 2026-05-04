@@ -12,7 +12,6 @@ use App\Models\GroupMember;
 use App\Models\SlaPolicy;
 use App\Models\SubArea;
 use App\Models\Unit;
-use App\Models\User;
 use Filament\Actions\Action;
 use Filament\Actions\Concerns\InteractsWithActions;
 use Filament\Actions\Contracts\HasActions;
@@ -32,12 +31,9 @@ use Filament\Forms\Form;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Support\Enums\MaxWidth;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Facades\DB;
-use Spatie\Permission\Models\Role;
 
 /**
- * 6-step setup wizard scoped to a single company. Steps save independently
+ * 5-step setup wizard scoped to a single company. Steps save independently
  * via Filament action modals — the wizard's "submit" simply redirects.
  *
  * Schema quirk: sla_policies.sub_area_id is NOT NULL (see database/CLAUDE.md),
@@ -62,7 +58,7 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
     /**
      * Soft-warning steps the user has explicitly clicked through.
      * Cleared whenever companyId changes (different company → different state).
-     * Step keys: 'areas', 'sla', 'groups', 'users'.
+     * Step keys: 'areas', 'sla', 'groups'.
      */
     public array $softConfirmedSteps = [];
 
@@ -126,7 +122,6 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
                     $this->stepAreas(),
                     $this->stepSla(),
                     $this->stepGroups(),
-                    $this->stepUsers(),
                     $this->stepSummary(),
                 ])
                     ->persistStepInQueryString()
@@ -789,81 +784,7 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    // STEP 5 — Kullanıcı Rolleri
-    // ─────────────────────────────────────────────────────────────────────
-
-    protected function stepUsers(): Step
-    {
-        return Step::make('Kullanıcı Rolleri')
-            ->icon('heroicon-o-user-circle')
-            ->description('Şirket kullanıcılarının rollerini ayarlayın')
-            ->afterValidation(function () {
-                $companyId = (int) ($this->data['companyId'] ?? 0);
-                if (!$companyId) {
-                    return;
-                }
-
-                $defaultUsers = $this->defaultUsersFor($companyId);
-                $count = count($defaultUsers);
-                if ($count === 0) {
-                    return;
-                }
-
-                // SOFT: still some users on default role.
-                $this->softGate(
-                    'users',
-                    'Default rolünde kullanıcılar var',
-                    "$count kullanıcı hâlâ default rolünde. Eksik tanımlamalarla devam etmek istediğinizden emin misiniz?",
-                );
-            })
-            ->schema([
-                Placeholder::make('users_empty_company')
-                    ->hiddenLabel()
-                    ->content('Devam etmek için Adım 1\'de bir şirket seçin.')
-                    ->visible(fn (Forms\Get $get) => blank($get('companyId'))),
-
-                Section::make('Rol Atanmamış Kullanıcılar')
-                    ->description('Sadece "default" rolüne sahip, henüz yetki atanmamış kullanıcılar.')
-                    ->visible(fn (Forms\Get $get) => filled($get('companyId')))
-                    ->schema([
-                        ViewField::make('default_users')
-                            ->hiddenLabel()
-                            ->view('filament.pages.company-setup-wizard.partials.users-default')
-                            ->viewData(function (Forms\Get $get) {
-                                $companyId = (int) ($get('companyId') ?? 0);
-                                $stats = $this->companyUserStats($companyId);
-                                return [
-                                    'users'                => $this->defaultUsersFor($companyId),
-                                    'roles'                => $this->assignableRoles(),
-                                    'employee_count'       => $stats['employee_count'],
-                                    'matched_users_count'  => $stats['matched_users_count'],
-                                ];
-                            }),
-                    ]),
-
-                Section::make('Mevcut Rol Atamaları')
-                    ->description('Bu şirkete bağlı kullanıcılar ve mevcut rolleri.')
-                    ->visible(fn (Forms\Get $get) => filled($get('companyId')))
-                    ->schema([
-                        ViewField::make('roled_users')
-                            ->hiddenLabel()
-                            ->view('filament.pages.company-setup-wizard.partials.users-roled')
-                            ->viewData(function (Forms\Get $get) {
-                                $companyId = (int) ($get('companyId') ?? 0);
-                                $stats = $this->companyUserStats($companyId);
-                                return [
-                                    'users'                => $this->roledUsersFor($companyId),
-                                    'roles'                => $this->assignableRoles(),
-                                    'employee_count'       => $stats['employee_count'],
-                                    'matched_users_count'  => $stats['matched_users_count'],
-                                ];
-                            }),
-                    ]),
-            ]);
-    }
-
-    // ─────────────────────────────────────────────────────────────────────
-    // STEP 6 — Özet
+    // STEP 5 — Özet
     // ─────────────────────────────────────────────────────────────────────
 
     protected function stepSummary(): Step
@@ -1222,71 +1143,6 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
             });
     }
 
-    public function assignRoleAction(): Action
-    {
-        return Action::make('assignRole')
-            ->label('Rol Ata')
-            ->icon('heroicon-o-shield-check')
-            ->modalHeading('Rol Ata')
-            ->form([
-                Select::make('role')
-                    ->label('Rol')
-                    ->options(fn () => $this->assignableRoles())
-                    ->required(),
-            ])
-            ->action(function (array $arguments, array $data) {
-                $user = User::find($arguments['user_id'] ?? null);
-                if (!$user || empty($data['role'])) {
-                    return;
-                }
-                $user->syncRoles([$data['role']]);
-                Notification::make()
-                    ->title($user->name . ' → ' . $data['role'])
-                    ->success()
-                    ->send();
-            });
-    }
-
-    public function grantExtraCompanyAction(): Action
-    {
-        return Action::make('grantExtraCompany')
-            ->label('Ekstra Şirket Erişimi')
-            ->icon('heroicon-o-building-office-2')
-            ->modalHeading('Ekstra Şirket Erişimi Ver')
-            ->form(fn (array $arguments) => [
-                Select::make('company_ids')
-                    ->label('Şirketler')
-                    ->multiple()
-                    ->searchable()
-                    ->options(function () use ($arguments) {
-                        $user = User::find($arguments['user_id'] ?? null);
-                        $own = $user?->employee?->company_id;
-                        return Company::query()
-                            ->when($own, fn (Builder $q) => $q->where('id', '!=', $own))
-                            ->orderBy('name')
-                            ->pluck('name', 'id')
-                            ->toArray();
-                    })
-                    ->required(),
-            ])
-            ->action(function (array $arguments, array $data) {
-                $userId = (int) ($arguments['user_id'] ?? 0);
-                if (!$userId || empty($data['company_ids'])) {
-                    return;
-                }
-                foreach ($data['company_ids'] as $companyId) {
-                    DB::table('user_company_access')->updateOrInsert(
-                        ['user_id' => $userId, 'company_id' => (int) $companyId],
-                        ['granted_by' => auth()->id(), 'updated_at' => now(), 'created_at' => now()]
-                    );
-                }
-                Notification::make()
-                    ->title(count($data['company_ids']) . ' şirket erişimi verildi')
-                    ->success()
-                    ->send();
-            });
-    }
-
     // ─────────────────────────────────────────────────────────────────────
     // DATA HELPERS
     // ─────────────────────────────────────────────────────────────────────
@@ -1488,88 +1344,6 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
             ])->values()->all();
     }
 
-    /**
-     * Counts that drive the empty-state copy in the role-management
-     * partials. The Employee → User bridge is by email equality (Users
-     * are materialised on first LDAP login, not by employee:sync), so
-     * a brand-new deploy will have N employees and 0 users — and both
-     * panel sections need to say "no logins yet" rather than "everyone
-     * has a role / nothing to do".
-     *
-     * @return array{employee_count: int, matched_users_count: int}
-     */
-    protected function companyUserStats(int $companyId): array
-    {
-        if (!$companyId) {
-            return ['employee_count' => 0, 'matched_users_count' => 0];
-        }
-
-        $emails = Employee::where('company_id', $companyId)
-            ->pluck('email')
-            ->filter()
-            ->all();
-
-        $employeeCount = Employee::where('company_id', $companyId)->count();
-        $matchedUsersCount = empty($emails)
-            ? 0
-            : User::whereIn('email', $emails)->count();
-
-        return [
-            'employee_count'      => $employeeCount,
-            'matched_users_count' => $matchedUsersCount,
-        ];
-    }
-
-    protected function defaultUsersFor(int $companyId): array
-    {
-        if (!$companyId) {
-            return [];
-        }
-
-        $emails = Employee::where('company_id', $companyId)->pluck('email')->filter()->all();
-
-        return User::query()
-            ->whereIn('email', $emails)
-            ->whereDoesntHave('roles', fn ($q) => $q->where('name', '!=', 'default'))
-            ->with('employee:id,email,title,company_id')
-            ->orderBy('name')
-            ->limit(200)
-            ->get()
-            ->map(fn (User $user) => [
-                'id'             => $user->id,
-                'name'           => $user->name,
-                'email'          => $user->email,
-                'title'          => $user->employee?->title ?? '—',
-                'last_ldap_sync' => $user->last_ldap_sync?->format('d.m.Y H:i') ?? '—',
-            ])->values()->all();
-    }
-
-    protected function roledUsersFor(int $companyId): array
-    {
-        if (!$companyId) {
-            return [];
-        }
-
-        $emails = Employee::where('company_id', $companyId)->pluck('email')->filter()->all();
-
-        return User::query()
-            ->whereIn('email', $emails)
-            ->whereHas('roles', fn ($q) => $q->where('name', '!=', 'default'))
-            ->with(['roles', 'employee:id,email,company_id'])
-            ->orderBy('name')
-            ->limit(200)
-            ->get()
-            ->map(fn (User $user) => [
-                'id'              => $user->id,
-                'name'            => $user->name,
-                'email'           => $user->email,
-                'role'            => $user->roles->first()?->name ?? '—',
-                'extra_companies' => DB::table('user_company_access')
-                    ->where('user_id', $user->id)
-                    ->count(),
-            ])->values()->all();
-    }
-
     protected function summaryStats(int $companyId): array
     {
         $base = $this->companyStats($companyId);
@@ -1577,16 +1351,6 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
         if (!$companyId || empty($base)) {
             return [];
         }
-
-        $emails = Employee::where('company_id', $companyId)->pluck('email')->filter()->all();
-
-        $usersWithRoles = User::whereIn('email', $emails)
-            ->whereHas('roles', fn ($q) => $q->where('name', '!=', 'default'))
-            ->count();
-
-        $usersDefault = User::whereIn('email', $emails)
-            ->whereDoesntHave('roles', fn ($q) => $q->where('name', '!=', 'default'))
-            ->count();
 
         $subAreaCount = SubArea::whereIn(
             'area_id',
@@ -1630,20 +1394,9 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
         return array_merge($base, [
             'sub_area_count'    => $subAreaCount,
             'group_member_count' => $totalMembers,
-            'users_with_roles'  => $usersWithRoles,
-            'users_default'     => $usersDefault,
             'missing_list'      => array_slice($missingList, 0, 30),
             'missing_total'     => count($missingList),
         ]);
-    }
-
-    protected function assignableRoles(): array
-    {
-        return Role::query()
-            ->where('name', '!=', 'super_admin')
-            ->orderBy('name')
-            ->pluck('name', 'name')
-            ->toArray();
     }
 
     /**
