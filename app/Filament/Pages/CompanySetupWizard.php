@@ -273,9 +273,13 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
                     // Different company = different state. Drop any soft
                     // confirmations the user already clicked through, otherwise
                     // a "no SLAs" warning skipped on company A would silently
-                    // skip the same warning on company B.
-                    ->afterStateUpdated(function () {
+                    // skip the same warning on company B. Also reset the SLA
+                    // scope so a sub_area from the previous company doesn't
+                    // leak into the matrix (which would silently filter it
+                    // down to zero rows).
+                    ->afterStateUpdated(function (Forms\Set $set) {
                         $this->softConfirmedSteps = [];
+                        $set('slaScopeSubAreaId', null);
                     }),
 
                 ViewField::make('summary_card')
@@ -422,13 +426,17 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
                 }
 
                 // Per-area SLA presence check. An area with ZERO policies is
-                // unusable for tickets — SlaService falls back at area+unit
-                // level, but if NO row exists for the area_id at all the
-                // resolver returns null and tickets get a NULL sla_deadline.
-                // That's a hard block. An area with SOME policies but not
-                // every (unit × priority) combination is recoverable via
-                // fallback for some priorities and acceptable as a soft
-                // warning.
+                // unusable for tickets — SlaService L3 fallback (area+priority)
+                // would miss, leaving only L4 (priority only) which depends on
+                // global rows that may not exist. That's a hard block.
+                //
+                // For partial coverage we count DISTINCT (unit, priority)
+                // tuples covered by any row in the area — a default row
+                // (sub_area_id IS NULL) and a location-specific override row
+                // both count as covering the same tuple at L2/L1, so we don't
+                // over-count override stacks. Pre-Reform code counted raw rows
+                // here, which double-counted overrides and silently masked
+                // partial coverage when a popular tuple had many overrides.
                 $units = Unit::pluck('id');
                 $unitCount = $units->count();
                 $expectedPerArea = $unitCount * 4;
@@ -437,13 +445,16 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
                 $areasWithPartialSla = [];
 
                 foreach ($areas as $area) {
-                    $count = SlaPolicy::where('area_id', $area->id)
+                    $distinctTuples = SlaPolicy::where('area_id', $area->id)
                         ->whereIn('unit_id', $units)
+                        ->select('unit_id', 'priority')
+                        ->distinct()
+                        ->get()
                         ->count();
 
-                    if ($count === 0) {
+                    if ($distinctTuples === 0) {
                         $areasWithNoSla[] = $area->name;
-                    } elseif ($count < $expectedPerArea) {
+                    } elseif ($distinctTuples < $expectedPerArea) {
                         $areasWithPartialSla[] = $area->name;
                     }
                 }
@@ -480,14 +491,43 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
                     ->visible(fn (Forms\Get $get) => blank($get('companyId'))),
 
                 Section::make('SLA Matrisi')
-                    ->description('Hücreye tıklayarak öncelik bazlı SLA dakikalarını düzenleyin.')
+                    ->description('Lokasyon kapsamını seçin, ardından hücrelere tıklayarak öncelik bazlı SLA dakikalarını düzenleyin. "Varsayılan" kapsam tüm lokasyonlar için geçerli olur; spesifik lokasyon seçilirse o lokasyon için override yazılır.')
                     ->visible(fn (Forms\Get $get) => filled($get('companyId')))
                     ->schema([
+                        // Scope selector: null sub_area = "default for the area"
+                        // (matches L2 in SlaService::resolvePolicy). Selecting a
+                        // specific sub_area filters the matrix to that area and
+                        // edits L1 (location-specific override) rows.
+                        Select::make('slaScopeSubAreaId')
+                            ->label('Lokasyon Kapsamı')
+                            ->placeholder('Varsayılan (tüm lokasyonlar)')
+                            ->helperText('Boş bırakırsanız bölge geneli (sub_area_id = NULL) kayıt yazılır. Bir lokasyon seçilirse o lokasyon için override yazılır ve matris yalnızca o lokasyonun bölgesini gösterir.')
+                            ->live()
+                            ->options(function (Forms\Get $get) {
+                                $companyId = (int) ($get('companyId') ?? 0);
+                                if (!$companyId) {
+                                    return [];
+                                }
+
+                                $areaIds = Area::where('company_id', $companyId)->pluck('id');
+
+                                return SubArea::whereIn('area_id', $areaIds)
+                                    ->with('area:id,name')
+                                    ->orderBy('area_id')
+                                    ->orderBy('name')
+                                    ->get()
+                                    ->mapWithKeys(fn (SubArea $sa) => [
+                                        $sa->id => ($sa->area?->name ?? '—') . ' → ' . $sa->name,
+                                    ])
+                                    ->all();
+                            }),
+
                         ViewField::make('sla_grid')
                             ->hiddenLabel()
                             ->view('filament.pages.company-setup-wizard.partials.sla-grid')
                             ->viewData(fn (Forms\Get $get) => $this->slaGridData(
-                                (int) ($get('companyId') ?? 0)
+                                (int) ($get('companyId') ?? 0),
+                                $get('slaScopeSubAreaId') ? (int) $get('slaScopeSubAreaId') : null,
                             )),
                     ]),
             ]);
@@ -858,14 +898,32 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
         return Action::make('setSla')
             ->label('SLA Ayarla')
             ->icon('heroicon-o-clock')
-            ->modalHeading('SLA Politikası')
+            ->modalHeading(function (array $arguments): string {
+                $subAreaId = $arguments['sub_area_id'] ?? null;
+                if ($subAreaId) {
+                    $sub = SubArea::find((int) $subAreaId);
+                    return 'SLA Politikası — Lokasyon: ' . ($sub?->name ?? '—');
+                }
+                return 'SLA Politikası — Varsayılan (Bölge Geneli)';
+            })
             ->fillForm(function (array $arguments): array {
-                $areaId = (int) ($arguments['area_id'] ?? 0);
-                $unitId = (int) ($arguments['unit_id'] ?? 0);
-                $rows = SlaPolicy::where('area_id', $areaId)
-                    ->where('unit_id', $unitId)
-                    ->get()
+                $areaId    = (int) ($arguments['area_id'] ?? 0);
+                $unitId    = (int) ($arguments['unit_id'] ?? 0);
+                $subAreaId = $arguments['sub_area_id'] ?? null;
+                $subAreaId = $subAreaId ? (int) $subAreaId : null;
+
+                $query = SlaPolicy::where('area_id', $areaId)
+                    ->where('unit_id', $unitId);
+
+                if ($subAreaId === null) {
+                    $query->whereNull('sub_area_id');
+                } else {
+                    $query->where('sub_area_id', $subAreaId);
+                }
+
+                $rows = $query->get()
                     ->keyBy(fn ($p) => $this->priorityKey((int) $p->getRawOriginal('priority')));
+
                 return [
                     'low_min'      => $rows->get('low')?->deadline_minutes,
                     'medium_min'   => $rows->get('medium')?->deadline_minutes,
@@ -894,23 +952,32 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
                     ->numeric()->minValue(0)->maxValue(100)->default(80),
             ])
             ->action(function (array $arguments, array $data) {
-                $areaId = (int) ($arguments['area_id'] ?? 0);
-                $unitId = (int) ($arguments['unit_id'] ?? 0);
+                $areaId    = (int) ($arguments['area_id'] ?? 0);
+                $unitId    = (int) ($arguments['unit_id'] ?? 0);
+                $subAreaId = $arguments['sub_area_id'] ?? null;
+                $subAreaId = $subAreaId ? (int) $subAreaId : null;
+
                 if (!$areaId || !$unitId) {
                     return;
                 }
 
-                // sla_policies.sub_area_id is NOT NULL — pin to the area's
-                // first sub_area. SlaService falls back at area+unit+priority.
-                $subAreaId = SubArea::where('area_id', $areaId)
-                    ->orderBy('id')
-                    ->value('id');
-                if (!$subAreaId) {
-                    Notification::make()
-                        ->title('Önce bu bölgeye en az bir lokasyon ekleyin')
-                        ->danger()
-                        ->send();
-                    return;
+                // Defensive: if a sub_area was specified, make sure it actually
+                // belongs to the target area. Without this check, a stale or
+                // forged argument could write a row whose area_id and
+                // sub_area_id point at unrelated rows — which would still
+                // resolve at L1 but represent a logical inconsistency.
+                if ($subAreaId !== null) {
+                    $belongs = SubArea::where('id', $subAreaId)
+                        ->where('area_id', $areaId)
+                        ->exists();
+                    if (!$belongs) {
+                        Notification::make()
+                            ->title('Geçersiz lokasyon kapsamı')
+                            ->body('Seçilen lokasyon bu bölgeye ait değil.')
+                            ->danger()
+                            ->send();
+                        return;
+                    }
                 }
 
                 $threshold = (int) ($data['success_pct'] ?? 80);
@@ -925,17 +992,27 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
                 foreach ($priorityFields as $priorityValue => $field) {
                     $minutes = $data[$field] ?? null;
 
-                    $existing = SlaPolicy::where('area_id', $areaId)
+                    // The schema-level UNIQUE on (area, sub_area, unit, priority,
+                    // deleted_at) treats NULL as distinct in MySQL/SQLite, so the
+                    // upsert key must be enforced application-side here via
+                    // whereNull / where on the same tuple the user is editing.
+                    $existingQuery = SlaPolicy::where('area_id', $areaId)
                         ->where('unit_id', $unitId)
-                        ->where('priority', $priorityValue)
-                        ->first();
+                        ->where('priority', $priorityValue);
+
+                    if ($subAreaId === null) {
+                        $existingQuery->whereNull('sub_area_id');
+                    } else {
+                        $existingQuery->where('sub_area_id', $subAreaId);
+                    }
+
+                    $existing = $existingQuery->first();
 
                     if (filled($minutes)) {
                         if ($existing) {
                             $existing->update([
                                 'deadline_minutes'  => (int) $minutes,
                                 'success_threshold' => $threshold,
-                                'sub_area_id'       => $existing->sub_area_id ?: $subAreaId,
                             ]);
                         } else {
                             SlaPolicy::create([
@@ -1162,21 +1239,57 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
             ])->values()->all();
     }
 
-    protected function slaGridData(int $companyId): array
+    /**
+     * Build the matrix data for the SLA editor scoped to a sub_area.
+     *
+     *  - $selectedSubAreaId === null  → editing area-wide defaults
+     *    (sub_area_id IS NULL rows). All areas of the company are shown.
+     *  - $selectedSubAreaId is set    → editing location-specific overrides
+     *    (sub_area_id = $selectedSubAreaId). Only the area owning that
+     *    sub_area is shown — other areas would be nonsensical for that
+     *    sub_area and listing them would invite the user to write rows
+     *    against an unrelated area.
+     */
+    protected function slaGridData(int $companyId, ?int $selectedSubAreaId): array
     {
         if (!$companyId) {
-            return ['areas' => [], 'units' => [], 'matrix' => [], 'defined' => 0, 'missing' => 0];
+            return [
+                'areas' => [], 'units' => [], 'matrix' => [],
+                'defined' => 0, 'missing' => 0,
+                'scope_sub_area_id' => $selectedSubAreaId,
+            ];
         }
 
-        $areas = Area::where('company_id', $companyId)
-            ->orderBy('name')
-            ->get(['id', 'name']);
+        $areaQuery = Area::where('company_id', $companyId);
 
+        if ($selectedSubAreaId) {
+            // Restrict to the area owning the chosen sub_area. If the chosen
+            // sub_area no longer exists (e.g. just deleted), return an empty
+            // matrix instead of falling open to all areas.
+            $sub = SubArea::find($selectedSubAreaId);
+            if (!$sub) {
+                return [
+                    'areas' => [], 'units' => [], 'matrix' => [],
+                    'defined' => 0, 'missing' => 0,
+                    'scope_sub_area_id' => $selectedSubAreaId,
+                ];
+            }
+            $areaQuery->where('id', $sub->area_id);
+        }
+
+        $areas = $areaQuery->orderBy('name')->get(['id', 'name']);
         $units = Unit::orderBy('name')->get(['id', 'name']);
 
-        $policies = SlaPolicy::whereIn('area_id', $areas->pluck('id'))
-            ->whereIn('unit_id', $units->pluck('id'))
-            ->get();
+        $policyQuery = SlaPolicy::whereIn('area_id', $areas->pluck('id'))
+            ->whereIn('unit_id', $units->pluck('id'));
+
+        if ($selectedSubAreaId) {
+            $policyQuery->where('sub_area_id', $selectedSubAreaId);
+        } else {
+            $policyQuery->whereNull('sub_area_id');
+        }
+
+        $policies = $policyQuery->get();
 
         $matrix = [];
         foreach ($areas as $area) {
@@ -1209,11 +1322,12 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
         $missing  = max(0, $expected - $defined);
 
         return [
-            'areas'   => $areas->all(),
-            'units'   => $units->all(),
-            'matrix'  => $matrix,
-            'defined' => $defined,
-            'missing' => $missing,
+            'areas'             => $areas->all(),
+            'units'             => $units->all(),
+            'matrix'            => $matrix,
+            'defined'           => $defined,
+            'missing'           => $missing,
+            'scope_sub_area_id' => $selectedSubAreaId,
         ];
     }
 

@@ -11,63 +11,72 @@ use Illuminate\Support\Facades\Log;
 class SlaService
 {
     /**
-     * Resolve the most specific SLA policy. 3-level fallback:
-     *   1) area + unit + priority (exact match, optionally with sub_area)
-     *   2) area + priority         (any unit/sub_area in that area)
-     *   3) priority only           (global fallback for that priority)
+     * Resolve the most specific SLA policy. 4-level fallback:
+     *   L1) area + sub_area + unit + priority   (location-specific override)
+     *   L2) area + sub_area IS NULL + unit + priority (area-wide default for unit)
+     *   L3) area + priority                     (any sub_area / any unit in area)
+     *   L4) priority only                       (global fallback for that priority)
      * Each match level is logged for diagnostics.
      */
     public function resolvePolicy(int $areaId, ?int $subAreaId, ?int $unitId, int|string $priority): ?SlaPolicy
     {
-        // Level 1: most specific
-        if ($unitId) {
-            $q = SlaPolicy::where('area_id', $areaId)
+        // L1: location-specific override (requires both sub_area and unit).
+        if ($subAreaId && $unitId) {
+            $exact = SlaPolicy::where('area_id', $areaId)
+                ->where('sub_area_id', $subAreaId)
                 ->where('unit_id', $unitId)
-                ->where('priority', $priority);
+                ->where('priority', $priority)
+                ->first();
 
-            if ($subAreaId) {
-                $exact = (clone $q)->where('sub_area_id', $subAreaId)->first();
-                if ($exact) {
-                    Log::debug('SLA matched L1 (area+sub_area+unit+priority)', [
-                        'policy_id' => $exact->id, 'area_id' => $areaId,
-                    ]);
-                    return $exact;
-                }
-            }
-
-            $any = $q->first();
-            if ($any) {
-                Log::debug('SLA matched L1 (area+unit+priority)', [
-                    'policy_id' => $any->id, 'area_id' => $areaId,
+            if ($exact) {
+                Log::debug('SLA matched L1 (area+sub_area+unit+priority)', [
+                    'policy_id' => $exact->id, 'area_id' => $areaId,
                 ]);
-                return $any;
+                return $exact;
             }
         }
 
-        // Level 2: area + priority (any unit)
+        // L2: area-wide default for this unit (sub_area IS NULL).
+        if ($unitId) {
+            $defaultForUnit = SlaPolicy::where('area_id', $areaId)
+                ->whereNull('sub_area_id')
+                ->where('unit_id', $unitId)
+                ->where('priority', $priority)
+                ->first();
+
+            if ($defaultForUnit) {
+                Log::debug('SLA matched L2 (area+null_sub_area+unit+priority)', [
+                    'policy_id' => $defaultForUnit->id, 'area_id' => $areaId,
+                ]);
+                return $defaultForUnit;
+            }
+        }
+
+        // L3: area + priority (any sub_area / any unit). First row wins.
         $byArea = SlaPolicy::where('area_id', $areaId)
             ->where('priority', $priority)
             ->first();
 
         if ($byArea) {
-            Log::debug('SLA matched L2 (area+priority)', [
+            Log::debug('SLA matched L3 (area+priority)', [
                 'policy_id' => $byArea->id, 'area_id' => $areaId,
             ]);
             return $byArea;
         }
 
-        // Level 3: priority only
+        // L4: priority only.
         $byPriority = SlaPolicy::where('priority', $priority)->first();
 
         if ($byPriority) {
-            Log::debug('SLA matched L3 (priority only)', [
+            Log::debug('SLA matched L4 (priority only)', [
                 'policy_id' => $byPriority->id, 'priority' => $priority,
             ]);
             return $byPriority;
         }
 
         Log::debug('SLA no match', [
-            'area_id' => $areaId, 'unit_id' => $unitId, 'priority' => $priority,
+            'area_id' => $areaId, 'sub_area_id' => $subAreaId,
+            'unit_id' => $unitId, 'priority' => $priority,
         ]);
 
         return null;
