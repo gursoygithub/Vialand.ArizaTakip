@@ -513,7 +513,10 @@ class TicketService
             'note'        => $note,
         ]);
 
-        // Creator + assignee minus actor — single bell entry per recipient.
+        // Full participant set (creator + current assignee + anyone in
+        // ticket_status_histories.changed_by) minus actor and muted users —
+        // see notifyParticipants → getTicketParticipants. Mirrors the
+        // visibility rule of the "Not Ekle" button on ViewTicket.
         $actorName = $this->actorDisplayName($by);
         $this->notifyParticipants(
             $ticket,
