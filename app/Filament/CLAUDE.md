@@ -17,7 +17,18 @@
 - Row actions: wrapped in `Tables\Actions\ActionGroup::make([...])` (the
   three-dot menu) so the row stays compact. Order inside the group:
   `ViewAction`, `EditAction`, `DeleteAction`. Edit/Delete are creator or
-  `super_admin` only (mirrors `TicketPolicy::update/delete`).
+  `super_admin` only AND additionally `->hidden()` on terminal statuses
+  (RESOLVED/CLOSED/CANCELLED) so the buttons don't appear at all on
+  finalised tickets — `TicketPolicy::update` / `delete` enforce the same
+  rule server-side, but the row-level `->hidden()` prevents the
+  visible-button → click → 403 UX gap.
+- **No bulk actions / no checkbox column** — the previous `bulk_assign`,
+  `bulk_status`, and `DeleteBulkAction` were removed. `bulk_assign`
+  bypassed the terminal-state lock (raw `$ticket->update` on closed
+  tickets), `bulk_status` duplicated the per-row transition buttons on
+  the View page, and `DeleteBulkAction` had no per-record pre-flight
+  feedback for mixed selections. Removing the `->bulkActions(...)` block
+  also removes the auto-rendered selection checkbox column.
 - Form: `task_date` and `description` paired in `Grid(2)` with `task_date->maxDate(today)` and `description->required()->minLength(10)`; attachments use multi-file upload (max 5, 10 MB each, jpeg/png/webp/pdf)
 
 ### View page (`Pages/ViewTicket`)

@@ -554,15 +554,27 @@ class TicketResource extends Resource
                 Tables\Actions\ActionGroup::make([
                     Tables\Actions\ViewAction::make(),
 
-                    // Edit/Delete are creator-or-super_admin only (mirrors the
-                    // ViewTicket header gate and TicketPolicy::update/delete).
+                    // Edit/Delete are creator-or-super_admin only AND hidden
+                    // on terminal statuses. The TicketPolicy enforces both
+                    // rules server-side; ->hidden() prevents the visible
+                    // button → click → 403 UX gap on terminal tickets.
                     Tables\Actions\EditAction::make()
                         ->visible(fn (Ticket $record): bool => $record->created_by === auth()->id()
-                            || (bool) auth()->user()?->hasRole('super_admin')),
+                            || (bool) auth()->user()?->hasRole('super_admin'))
+                        ->hidden(fn (Ticket $record) => in_array($record->status, [
+                            TaskStatusEnum::RESOLVED,
+                            TaskStatusEnum::CLOSED,
+                            TaskStatusEnum::CANCELLED,
+                        ], true)),
 
                     Tables\Actions\DeleteAction::make()
                         ->visible(fn (Ticket $record): bool => $record->created_by === auth()->id()
                             || (bool) auth()->user()?->hasRole('super_admin'))
+                        ->hidden(fn (Ticket $record) => in_array($record->status, [
+                            TaskStatusEnum::RESOLVED,
+                            TaskStatusEnum::CLOSED,
+                            TaskStatusEnum::CANCELLED,
+                        ], true))
                         ->requiresConfirmation()
                         ->modalHeading('Talebi Sil')
                         ->modalDescription('Bu talebi silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.')
@@ -570,75 +582,12 @@ class TicketResource extends Resource
                         ->modalCancelActionLabel('İptal'),
                 ])
             ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    // Bulk assign — supervisor/admin only
-                    Tables\Actions\BulkAction::make('bulk_assign')
-                        ->label('Toplu Ata')
-                        ->icon('heroicon-o-user-plus')
-                        ->color('warning')
-                        ->visible(fn () => auth()->user()?->can('ticket.assign'))
-                        ->form([
-                            \Filament\Forms\Components\Select::make('employee_id')
-                                ->label(__('ui.assigned_employee'))
-                                ->relationship('employee', 'name')
-                                ->searchable()
-                                ->required(),
-                        ])
-                        ->action(function (\Illuminate\Database\Eloquent\Collection $records, array $data) {
-                            $service = app(\App\Services\TicketService::class);
-                            foreach ($records as $ticket) {
-                                $ticket->update(['employee_id' => $data['employee_id']]);
-                                if ($ticket->status === TaskStatusEnum::OPEN) {
-                                    try {
-                                        $service->transition($ticket, TaskStatusEnum::ASSIGNED, auth()->user(), 'Bulk assign');
-                                    } catch (\Throwable $e) {
-                                        // skip invalid transitions silently
-                                    }
-                                }
-                            }
-                            \Filament\Notifications\Notification::make()
-                                ->title($records->count() . ' bilet atandı')
-                                ->success()->send();
-                        }),
-
-                    // Bulk status change — supervisor/admin only
-                    Tables\Actions\BulkAction::make('bulk_status')
-                        ->label('Toplu Durum Değiştir')
-                        ->icon('heroicon-o-arrow-path')
-                        ->color('primary')
-                        ->visible(fn () => auth()->user()?->can('ticket.assign'))
-                        ->form([
-                            \Filament\Forms\Components\Select::make('status')
-                                ->label(__('ui.to_status'))
-                                ->options([
-                                    TaskStatusEnum::IN_PROGRESS->value => TaskStatusEnum::IN_PROGRESS->getLabel(),
-                                    TaskStatusEnum::ON_HOLD->value     => TaskStatusEnum::ON_HOLD->getLabel(),
-                                    TaskStatusEnum::CANCELLED->value   => TaskStatusEnum::CANCELLED->getLabel(),
-                                ])
-                                ->required(),
-                            \Filament\Forms\Components\Textarea::make('note')->label(__('ui.note'))->rows(2),
-                        ])
-                        ->action(function (\Illuminate\Database\Eloquent\Collection $records, array $data) {
-                            $service = app(\App\Services\TicketService::class);
-                            $to = TaskStatusEnum::from((int) $data['status']);
-                            $ok = 0; $skip = 0;
-                            foreach ($records as $ticket) {
-                                try {
-                                    $service->transition($ticket, $to, auth()->user(), $data['note'] ?? null);
-                                    $ok++;
-                                } catch (\Throwable $e) {
-                                    $skip++;
-                                }
-                            }
-                            \Filament\Notifications\Notification::make()
-                                ->title("Güncellendi: {$ok}, atlandı: {$skip}")
-                                ->success()->send();
-                        }),
-
-                    Tables\Actions\DeleteBulkAction::make(),
-                ]),
-            ])
+            // Bulk actions intentionally removed: bulk_assign bypassed the
+            // terminal-state lock (raw $ticket->update on closed tickets),
+            // bulk_status was redundant with the per-row transition buttons
+            // on the View page, and DeleteBulkAction had no per-record
+            // pre-flight feedback for mixed selections. Removing the block
+            // also removes the auto-rendered selection checkbox column.
             ->defaultSort('created_at', 'desc')
             ->defaultPaginationPageOption(25)
             ->paginationPageOptions([10, 25, 50, 100])
