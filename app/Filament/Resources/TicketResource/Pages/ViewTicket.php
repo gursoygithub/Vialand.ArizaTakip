@@ -87,6 +87,10 @@ class ViewTicket extends ViewRecord
                                 ->icon(fn ($state) => $state->getIcon()),
                         ]),
 
+                        \Filament\Infolists\Components\ViewEntry::make('lifecycle_strip')
+                            ->view('filament.partials.ticket-lifecycle-strip')
+                            ->columnSpanFull(),
+
                         Grid::make(3)->schema([
                             TextEntry::make('createdBy.name')
                                 ->label('Oluşturan')

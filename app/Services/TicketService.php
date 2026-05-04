@@ -532,6 +532,18 @@ class TicketService
         }
 
         $history->update(['note' => $newNote]);
+
+        $ticket = Ticket::find($history->ticket_id);
+        if ($ticket) {
+            $actorName = $this->actorDisplayName($by);
+            $this->notifyParticipants(
+                $ticket,
+                $by,
+                new TicketCommentNotification($ticket, $by, 'Not güncellendi: ' . mb_substr($newNote, 0, 100)),
+                $ticket->ticket_no . ' • Not Güncellendi',
+                $actorName . ' notu düzenledi',
+            );
+        }
     }
 
     public function isAllowed(?TaskStatusEnum $from, TaskStatusEnum $to): bool
