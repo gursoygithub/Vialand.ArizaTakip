@@ -45,7 +45,7 @@ class GroupMember extends Model
     public function employee()
     {
         return $this->belongsTo(Employee::class)
-            ->with('tasks');
+            ->with('tickets');
     }
 
     protected static $logName = 'group_members';
