@@ -83,10 +83,10 @@
                 ['Risk Altında',            $atRisk,                                        'heroicon-o-exclamation-circle',    $atRiskColor,     '≤2sa içinde SLA'],
             ];
         @endphp
-        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-8">
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-5 mt-8 mb-8">
             @foreach($cards as [$label, $value, $icon, $color, $subtitle])
             @php $p = $palette[$color]; @endphp
-            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-4 flex flex-col gap-2">
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-5 flex flex-col gap-2">
                 <div class="flex items-center justify-between">
                     <div class="w-10 h-10 rounded-xl flex items-center justify-center {{ $p['bg'] }}">
                         @svg($icon, 'w-5 h-5 ' . $p['fg'])
@@ -104,64 +104,70 @@
 
         <hr class="border-t border-gray-100 dark:border-gray-700 my-6">
 
-        {{-- Priority breakdown — fully standalone cards (border-2 + bg
-             tint + matching divider). Compliance bar at the bottom mirrors
-             the rate; per-priority palette keyed off enum value:
-             Düşük (1)→blue, Orta (2)→amber, Yüksek (3)→orange, Acil (4)→red. --}}
+        {{-- Priority breakdown — single card with one horizontal row per
+             priority. Each row: priority badge + compliance bar + 3-up
+             stats. Palettes spelled out in full so JIT keeps every
+             variant. --}}
         @if(!empty($overview['priority_breakdown'] ?? []))
         @php
-            $priorityPalette = [
-                1 => ['border' => 'border-blue-200 dark:border-blue-800',     'bg' => 'bg-blue-50/30 dark:bg-blue-900/10',     'text' => 'text-blue-600 dark:text-blue-400',     'divider' => 'border-blue-200 dark:border-blue-800'],
-                2 => ['border' => 'border-amber-200 dark:border-amber-800',   'bg' => 'bg-amber-50/30 dark:bg-amber-900/10',   'text' => 'text-amber-600 dark:text-amber-400',   'divider' => 'border-amber-200 dark:border-amber-800'],
-                3 => ['border' => 'border-orange-200 dark:border-orange-800', 'bg' => 'bg-orange-50/30 dark:bg-orange-900/10', 'text' => 'text-orange-600 dark:text-orange-400', 'divider' => 'border-orange-200 dark:border-orange-800'],
-                4 => ['border' => 'border-red-200 dark:border-red-800',       'bg' => 'bg-red-50/30 dark:bg-red-900/10',       'text' => 'text-red-600 dark:text-red-400',       'divider' => 'border-red-200 dark:border-red-800'],
+            $priorityBadge = [
+                1 => 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+                2 => 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+                3 => 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
+                4 => 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
             ];
         @endphp
-        <div>
-            <h3 class="font-semibold text-gray-900 dark:text-white border-l-4 border-primary-500 pl-3 mb-3">Öncelik Dağılımı</h3>
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
-                @foreach($overview['priority_breakdown'] as $row)
-                    @php
-                        $pp     = $priorityPalette[$row['priority']->value] ?? $priorityPalette[2];
-                        $rate   = $row['compliance_rate'];
-                        $rateText = $rate >= 80 ? 'text-emerald-600 dark:text-emerald-400'
-                            : ($rate >= 50 ? 'text-orange-600 dark:text-orange-400' : 'text-red-600 dark:text-red-400');
-                        $barFill  = $rate >= 80 ? 'bg-emerald-500'
-                            : ($rate >= 50 ? 'bg-orange-500' : 'bg-red-500');
-                    @endphp
-                    <div class="rounded-2xl border-2 p-5 flex flex-col gap-4 {{ $pp['border'] }} {{ $pp['bg'] }}">
-                        {{-- Header: priority label + total --}}
-                        <div class="flex items-center justify-between">
-                            <span class="text-sm font-bold uppercase tracking-wider {{ $pp['text'] }}">{{ $row['label'] }}</span>
-                            <span class="text-3xl font-black text-gray-800 dark:text-gray-100">{{ $row['total'] }}</span>
-                        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 mt-8">
+            <h3 class="text-sm font-semibold uppercase tracking-widest text-gray-400 mb-6">
+                Öncelik Dağılımı
+            </h3>
 
-                        {{-- Divider matching priority hue --}}
-                        <div class="border-t {{ $pp['divider'] }}"></div>
+            @foreach($overview['priority_breakdown'] as $row)
+                @php
+                    $badge = $priorityBadge[$row['priority']->value] ?? $priorityBadge[2];
+                    $rate  = $row['compliance_rate'];
+                    $barFill  = $rate >= 80 ? 'bg-emerald-500'
+                        : ($rate >= 50 ? 'bg-amber-400' : 'bg-red-400');
+                    $rateText = $rate >= 80 ? 'text-emerald-600 dark:text-emerald-400'
+                        : ($rate >= 50 ? 'text-amber-600 dark:text-amber-400' : 'text-red-500 dark:text-red-400');
+                @endphp
+                <div class="flex items-center gap-4 py-3 border-b border-gray-50 dark:border-gray-700 last:border-0">
+                    {{-- Priority badge (fixed-width column so bars line up) --}}
+                    <div class="w-20 shrink-0">
+                        <span class="inline-block text-xs font-bold px-2 py-1 rounded-full {{ $badge }}">
+                            {{ $row['label'] }}
+                        </span>
+                    </div>
 
-                        {{-- Stats row — horizontal three-up --}}
-                        <div class="grid grid-cols-3 gap-2 text-center">
-                            <div>
-                                <p class="text-lg font-bold text-emerald-600 dark:text-emerald-400">{{ $row['closed_on_time'] }}</p>
-                                <p class="text-xs text-gray-500 dark:text-gray-400">Zamanında</p>
+                    {{-- Progress bar + percentage --}}
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2">
+                            <div class="flex-1 bg-gray-100 dark:bg-gray-700 rounded-full h-2">
+                                <div class="h-2 rounded-full {{ $barFill }}" style="width: {{ min($rate, 100) }}%"></div>
                             </div>
-                            <div>
-                                <p class="text-lg font-bold text-red-500 dark:text-red-400">{{ $row['breached'] }}</p>
-                                <p class="text-xs text-gray-500 dark:text-gray-400">İhlal</p>
-                            </div>
-                            <div>
-                                <p class="text-lg font-bold {{ $rateText }}">{{ $rate }}%</p>
-                                <p class="text-xs text-gray-500 dark:text-gray-400">Uyum</p>
-                            </div>
-                        </div>
-
-                        {{-- Compliance progress bar (full width) --}}
-                        <div class="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-1.5">
-                            <div class="h-1.5 rounded-full {{ $barFill }}" style="width: {{ $rate }}%"></div>
+                            <span class="text-xs font-bold w-10 text-right {{ $rateText }}">{{ $rate }}%</span>
                         </div>
                     </div>
-                @endforeach
-            </div>
+
+                    {{-- Stats: Toplam / Zamanında / İhlal --}}
+                    <div class="flex gap-6 shrink-0 text-center">
+                        <div>
+                            <p class="text-sm font-bold text-gray-700 dark:text-gray-200">{{ $row['total'] }}</p>
+                            <p class="text-xs text-gray-400">Toplam</p>
+                        </div>
+                        <div>
+                            <p class="text-sm font-bold text-emerald-500">{{ $row['closed_on_time'] }}</p>
+                            <p class="text-xs text-gray-400">Zamanında</p>
+                        </div>
+                        <div>
+                            <p class="text-sm font-bold {{ $row['breached'] > 0 ? 'text-red-500' : 'text-gray-400' }}">
+                                {{ $row['breached'] }}
+                            </p>
+                            <p class="text-xs text-gray-400">İhlal</p>
+                        </div>
+                    </div>
+                </div>
+            @endforeach
         </div>
         @endif
 
