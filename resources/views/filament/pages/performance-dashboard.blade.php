@@ -5,23 +5,24 @@
          scans). Keeping every literal class string in the source ensures
          they're emitted in the build. Hidden from the page. --}}
     <div class="hidden
-        bg-blue-50 text-blue-600 bg-blue-900/30 text-blue-400
-        bg-indigo-50 text-indigo-600 bg-indigo-900/30 text-indigo-400
-        bg-amber-50 text-amber-600 bg-amber-900/30 text-amber-400
-        bg-red-50 text-red-600 bg-red-900/30 text-red-400
-        bg-emerald-50 text-emerald-600 bg-emerald-900/30 text-emerald-400
-        bg-violet-50 text-violet-600 bg-violet-900/30 text-violet-400
-        bg-sky-50 text-sky-600 bg-sky-900/30 text-sky-400
-        bg-orange-50 text-orange-600 bg-orange-900/30 text-orange-400
+        bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400
+        bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400
+        bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400
+        bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400
+        bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400
+        bg-violet-50 text-violet-600 dark:bg-violet-900/30 dark:text-violet-400
+        bg-sky-50 text-sky-600 dark:bg-sky-900/30 dark:text-sky-400
+        bg-orange-50 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400
     "></div>
 
-    {{-- Outer container: section spacing is now driven by <hr> separators
-         between each major block, so space-y-* on the wrapper would
-         double-stack with my-6 on the rules. --}}
+    {{-- Outer container: section spacing is driven by mb-8 (or mb-10 for
+         the cards grid) on each major section's wrapper. No <hr> rules,
+         no space-y-* on the parent — both would compound with mb-8 and
+         create over-large gaps. --}}
     <div>
 
         {{-- Filters --}}
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-4">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-4 mb-8">
             <form wire:submit.prevent="loadStats" class="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('ui.date_from') }}</label>
@@ -54,59 +55,44 @@
             </form>
         </div>
 
-        <hr class="border-t border-gray-100 dark:border-gray-700 my-6">
-
-        {{-- 10 summary cards — icon tile on top, value + label below.
-             Color resolves at render time for compliance / risk; safelist
-             at the top of this file holds every variant so JIT picks
-             them up. --}}
+        {{-- 10 summary cards — compact 5x2 grid. Icon tile on the left,
+             value + label (+ optional subtitle) on the right. Per-card
+             color resolves at render time for compliance / reopen / risk;
+             every variant is in the safelist at the top of this file. --}}
         @if(!empty($overview))
-        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mt-6 mb-8">
-
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-10">
             @foreach([
-                ['label' => 'Toplam Talep',       'value' => $overview['total_assigned'],          'icon' => 'inbox',              'color' => 'blue'],
-                ['label' => 'Açık Talepler',      'value' => $overview['currently_open'],          'icon' => 'folder-open',        'color' => 'indigo'],
-                ['label' => 'Beklemede',          'value' => $overview['currently_on_hold'],       'icon' => 'pause-circle',       'color' => 'amber'],
-                ['label' => 'Toplam İhlal',       'value' => $overview['total_breached'],          'icon' => 'exclamation-triangle','color' => 'red'],
-                ['label' => 'Zamanında Kapanan',  'value' => $overview['closed_on_time'],          'icon' => 'check-circle',       'color' => 'emerald'],
-                ['label' => 'Uyum Oranı',         'value' => $overview['sla_compliance_rate'].'%','icon' => 'shield-check',       'color' => $overview['sla_compliance_rate'] >= 80 ? 'emerald' : ($overview['sla_compliance_rate'] >= 50 ? 'amber' : 'red')],
-                ['label' => 'Ort. Çözüm',         'value' => $overview['avg_resolution_minutes'].' dk','icon' => 'clock',           'color' => 'violet'],
-                ['label' => 'Ort. Yanıt',         'value' => $overview['avg_response_time_minutes'].' dk','icon' => 'bolt',          'color' => 'sky'],
-                ['label' => 'Yeniden Açılma',     'value' => $overview['reopen_rate'].'%',         'icon' => 'arrow-path',         'color' => 'orange', 'sub' => $overview['reopen_count'].' adet'],
-                ['label' => 'Risk Altında',       'value' => $overview['at_risk'],                 'icon' => 'exclamation-circle', 'color' => $overview['at_risk'] === 0 ? 'emerald' : ($overview['at_risk'] <= 5 ? 'amber' : 'red'), 'sub' => '≤2sa içinde SLA'],
+                ['label'=>'Toplam Talep','value'=>$overview['total_assigned'],'icon'=>'inbox','color'=>'blue'],
+                ['label'=>'Açık','value'=>$overview['currently_open'],'icon'=>'folder-open','color'=>'indigo'],
+                ['label'=>'Beklemede','value'=>$overview['currently_on_hold'],'icon'=>'pause-circle','color'=>'amber'],
+                ['label'=>'İhlal','value'=>$overview['total_breached'],'icon'=>'exclamation-triangle','color'=>'red'],
+                ['label'=>'Zamanında','value'=>$overview['closed_on_time'],'icon'=>'check-circle','color'=>'emerald'],
+                ['label'=>'Uyum','value'=>$overview['sla_compliance_rate'].'%','icon'=>'shield-check','color'=>$overview['sla_compliance_rate']>=80?'emerald':($overview['sla_compliance_rate']>=50?'amber':'red')],
+                ['label'=>'Ort. Çözüm','value'=>$overview['avg_resolution_minutes'].'dk','icon'=>'clock','color'=>'violet'],
+                ['label'=>'Ort. Yanıt','value'=>$overview['avg_response_time_minutes'].'dk','icon'=>'bolt','color'=>'sky'],
+                ['label'=>'Yeniden Açılma','value'=>$overview['reopen_rate'].'%','sub'=>$overview['reopen_count'].' adet','icon'=>'arrow-path','color'=>'orange'],
+                ['label'=>'Risk Altında','value'=>$overview['at_risk'],'sub'=>'≤2sa SLA','icon'=>'exclamation-circle','color'=>$overview['at_risk']===0?'emerald':($overview['at_risk']<=5?'amber':'red')],
             ] as $card)
-                <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-4 flex flex-col gap-3 hover:shadow-md transition-shadow">
-
-                    <div class="flex items-center justify-between">
-                        <div class="w-10 h-10 rounded-lg bg-{{ $card['color'] }}-50 dark:bg-{{ $card['color'] }}-900/30 flex items-center justify-center">
+                <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-3 hover:shadow-md transition">
+                    <div class="flex items-center gap-3">
+                        <div class="w-9 h-9 shrink-0 rounded-lg bg-{{ $card['color'] }}-50 dark:bg-{{ $card['color'] }}-900/30 flex items-center justify-center">
                             <x-filament::icon
                                 :icon="'heroicon-o-' . $card['icon']"
-                                class="w-5 h-5 text-{{ $card['color'] }}-600 dark:text-{{ $card['color'] }}-400"
+                                class="w-4 h-4 text-{{ $card['color'] }}-600 dark:text-{{ $card['color'] }}-400"
                             />
                         </div>
+                        <div class="min-w-0 flex-1">
+                            <p class="text-lg font-bold text-gray-900 dark:text-gray-100 leading-none">{{ $card['value'] }}</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1 truncate">{{ $card['label'] }}</p>
+                            @if(isset($card['sub']))
+                                <p class="text-[10px] text-gray-400 mt-0.5 truncate">{{ $card['sub'] }}</p>
+                            @endif
+                        </div>
                     </div>
-
-                    <div>
-                        <p class="text-2xl font-bold text-gray-900 dark:text-gray-100 leading-tight">
-                            {{ $card['value'] }}
-                        </p>
-                        <p class="text-xs font-medium text-gray-500 dark:text-gray-400 mt-1">
-                            {{ $card['label'] }}
-                        </p>
-                        @if(isset($card['sub']))
-                            <p class="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-                                {{ $card['sub'] }}
-                            </p>
-                        @endif
-                    </div>
-
                 </div>
             @endforeach
-
         </div>
         @endif
-
-        <hr class="border-t border-gray-100 dark:border-gray-700 my-6">
 
         {{-- Priority breakdown — single card with one horizontal row per
              priority. Each row: priority badge + compliance bar + 3-up
@@ -121,7 +107,7 @@
                 4 => 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
             ];
         @endphp
-        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 mt-8">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 mb-8">
             <h3 class="text-sm font-semibold uppercase tracking-widest text-gray-400 mb-6">
                 Öncelik Dağılımı
             </h3>
@@ -175,21 +161,13 @@
         </div>
         @endif
 
-        <hr class="border-t border-gray-100 dark:border-gray-700 my-6">
-
-        {{-- SLA Compliance Trend Chart (last 30 days, fixed window — does
-             not respect this page's date filter; rendered as-is). --}}
-        @livewire(\App\Filament\Widgets\SlaComplianceTrendChart::class)
-
-        <hr class="border-t border-gray-100 dark:border-gray-700 my-6">
-
         {{-- Region breakdown — colored compliance pill on each row plus a
              thin progress bar in a colspan'd row directly below. divide-y
              is dropped so the data row and its progress bar visually
              belong together; explicit border-t is added between groups
              via $loop->first. --}}
         @if($regionBreakdown->isNotEmpty())
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow overflow-hidden">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow overflow-hidden mb-8">
             <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
                 <h3 class="font-semibold text-gray-900 dark:text-white border-l-4 border-primary-500 pl-3">Bölge Dağılımı</h3>
             </div>
@@ -238,12 +216,10 @@
         </div>
         @endif
 
-        <hr class="border-t border-gray-100 dark:border-gray-700 my-6">
-
         {{-- Per-person table — avatar initial before name, 3-tier compliance
              pill, breach count rendered as red badge when >0 / dim gray when 0. --}}
         @if($teamStats->isNotEmpty())
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow overflow-hidden">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow overflow-hidden mb-8">
             <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
                 <h3 class="font-semibold text-gray-900 dark:text-white border-l-4 border-primary-500 pl-3">{{ __('ui.technician_performance') }}</h3>
             </div>
