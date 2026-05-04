@@ -114,26 +114,55 @@ class PerformanceDashboard extends Page implements HasForms, HasTable
             ->paginated(false);
     }
 
-    public function exportCsv(): void
+    /**
+     * Stream the team stats as a CSV download.
+     *
+     * Returns the StreamedResponse rather than calling ->send() — that
+     * pattern flushes mid-Livewire-request and is unreliable. Livewire 3
+     * picks up a returned download response from an action.
+     *
+     * UTF-8 BOM is prepended so Excel on Windows opens Turkish characters
+     * (İ, ş, ğ, ç, ü, ö) without mojibake. Rows are written via fputcsv
+     * so commas/quotes inside names are properly escaped.
+     */
+    public function exportCsv(): \Symfony\Component\HttpFoundation\StreamedResponse
     {
-        // Delegate to Filament export when available
         $this->loadStats();
 
-        $csv = "Name,Total,On Time,Breach Count,Compliance Rate,Avg Resolution (min)\n";
+        $teamStats = $this->teamStats;
+        $filename  = 'performans_' . now()->format('Y_m_d') . '.csv';
 
-        foreach ($this->teamStats as $row) {
-            $csv .= implode(',', [
-                $row['user']->name,
-                $row['total'],
-                $row['on_time'],
-                $row['breach_count'],
-                $row['compliance_rate'] . '%',
-                $row['avg_resolution_minutes'],
-            ]) . "\n";
-        }
+        return response()->streamDownload(function () use ($teamStats) {
+            $out = fopen('php://output', 'w');
 
-        $filename = 'performance_' . now()->format('Y_m_d') . '.csv';
+            // UTF-8 BOM for Excel.
+            fwrite($out, "\xEF\xBB\xBF");
 
-        response()->streamDownload(fn () => print($csv), $filename)->send();
+            fputcsv($out, [
+                'Personel',
+                'Toplam Talep',
+                'Zamanında',
+                'İhlal',
+                'Uyum %',
+                'Ort. Çözüm (dk)',
+                'Ort. Yanıt (dk)',
+            ]);
+
+            foreach ($teamStats as $row) {
+                fputcsv($out, [
+                    $row['user']->name,
+                    $row['total_assigned'],
+                    $row['closed_on_time'],
+                    $row['closed_breached'],
+                    $row['sla_compliance_rate'] . '%',
+                    $row['avg_resolution_minutes'],
+                    $row['avg_response_time_minutes'],
+                ]);
+            }
+
+            fclose($out);
+        }, $filename, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+        ]);
     }
 }
