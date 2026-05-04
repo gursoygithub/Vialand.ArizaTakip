@@ -1065,6 +1065,139 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
             });
     }
 
+    public function editGroupAction(): Action
+    {
+        return Action::make('editGroup')
+            ->label('Düzenle')
+            ->icon('heroicon-o-pencil')
+            ->modalHeading('Grup Düzenle')
+            ->fillForm(function (array $arguments): array {
+                $group = Group::find($arguments['group_id'] ?? null);
+                if (!$group) {
+                    return [];
+                }
+                return [
+                    'name'        => $group->name,
+                    'area_id'     => $group->area_id,
+                    'unit_id'     => $group->unit_id,
+                    'employee_id' => $group->employee_id,
+                ];
+            })
+            ->form(fn (array $arguments) => [
+                TextInput::make('name')
+                    ->label('Grup Adı')
+                    ->required()
+                    ->validationMessages(['required' => 'Grup adı zorunludur.']),
+
+                // Mirror the addGroup constraint (only SLA-bearing areas), but
+                // union the group's CURRENT area into the option list even if
+                // it no longer satisfies the predicate — otherwise the field
+                // would render blank and the user would lose track of where
+                // the group lives. The fallback option is suffixed
+                // "(kapsam dışı)" so the user sees the constraint mismatch
+                // before saving.
+                Select::make('area_id')
+                    ->label('Bölge')
+                    ->helperText('Sadece SLA politikası tanımlanmış bölgeler listelenmektedir.')
+                    ->options(function () use ($arguments) {
+                        $companyId = (int) ($this->data['companyId'] ?? 0);
+
+                        $areas = Area::query()
+                            ->where('company_id', $companyId)
+                            ->where('status', ActiveStatusEnum::ACTIVE->value)
+                            ->whereHas('slaPolicies')
+                            ->orderBy('name')
+                            ->pluck('name', 'id')
+                            ->toArray();
+
+                        $group = Group::with('area')->find($arguments['group_id'] ?? null);
+                        if ($group && $group->area && !isset($areas[$group->area_id])) {
+                            $areas[$group->area_id] = $group->area->name . ' (kapsam dışı)';
+                        }
+
+                        return $areas;
+                    })
+                    ->required()
+                    ->searchable()
+                    ->live()
+                    ->afterStateUpdated(fn (Forms\Set $set) => $set('unit_id', null))
+                    ->validationMessages(['required' => 'Bölge alanı zorunludur.']),
+
+                Select::make('unit_id')
+                    ->label('Birim')
+                    ->options(function (Forms\Get $get) use ($arguments) {
+                        $areaId = $get('area_id');
+
+                        if (!$areaId) {
+                            return Unit::orderBy('name')->pluck('name', 'id')->toArray();
+                        }
+
+                        $unitIds = SlaPolicy::where('area_id', $areaId)
+                            ->distinct()
+                            ->pluck('unit_id');
+
+                        $units = $unitIds->isEmpty()
+                            ? []
+                            : Unit::whereIn('id', $unitIds)
+                                ->orderBy('name')
+                                ->pluck('name', 'id')
+                                ->toArray();
+
+                        // Same defensive fallback as area_id above.
+                        $group = Group::with('unit')->find($arguments['group_id'] ?? null);
+                        if ($group && $group->unit && (int) $group->area_id === (int) $areaId
+                            && !isset($units[$group->unit_id])) {
+                            $units[$group->unit_id] = $group->unit->name . ' (kapsam dışı)';
+                        }
+
+                        return $units;
+                    })
+                    ->helperText(function (Forms\Get $get): string {
+                        $areaId = $get('area_id');
+
+                        if (!$areaId) {
+                            return 'Önce bölge seçiniz.';
+                        }
+
+                        $hasSla = SlaPolicy::where('area_id', $areaId)->exists();
+
+                        if (!$hasSla) {
+                            return 'Bu bölge için henüz SLA tanımlanmamış. SLA adımına dönünüz.';
+                        }
+
+                        return 'Sadece SLA tanımlı birimler listelenmektedir.';
+                    })
+                    ->required()
+                    ->searchable()
+                    ->validationMessages(['required' => 'Birim alanı zorunludur.']),
+
+                Select::make('employee_id')
+                    ->label('Amir')
+                    ->options(fn () => Employee::query()
+                        ->where('company_id', (int) ($this->data['companyId'] ?? 0))
+                        ->where('status', ActiveStatusEnum::ACTIVE->value)
+                        ->orderBy('name')
+                        ->limit(500)
+                        ->pluck('name', 'id'))
+                    ->required()
+                    ->searchable()
+                    ->validationMessages(['required' => 'Amir alanı zorunludur.']),
+            ])
+            ->action(function (array $arguments, array $data) {
+                $group = Group::find($arguments['group_id'] ?? null);
+                if (!$group) {
+                    return;
+                }
+                $group->update([
+                    'name'        => $data['name'],
+                    'area_id'     => (int) $data['area_id'],
+                    'unit_id'     => (int) $data['unit_id'],
+                    'employee_id' => (int) $data['employee_id'],
+                ]);
+                Notification::make()->title('Grup güncellendi')->success()->send();
+            });
+    }
+
     public function deleteGroupAction(): Action
     {
         return Action::make('deleteGroup')
