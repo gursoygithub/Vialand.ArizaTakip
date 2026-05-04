@@ -6,10 +6,10 @@
 - Database is the default channel for every event; mail and push only fire when both the global flag and the user's preference allow them
 
 ## Classes
-- `TicketAssignedNotification` — fires from `TicketObserver::updated` (direct reassign) and `TicketService::transition` (status → assigned); also pushes via `FcmService` when the recipient prefers push
-- `TicketReassignedNotification` — old assignee gets a "you've been replaced" alert
-- `TicketStatusChangedNotification` — fired from the status-change event for participants other than the actor
-- `TicketCommentNotification` — fired when a comment is added via `TicketService::addComment`
+- `TicketAssignedNotification` — fires from `TicketObserver::updated` (direct reassign), `TicketObserver::created` (created already-assigned), and `TicketService::transition` (OPEN → ASSIGNED); each path also fires an FCM desktop push with actor-name-prefixed body (`"{actor} tarafından atandı — {area} / {priority}"`), gated on the user's `ticket_assigned` database preference
+- `TicketReassignedNotification` — sent to the **creator** by `TicketService::notifyCreatorOfReassignment` when someone else reassigns (skipped if creator is actor or new assignee)
+- `TicketStatusChangedNotification` — fired from `dispatchTransitionNotifications` for every status change except OPEN → ASSIGNED (which gets the dedicated assigned notification)
+- `TicketCommentNotification` — used by `TicketService::addComment`, `updateComment` (body: `"Not güncellendi: ..."`), AND `notifyPriorityChange` (body: `"{actor} önceliği {old} → {new} olarak değiştirdi"`). Its `via()` returns `['database']` only — fans out to bell + FCM, **never mail**
 - `TicketClosedNotification` — sent at close; body shows on-time vs. breach (derived from `resolved_at` / `closed_at` vs `sla_deadline`, not from the persisted column)
 - `TicketCancelledNotification` / `TicketReopenedNotification` — terminal-state alerts
 - `SlaWarningNotification` — 80% time elapsed, sent by `CheckSlaBreaches`

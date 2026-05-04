@@ -41,10 +41,19 @@
 
 ## Observer Hooks
 - `TicketObserver` (registered in AppServiceProvider):
-  - `creating`: SlaService → set `sla_deadline`; generate `ticket_no`
-  - `saving`: stamp `assigned_at` when an employee is attached; flip `sla_breached` when deadline has passed and status is non-terminal; clear it when a terminal status resolves on time
-  - `updated`: notify on direct `employee_id` reassignment (status-change notifications go through TicketService → event)
+  - `creating`: resolve SLA policy → set `sla_deadline`; default `status` (ASSIGNED if `employee_id` set, else OPEN); stamp `assigned_at` if created already-assigned; generate `ticket_no`
+  - `saving` (every save):
+    1. Stamp `assigned_at` when `employee_id` is set and `assigned_at` is empty
+    2. **Recalculate `sla_deadline` on priority change** — only when `exists && isDirty('priority') && area_id && priority` and **status is non-terminal** (excludes RESOLVED/CLOSED/CANCELLED). Rebases as `now() + policy.deadline_minutes + total_on_hold_minutes`. Runs BEFORE the breach flip so the same save evaluates the fresh deadline. Creating path is owned by `creating()` (not this branch)
+    3. Flip `sla_breached = true` when `sla_deadline` has passed and status is non-terminal (excludes RESOLVED/CLOSED/COMPLETED/CANCELLED)
+    4. Clear `sla_breached = false` when a terminal status save sees deadline still in the future
+  - `updated`: notify on direct `employee_id` reassignment (when status didn't change AND `$skipReassignNotification` is false). Sends `TicketAssignedNotification` AND fires FCM push (actor-name-prefixed body: `"{actor} tarafından atandı — {area} / {priority}"`); respects `ticket_mutes` and `wantsNotification('ticket_assigned', 'database')`
+  - `static $skipReassignNotification` — `TicketService::reassign` toggles this around `$ticket->update(['employee_id'])` to prevent the observer from double-firing alongside the service's own notify path
 - Other models set `created_by` / `updated_by` / `deleted_by` directly in `booted()`
+
+## Lifecycle Timestamps (Ticket)
+- `created_at` / `assigned_at` / `on_hold_since` / `resolved_at` / `closed_at` / `closed_by` — written by `TicketObserver` + `TicketService::transition` matchers
+- The view-page lifecycle strip and `Talep Geçmişi` timeline both consume these directly; the strip queries the first IN_PROGRESS row from `ticket_status_histories` for the "İşleme Alındı" timestamp (no dedicated column)
 
 ## Media
 - Collection `task_attachments` on `Ticket` — disk `s3`, **multi-file** (no `singleFile()`); the create form caps at 5 files via `maxFiles(5)`

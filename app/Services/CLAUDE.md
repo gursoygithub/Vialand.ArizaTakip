@@ -12,14 +12,22 @@ Widgets, or Observers (observers trigger services, they don't contain logic).
 - `checkBreach(Ticket $ticket): bool` — true when deadline is in the past and ticket is not closed
 
 ## TicketService (`App\Services\TicketService`)
-- `transition(Ticket $ticket, TaskStatusEnum $toStatus, User $by, ?string $note = null): Ticket` — validates the allowed transition, writes a `TicketStatusHistory` row, stamps timestamps
-- `markResolved` / `markClosed` / `markCancelled` set the **terminal SLA outcome** (`sla_breached` true/false based on `now()` vs `sla_deadline`); reopen path recomputes the flag too
+- `transition(Ticket, TaskStatusEnum $to, User $by, ?string $note = null): Ticket` — validates against transition matrix, stamps timestamps, writes `TicketStatusHistory`, dispatches `TicketStatusChanged` event, fans out notifications via `dispatchTransitionNotifications`
+- `reassign(Ticket, int $employeeId, User $by, ?string $note = null): Ticket` — sets `TicketObserver::$skipReassignNotification` around the update to avoid double-fire; auto-clears mute for new assignee BEFORE update; notifies creator (unless creator is actor/new assignee)
+- `addComment(Ticket, User, string $note): TicketStatusHistory` — from==to row + `TicketCommentNotification` to participants
+- `notifyPriorityChange(Ticket, TaskPriorityEnum $old, TaskPriorityEnum $new, User $actor): void` — bell + FCM only (uses `TicketCommentNotification` whose `via()` returns `['database']`); never sends mail. Body: `"{actor} önceliği {old} → {new} olarak değiştirdi"`
+- `canEditComment(TicketStatusHistory, User): bool` / `updateComment(...)` / `deleteComment(...)` — author + 10-min window + must be from==to AND not a `REASSIGN_NOTE_PREFIX` row. `updateComment` also fans out a "Not güncellendi" notification via notifyParticipants
+- `allowedNextStatuses(?TaskStatusEnum $from): array` — used by `ViewTicket::buildTransitionActions` to render one button per allowed next status
+- `markResolved` / `markClosed` / `markCancelled` set the **terminal SLA outcome** (`sla_breached` true/false based on `now()` vs `sla_deadline`); `markCancelled` clears breach flag (cancelled excluded from SLA)
+- **Reopen path** (any of CLOSED/COMPLETED/RESOLVED/CANCELLED → IN_PROGRESS): clears `closed_at`/`closed_by`/`resolved_at`, **rebases `sla_deadline` from now() + policy.deadline_minutes + total_on_hold_minutes**, unconditionally resets `sla_breached = false` (saving() may flip it back if rebase failed)
 - Transition map (from → allowed to):
-  - `open → [assigned, cancelled]`
+  - `open → [assigned, in_progress, cancelled]`
   - `assigned → [in_progress, on_hold, cancelled]`
   - `in_progress → [resolved, on_hold, cancelled]`
   - `on_hold → [in_progress, cancelled]`
   - `resolved → [closed, in_progress]`
+  - `closed → [in_progress]` (reopen — permission gated separately by `ticket.reopen`)
+  - `cancelled → []` (terminal — no path back; reopen-recalc still resets state if matrix opens later)
 
 ## FcmService (`App\Services\FcmService`)
 - `sendToUser(User, string $title, string $body, ?string $url): void` / `sendToUsers(Collection, …)` — fans out to each user's `fcm_tokens` rows
