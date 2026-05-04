@@ -443,41 +443,22 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
                     throw new \Filament\Support\Exceptions\Halt;
                 }
 
-                // Per-area SLA presence check. An area with ZERO policies is
-                // unusable for tickets — SlaService L3 fallback (area+priority)
-                // would miss, leaving only L4 (priority only) which depends on
-                // global rows that may not exist. That's a hard block.
-                //
-                // For partial coverage we count DISTINCT (unit, priority)
-                // tuples covered by any row in the area — a default row
-                // (sub_area_id IS NULL) and a location-specific override row
-                // both count as covering the same tuple at L2/L1, so we don't
-                // over-count override stacks. Pre-Reform code counted raw rows
-                // here, which double-counted overrides and silently masked
-                // partial coverage when a popular tuple had many overrides.
-                $units = Unit::pluck('id');
-                $unitCount = $units->count();
-                $expectedPerArea = $unitCount * 4;
+                // HARD 1: an area with ZERO policies is unusable — no L1/L2/L3
+                // path can match, leaving only the global L4 fallback which
+                // may not exist. Block until at least one row is defined.
+                $units = Unit::orderBy('name')->get(['id', 'name']);
 
                 $areasWithNoSla = [];
-                $areasWithPartialSla = [];
-
                 foreach ($areas as $area) {
-                    $distinctTuples = SlaPolicy::where('area_id', $area->id)
-                        ->whereIn('unit_id', $units)
-                        ->select('unit_id', 'priority')
-                        ->distinct()
-                        ->get()
-                        ->count();
+                    $any = SlaPolicy::where('area_id', $area->id)
+                        ->whereIn('unit_id', $units->pluck('id'))
+                        ->exists();
 
-                    if ($distinctTuples === 0) {
+                    if (!$any) {
                         $areasWithNoSla[] = $area->name;
-                    } elseif ($distinctTuples < $expectedPerArea) {
-                        $areasWithPartialSla[] = $area->name;
                     }
                 }
 
-                // HARD: any area with zero SLA → block.
                 if (!empty($areasWithNoSla)) {
                     $list = implode(', ', $areasWithNoSla);
                     Notification::make()
@@ -489,17 +470,84 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
                     throw new \Filament\Support\Exceptions\Halt;
                 }
 
-                // SOFT: areas with partial coverage. Surface the count so the
-                // user sees how big the gap is before clicking through.
-                if (!empty($areasWithPartialSla)) {
-                    $stats = $this->companyStats($companyId);
-                    $missing = (int) ($stats['missing_sla_combos'] ?? 0);
+                // HARD 2: for every (area, unit) the user has STARTED defining
+                // policies for, the default scope (sub_area_id IS NULL) must
+                // cover both Acil and Yüksek. Critical priorities can't fall
+                // back to "whatever the resolver picks" — every breach there
+                // costs us. Units the user hasn't touched yet are excluded so
+                // the wizard isn't a wall.
+                //
+                // SOFT (parallel pass): same predicate but for Düşük/Orta. A
+                // missing default there falls through to L3 (area+priority),
+                // which is acceptable but worth surfacing as a notification.
+                $criticalMissing = [];
+                $standardMissing = [];
 
-                    $this->softGate(
-                        'sla',
-                        'Eksik SLA Kombinasyonları',
-                        "$missing kombinasyon eksik. Eksik kombinasyonlar için SLA bulunamazsa ticket'lar SLA'sız açılacaktır. Devam etmek istiyor musunuz?",
-                    );
+                foreach ($areas as $area) {
+                    $touchedUnitIds = SlaPolicy::where('area_id', $area->id)
+                        ->whereIn('unit_id', $units->pluck('id'))
+                        ->select('unit_id')
+                        ->distinct()
+                        ->pluck('unit_id')
+                        ->all();
+
+                    if (empty($touchedUnitIds)) {
+                        continue;
+                    }
+
+                    foreach ($touchedUnitIds as $unitId) {
+                        $unit = $units->firstWhere('id', $unitId);
+                        if (!$unit) {
+                            continue;
+                        }
+
+                        $defaultPriorities = SlaPolicy::where('area_id', $area->id)
+                            ->where('unit_id', $unitId)
+                            ->whereNull('sub_area_id')
+                            ->pluck('priority')
+                            ->map(fn ($p) => (int) (is_object($p) ? $p->value : $p))
+                            ->all();
+
+                        $criticalGap = [];
+                        if (!in_array(TaskPriorityEnum::Urgent->value, $defaultPriorities, true)) {
+                            $criticalGap[] = 'Acil eksik';
+                        }
+                        if (!in_array(TaskPriorityEnum::High->value, $defaultPriorities, true)) {
+                            $criticalGap[] = 'Yüksek eksik';
+                        }
+                        if (!empty($criticalGap)) {
+                            $criticalMissing[] = $area->name . ' / ' . $unit->name . ' (' . implode(', ', $criticalGap) . ')';
+                        }
+
+                        $standardGap = [];
+                        if (!in_array(TaskPriorityEnum::Medium->value, $defaultPriorities, true)) {
+                            $standardGap[] = 'Orta eksik';
+                        }
+                        if (!in_array(TaskPriorityEnum::Low->value, $defaultPriorities, true)) {
+                            $standardGap[] = 'Düşük eksik';
+                        }
+                        if (!empty($standardGap)) {
+                            $standardMissing[] = $area->name . ' / ' . $unit->name . ' (' . implode(', ', $standardGap) . ')';
+                        }
+                    }
+                }
+
+                if (!empty($criticalMissing)) {
+                    Notification::make()
+                        ->title('Acil ve Yüksek öncelik SLA\'ları eksik')
+                        ->body('Aşağıdaki birimler için Acil ve Yüksek öncelik SLA\'ları tanımlanmadan devam edilemez: ' . implode(', ', $criticalMissing))
+                        ->danger()
+                        ->persistent()
+                        ->send();
+                    throw new \Filament\Support\Exceptions\Halt;
+                }
+
+                if (!empty($standardMissing)) {
+                    Notification::make()
+                        ->title('Düşük/Orta öncelik SLA\'ları eksik')
+                        ->body('Bazı birimler için Düşük/Orta öncelik SLA\'ları eksik. Bu kombinasyonlarda genel SLA politikası uygulanacaktır. Eksikler: ' . implode(', ', $standardMissing))
+                        ->warning()
+                        ->send();
                 }
             })
             ->schema([
@@ -509,17 +557,17 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
                     ->visible(fn (Forms\Get $get) => blank($get('companyId'))),
 
                 Section::make('SLA Matrisi')
-                    ->description('Lokasyon kapsamını seçin, ardından hücrelere tıklayarak öncelik bazlı SLA dakikalarını düzenleyin. "Varsayılan" kapsam tüm lokasyonlar için geçerli olur; spesifik lokasyon seçilirse o lokasyon için override yazılır.')
+                    ->description('Lokasyon kapsamını seçin, ardından hücrelere tıklayarak öncelik bazlı SLA dakikalarını düzenleyin. Varsayılan kapsamdaki ayarlar tüm lokasyonlar için geçerli olur; belirli bir lokasyon seçerseniz o lokasyon için ayrı SLA tanımlayabilirsiniz.')
                     ->visible(fn (Forms\Get $get) => filled($get('companyId')))
                     ->schema([
-                        // Scope selector: null sub_area = "default for the area"
+                        // Scope selector: empty value = "default for the area"
                         // (matches L2 in SlaService::resolvePolicy). Selecting a
-                        // specific sub_area filters the matrix to that area and
-                        // edits L1 (location-specific override) rows.
+                        // specific lokasyon filters the matrix to that area and
+                        // edits L1 (location-specific) rows.
                         Select::make('slaScopeSubAreaId')
                             ->label('Lokasyon Kapsamı')
                             ->placeholder('Varsayılan (tüm lokasyonlar)')
-                            ->helperText('Boş bırakırsanız bölge geneli (sub_area_id = NULL) kayıt yazılır. Bir lokasyon seçilirse o lokasyon için override yazılır ve matris yalnızca o lokasyonun bölgesini gösterir.')
+                            ->helperText('Boş bırakırsanız tüm lokasyonlar için geçerli varsayılan SLA tanımlanır. Bir lokasyon seçerseniz o lokasyon için ayrı SLA tanımlanır ve matris yalnızca ilgili bölgeyi gösterir.')
                             ->live()
                             ->options(function (Forms\Get $get) {
                                 $companyId = (int) ($get('companyId') ?? 0);
@@ -1293,15 +1341,21 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
      */
     protected function slaGridData(int $companyId, ?int $selectedSubAreaId): array
     {
+        $emptyShape = [
+            'areas'               => [], 'units' => [], 'matrix' => [],
+            'critical_count'      => 0, // Acil + Yüksek in current scope
+            'standard_count'      => 0, // Orta + Düşük in current scope
+            'location_count'      => 0, // total override rows in this company
+            'scope_sub_area_id'   => $selectedSubAreaId,
+            'scope_sub_area_name' => null,
+        ];
+
         if (!$companyId) {
-            return [
-                'areas' => [], 'units' => [], 'matrix' => [],
-                'defined' => 0, 'missing' => 0,
-                'scope_sub_area_id' => $selectedSubAreaId,
-            ];
+            return $emptyShape;
         }
 
         $areaQuery = Area::where('company_id', $companyId);
+        $scopeSubAreaName = null;
 
         if ($selectedSubAreaId) {
             // Restrict to the area owning the chosen sub_area. If the chosen
@@ -1309,13 +1363,10 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
             // matrix instead of falling open to all areas.
             $sub = SubArea::find($selectedSubAreaId);
             if (!$sub) {
-                return [
-                    'areas' => [], 'units' => [], 'matrix' => [],
-                    'defined' => 0, 'missing' => 0,
-                    'scope_sub_area_id' => $selectedSubAreaId,
-                ];
+                return $emptyShape;
             }
             $areaQuery->where('id', $sub->area_id);
+            $scopeSubAreaName = $sub->name;
         }
 
         $areas = $areaQuery->orderBy('name')->get(['id', 'name']);
@@ -1358,17 +1409,33 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
             }
         }
 
-        $expected = count($areas) * count($units) * 4;
-        $defined  = $policies->count();
-        $missing  = max(0, $expected - $defined);
+        // Three counters surfaced under the matrix:
+        //   - critical:  Acil + Yüksek in the currently-edited scope.
+        //   - standard:  Orta + Düşük in the currently-edited scope.
+        //   - location:  total location-specific rows across the whole
+        //                company (NOT scoped to the current view), so the
+        //                user sees the override surface even while editing
+        //                the default scope.
+        $criticalPriorities = [TaskPriorityEnum::Urgent->value, TaskPriorityEnum::High->value];
+        $standardPriorities = [TaskPriorityEnum::Medium->value, TaskPriorityEnum::Low->value];
+
+        $criticalCount = $policies->filter(fn ($p) => in_array((int) $p->getRawOriginal('priority'), $criticalPriorities, true))->count();
+        $standardCount = $policies->filter(fn ($p) => in_array((int) $p->getRawOriginal('priority'), $standardPriorities, true))->count();
+
+        $companyAreaIds = Area::where('company_id', $companyId)->pluck('id');
+        $locationCount = SlaPolicy::whereIn('area_id', $companyAreaIds)
+            ->whereNotNull('sub_area_id')
+            ->count();
 
         return [
-            'areas'             => $areas->all(),
-            'units'             => $units->all(),
-            'matrix'            => $matrix,
-            'defined'           => $defined,
-            'missing'           => $missing,
-            'scope_sub_area_id' => $selectedSubAreaId,
+            'areas'               => $areas->all(),
+            'units'               => $units->all(),
+            'matrix'              => $matrix,
+            'critical_count'      => $criticalCount,
+            'standard_count'      => $standardCount,
+            'location_count'      => $locationCount,
+            'scope_sub_area_id'   => $selectedSubAreaId,
+            'scope_sub_area_name' => $scopeSubAreaName,
         ];
     }
 
