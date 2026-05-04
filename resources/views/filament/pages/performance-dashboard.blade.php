@@ -66,16 +66,19 @@
         @if(!empty($overview))
         <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
             @foreach([
-                ['label'=>'Toplam Talep','value'=>$overview['total_assigned'],'icon'=>'inbox','color'=>'blue'],
-                ['label'=>'Açık','value'=>$overview['currently_open'],'icon'=>'folder-open','color'=>'indigo'],
-                ['label'=>'Beklemede','value'=>$overview['currently_on_hold'],'icon'=>'pause-circle','color'=>'amber'],
-                ['label'=>'İhlal','value'=>$overview['total_breached'],'icon'=>'exclamation-triangle','color'=>'red'],
-                ['label'=>'Zamanında','value'=>$overview['closed_on_time'],'icon'=>'check-circle','color'=>'emerald'],
+                // Row 1 — executive headline metrics
                 ['label'=>'Uyum','value'=>$overview['sla_compliance_rate'].'%','icon'=>'shield-check','color'=>$overview['sla_compliance_rate']>=80?'emerald':($overview['sla_compliance_rate']>=50?'amber':'red')],
+                ['label'=>'Risk Altında','value'=>$overview['at_risk'],'sub'=>'≤2sa SLA','icon'=>'exclamation-circle','color'=>$overview['at_risk']===0?'emerald':($overview['at_risk']<=5?'amber':'red')],
+                ['label'=>'İhlal','value'=>$overview['total_breached'],'icon'=>'exclamation-triangle','color'=>'red'],
+                ['label'=>'Yeniden Açılma','value'=>$overview['reopen_rate'].'%','sub'=>$overview['reopen_count'].' adet','icon'=>'arrow-path','color'=>'orange'],
+                ['label'=>'Açık','value'=>$overview['currently_open'],'icon'=>'folder-open','color'=>'indigo'],
+
+                // Row 2 — secondary / operational metrics
+                ['label'=>'Beklemede','value'=>$overview['currently_on_hold'],'icon'=>'pause-circle','color'=>'amber'],
+                ['label'=>'Toplam Talep','value'=>$overview['total_assigned'],'icon'=>'inbox','color'=>'blue'],
+                ['label'=>'Zamanında','value'=>$overview['closed_on_time'],'icon'=>'check-circle','color'=>'emerald'],
                 ['label'=>'Ort. Çözüm','value'=>$overview['avg_resolution_minutes'].'dk','icon'=>'clock','color'=>'violet'],
                 ['label'=>'Ort. Yanıt','value'=>$overview['avg_response_time_minutes'].'dk','icon'=>'bolt','color'=>'sky'],
-                ['label'=>'Yeniden Açılma','value'=>$overview['reopen_rate'].'%','sub'=>$overview['reopen_count'].' adet','icon'=>'arrow-path','color'=>'orange'],
-                ['label'=>'Risk Altında','value'=>$overview['at_risk'],'sub'=>'≤2sa SLA','icon'=>'exclamation-circle','color'=>$overview['at_risk']===0?'emerald':($overview['at_risk']<=5?'amber':'red')],
             ] as $card)
                 <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-3 hover:shadow-md transition">
                     <div class="flex items-center gap-3">
