@@ -492,6 +492,7 @@ class TicketResource extends Resource
                 Tables\Filters\SelectFilter::make('area_id')
                     ->label(__('ui.area'))
                     ->relationship('area', 'name')
+                    ->multiple()
                     ->searchable()
                     ->preload(),
 
@@ -512,6 +513,7 @@ class TicketResource extends Resource
                 Tables\Filters\SelectFilter::make('employee_id')
                     ->label(__('ui.assigned_employee'))
                     ->relationship('employee', 'name')
+                    ->multiple()
                     ->searchable()
                     ->preload(),
 
@@ -525,11 +527,16 @@ class TicketResource extends Resource
                         ->when($data['to'] ?? null, fn ($q, $v) => $q->whereDate('created_at', '<=', $v))
                     ),
 
+                // SLA filter: only column-backed states. The previous
+                // 'on_time' and 'warning' options used raw TIMESTAMPDIFF
+                // SQL (MySQL-only, broken on SQLite) and ignored the
+                // on_hold pause + total_on_hold_minutes credit, leaving
+                // them inconsistent with the per-row live label. Use
+                // Ticket::getSlaStatusLabel() for live display; this
+                // filter is for the persisted breach/no-policy axis only.
                 Tables\Filters\SelectFilter::make('sla_status')
                     ->label(__('ui.sla_indicator'))
                     ->options([
-                        'on_time'  => __('ui.on_time'),
-                        'warning'  => __('ui.warning_threshold'),
                         'breached' => __('ui.sla_breached'),
                         'no_sla'   => 'SLA yok',
                     ])
@@ -537,15 +544,6 @@ class TicketResource extends Resource
                         return match ($data['value'] ?? null) {
                             'breached' => $q->slaBreached(),
                             'no_sla'   => $q->whereNull('sla_deadline'),
-                            // Warning / on_time exclude already-breached and
-                            // closed tickets via the deadline-still-future
-                            // predicate, then split on elapsed percentage.
-                            'warning'  => $q->whereNotNull('sla_deadline')
-                                ->where('sla_deadline', '>=', now())
-                                ->whereRaw('TIMESTAMPDIFF(SECOND, created_at, NOW()) / GREATEST(TIMESTAMPDIFF(SECOND, created_at, sla_deadline), 1) >= 0.5'),
-                            'on_time'  => $q->whereNotNull('sla_deadline')
-                                ->where('sla_deadline', '>=', now())
-                                ->whereRaw('TIMESTAMPDIFF(SECOND, created_at, NOW()) / GREATEST(TIMESTAMPDIFF(SECOND, created_at, sla_deadline), 1) < 0.5'),
                             default    => $q,
                         };
                     }),
