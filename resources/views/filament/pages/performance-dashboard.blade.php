@@ -15,12 +15,12 @@
         bg-orange-50 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400
     "></div>
 
-    {{-- Outer container: section spacing is driven by mt-8 on each major
-         section wrapper EXCEPT the first (filter form). margin-top is
-         used in preference to margin-bottom because Filament's panel
-         layout is more predictable about respecting top margins than
-         collapsing bottom margins; space-y-* on the parent was tried
-         but fought with conditionally-rendered (@if) sections. --}}
+    {{-- Outer container: section spacing uses inline style="margin-top:
+         2rem;" on each major section wrapper EXCEPT the first (filter
+         form). Inline styles win the cascade and can't be overridden
+         by Filament's panel CSS or any utility class — earlier attempts
+         with mt-8 (and before that space-y-8) were occasionally lost
+         to higher-specificity rules from the panel layout. --}}
     <div>
 
         {{-- Filters --}}
@@ -62,7 +62,7 @@
              color resolves at render time for compliance / reopen / risk;
              every variant is in the safelist at the top of this file. --}}
         @if(!empty($overview))
-        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 mt-8">
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4" style="margin-top: 2rem;">
             @foreach([
                 // 7 KPI-focused cards. Operational metrics (Açık, Beklemede,
                 // Risk Altında) live on Genel Bakış, not here.
@@ -108,7 +108,7 @@
                 4 => 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
             ];
         @endphp
-        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 mt-8">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6" style="margin-top: 2rem;">
             <h3 class="text-sm font-semibold uppercase tracking-widest text-gray-400 mb-6">
                 Öncelik Dağılımı
             </h3>
@@ -168,7 +168,7 @@
              belong together; explicit border-t is added between groups
              via $loop->first. --}}
         @if($regionBreakdown->isNotEmpty())
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow overflow-hidden mt-8">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow overflow-hidden" style="margin-top: 2rem;">
             <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
                 <h3 class="font-semibold text-gray-900 dark:text-white border-l-4 border-primary-500 pl-3">Bölge Dağılımı</h3>
             </div>
@@ -220,7 +220,7 @@
         {{-- Per-person table — avatar initial before name, 3-tier compliance
              pill, breach count rendered as red badge when >0 / dim gray when 0. --}}
         @if($teamStats->isNotEmpty())
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow overflow-hidden mt-8">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow overflow-hidden" style="margin-top: 2rem;">
             <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
                 <h3 class="font-semibold text-gray-900 dark:text-white border-l-4 border-primary-500 pl-3">{{ __('ui.technician_performance') }}</h3>
             </div>
