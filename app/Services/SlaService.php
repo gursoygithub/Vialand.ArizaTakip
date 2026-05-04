@@ -85,20 +85,33 @@ class SlaService
     /**
      * Extend a ticket's sla_deadline by the duration it just spent on hold.
      * Returns the number of minutes added.
+     *
+     * `on_hold_since` is ALWAYS cleared if it was set, regardless of whether
+     * an `sla_deadline` exists to extend. Without this, leaving ON_HOLD on
+     * an SLA-less ticket (e.g. ON_HOLD → CANCELLED on a ticket whose
+     * SlaPolicy could not be resolved at create time) would leave a stale
+     * `on_hold_since` that would mislead any later live-display caller
+     * (`getRemainingMinutes`, `getElapsedPercentage`) and any future
+     * recalculation that consumes it.
      */
     public function extendDeadlineForOnHold(Ticket $ticket): int
     {
-        if (!$ticket->on_hold_since || !$ticket->sla_deadline) {
+        if (!$ticket->on_hold_since) {
             return 0;
         }
 
-        $minutes = $ticket->on_hold_since->diffInMinutes(now());
+        $minutes = $ticket->sla_deadline
+            ? (int) $ticket->on_hold_since->diffInMinutes(now())
+            : 0;
 
-        $ticket->sla_deadline           = $ticket->sla_deadline->copy()->addMinutes($minutes);
-        $ticket->total_on_hold_minutes  = ((int) $ticket->total_on_hold_minutes) + $minutes;
-        $ticket->on_hold_since          = null;
+        if ($minutes > 0) {
+            $ticket->sla_deadline          = $ticket->sla_deadline->copy()->addMinutes($minutes);
+            $ticket->total_on_hold_minutes = ((int) $ticket->total_on_hold_minutes) + $minutes;
+        }
 
-        return (int) $minutes;
+        $ticket->on_hold_since = null;
+
+        return $minutes;
     }
 
     /**

@@ -119,6 +119,42 @@ class TicketLifecycleTest extends TestCase
         Carbon::setTestNow();
     }
 
+    public function test_on_hold_to_cancelled_clears_on_hold_since_without_sla(): void
+    {
+        // Regression: a ticket with no resolved SLA policy (sla_deadline NULL)
+        // that goes ON_HOLD → CANCELLED used to leave on_hold_since set —
+        // extendDeadlineForOnHold returned early when sla_deadline was null
+        // and never reached the on_hold_since = null line. The fix moves
+        // the clear out of the deadline-extension branch so it always runs.
+        Carbon::setTestNow('2026-05-01 09:00:00');
+
+        $ticket = $this->makeTicket([
+            'status'       => TaskStatusEnum::IN_PROGRESS,
+            'sla_deadline' => null,
+        ]);
+
+        Carbon::setTestNow('2026-05-01 09:30:00');
+        $this->service->transition($ticket, TaskStatusEnum::ON_HOLD, $this->actor);
+
+        $ticket->refresh();
+        $this->assertNotNull(
+            $ticket->on_hold_since,
+            'on_hold_since must be stamped on entering ON_HOLD',
+        );
+
+        Carbon::setTestNow('2026-05-01 10:00:00');
+        $this->service->transition($ticket, TaskStatusEnum::CANCELLED, $this->actor);
+
+        $ticket->refresh();
+        $this->assertEquals(TaskStatusEnum::CANCELLED, $ticket->status);
+        $this->assertNull(
+            $ticket->on_hold_since,
+            'on_hold_since must be cleared on leaving ON_HOLD even when no SLA deadline exists to extend',
+        );
+
+        Carbon::setTestNow();
+    }
+
     public function test_assigned_resolved_closed_timestamps_set_correctly(): void
     {
         $ticket = $this->makeTicket();
