@@ -453,19 +453,21 @@ class ViewTicket extends ViewRecord
         $actions = [];
 
         foreach ($next as $to) {
-            // ASSIGNED is handled by the dedicated Ata/Yeniden Ata header
-            // action which also captures employee_id; skip the auto-generated
-            // status-only button.
-            if ($to === TaskStatusEnum::ASSIGNED) {
-                continue;
-            }
-
-            $isReopenPath = $to === TaskStatusEnum::IN_PROGRESS
+            $isReopenPath = $to === TaskStatusEnum::ASSIGNED
                 && in_array($ticket->status, [
                     TaskStatusEnum::RESOLVED,
                     TaskStatusEnum::CLOSED,
                     TaskStatusEnum::COMPLETED,
                 ], true);
+
+            // Skip the auto-generated ASSIGNED button for OPEN → ASSIGNED —
+            // the dedicated Ata/Yeniden Ata header action handles that case
+            // (it also captures employee_id). Reopen (terminal → ASSIGNED)
+            // keeps its own button so ticket.reopen can gate it independently
+            // and the existing employee_id is preserved across the reopen.
+            if ($to === TaskStatusEnum::ASSIGNED && !$isReopenPath) {
+                continue;
+            }
 
             $label = $isReopenPath
                 ? 'Yeniden Aç'
