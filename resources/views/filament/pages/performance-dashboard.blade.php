@@ -40,62 +40,63 @@
 
         <hr class="border-t border-gray-100 dark:border-gray-700 my-6">
 
-        {{-- 10 summary cards — 2×5 grid (mobile 2 / md 3 / lg 5).
-             Each card: colored left border, icon tile in soft tint, then
-             value + label (+ optional subtitle). All Tailwind classes are
-             spelled out per palette so JIT picks them up reliably. --}}
+        {{-- 10 summary cards — top-row icon tile + value, label below in
+             uppercase. Optional subtitle for reopen/risk cards. Palette
+             keys map to fully-spelled Tailwind classes so JIT picks them
+             up reliably. --}}
         @if(!empty($overview))
         @php
-            // Per-color class bundle. Adding a new color = add a new entry here.
             $palette = [
-                'blue'   => ['border' => 'border-blue-500',   'bg' => 'bg-blue-50 dark:bg-blue-900/30',     'fg' => 'text-blue-600 dark:text-blue-400'],
-                'indigo' => ['border' => 'border-indigo-500', 'bg' => 'bg-indigo-50 dark:bg-indigo-900/30', 'fg' => 'text-indigo-600 dark:text-indigo-400'],
-                'yellow' => ['border' => 'border-yellow-500', 'bg' => 'bg-yellow-50 dark:bg-yellow-900/30', 'fg' => 'text-yellow-600 dark:text-yellow-400'],
-                'red'    => ['border' => 'border-red-500',    'bg' => 'bg-red-50 dark:bg-red-900/30',       'fg' => 'text-red-600 dark:text-red-400'],
-                'green'  => ['border' => 'border-green-500',  'bg' => 'bg-green-50 dark:bg-green-900/30',   'fg' => 'text-green-600 dark:text-green-400'],
-                'orange' => ['border' => 'border-orange-500', 'bg' => 'bg-orange-50 dark:bg-orange-900/30', 'fg' => 'text-orange-600 dark:text-orange-400'],
-                'purple' => ['border' => 'border-purple-500', 'bg' => 'bg-purple-50 dark:bg-purple-900/30', 'fg' => 'text-purple-600 dark:text-purple-400'],
+                'blue'    => ['bg' => 'bg-blue-50 dark:bg-blue-900/30',       'fg' => 'text-blue-500 dark:text-blue-400'],
+                'indigo'  => ['bg' => 'bg-indigo-50 dark:bg-indigo-900/30',   'fg' => 'text-indigo-500 dark:text-indigo-400'],
+                'amber'   => ['bg' => 'bg-amber-50 dark:bg-amber-900/30',     'fg' => 'text-amber-500 dark:text-amber-400'],
+                'red'     => ['bg' => 'bg-red-50 dark:bg-red-900/30',         'fg' => 'text-red-500 dark:text-red-400'],
+                'emerald' => ['bg' => 'bg-emerald-50 dark:bg-emerald-900/30', 'fg' => 'text-emerald-500 dark:text-emerald-400'],
+                'green'   => ['bg' => 'bg-green-50 dark:bg-green-900/30',     'fg' => 'text-green-500 dark:text-green-400'],
+                'orange'  => ['bg' => 'bg-orange-50 dark:bg-orange-900/30',   'fg' => 'text-orange-500 dark:text-orange-400'],
+                'violet'  => ['bg' => 'bg-violet-50 dark:bg-violet-900/30',   'fg' => 'text-violet-500 dark:text-violet-400'],
+                'sky'     => ['bg' => 'bg-sky-50 dark:bg-sky-900/30',         'fg' => 'text-sky-500 dark:text-sky-400'],
             ];
 
             $compliance      = $overview['sla_compliance_rate'];
-            $complianceColor = $compliance >= 80 ? 'green' : 'orange';
+            $complianceColor = $compliance >= 80 ? 'green' : ($compliance >= 50 ? 'orange' : 'red');
 
-            // Reopen rate: green <5%, orange <15%, red ≥15%.
+            // Reopen: green <5%, orange <15%, red ≥15%
             $reopenRate  = $overview['reopen_rate'] ?? 0;
             $reopenColor = $reopenRate < 5 ? 'green' : ($reopenRate < 15 ? 'orange' : 'red');
 
-            // At-risk: green = 0, orange > 0, red > 5.
+            // At-risk: green = 0, orange ≤ 5, red > 5
             $atRisk      = $overview['at_risk'] ?? 0;
             $atRiskColor = $atRisk === 0 ? 'green' : ($atRisk > 5 ? 'red' : 'orange');
 
-            // Each row: [label, value, icon name (heroicon-o-*), color key, subtitle?]
+            // [label, value, heroicon, color key, subtitle?]
             $cards = [
-                [__('ui.total_tickets'),    $overview['total_assigned'],                    'heroicon-o-ticket',                'blue',           null],
+                [__('ui.total_tickets'),    $overview['total_assigned'],                    'heroicon-o-inbox',                 'blue',           null],
                 [__('ui.open_tickets'),     $overview['currently_open'],                    'heroicon-o-folder-open',           'indigo',         null],
-                ['Beklemede',               $overview['currently_on_hold'],                 'heroicon-o-pause-circle',          'yellow',         null],
-                ['Toplam İhlal',            $overview['total_breached'],                    'heroicon-o-exclamation-circle',    'red',            null],
-                ['Zamanında Kapanan',       $overview['closed_on_time'],                    'heroicon-o-check-circle',          'green',          null],
+                ['Beklemede',               $overview['currently_on_hold'],                 'heroicon-o-pause-circle',          'amber',          null],
+                ['Toplam İhlal',            $overview['total_breached'],                    'heroicon-o-exclamation-triangle',  'red',            null],
+                ['Zamanında Kapanan',       $overview['closed_on_time'],                    'heroicon-o-check-circle',          'emerald',        null],
                 [__('ui.compliance_rate'),  $compliance . '%',                              'heroicon-o-shield-check',          $complianceColor, null],
-                ['Ort. Çözüm',              $overview['avg_resolution_minutes'] . ' dk',    'heroicon-o-clock',                 'purple',         null],
-                ['Ort. Yanıt',              $overview['avg_response_time_minutes'] . ' dk', 'heroicon-o-bolt',                  'purple',         null],
+                ['Ort. Çözüm',              $overview['avg_resolution_minutes'] . ' dk',    'heroicon-o-clock',                 'violet',         null],
+                ['Ort. Yanıt',              $overview['avg_response_time_minutes'] . ' dk', 'heroicon-o-bolt',                  'sky',            null],
                 ['Yeniden Açılma',          $reopenRate . '%',                              'heroicon-o-arrow-path',            'orange',         ($overview['reopen_count'] ?? 0) . ' adet'],
-                ['Risk Altında',            $atRisk,                                        'heroicon-o-exclamation-triangle',  $atRiskColor,     '≤2sa içinde SLA'],
+                ['Risk Altında',            $atRisk,                                        'heroicon-o-exclamation-circle',    $atRiskColor,     '≤2sa içinde SLA'],
             ];
         @endphp
-        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-8">
             @foreach($cards as [$label, $value, $icon, $color, $subtitle])
             @php $p = $palette[$color]; @endphp
-            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border-l-4 {{ $p['border'] }} px-4 py-3 flex items-center gap-3">
-                <div class="{{ $p['bg'] }} rounded-full w-11 h-11 flex items-center justify-center flex-shrink-0">
-                    @svg($icon, 'w-6 h-6 ' . $p['fg'])
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-4 flex flex-col gap-2">
+                <div class="flex items-center justify-between">
+                    <div class="w-10 h-10 rounded-xl flex items-center justify-center {{ $p['bg'] }}">
+                        @svg($icon, 'w-5 h-5 ' . $p['fg'])
+                    </div>
+                    <span class="text-2xl font-bold text-gray-800 dark:text-gray-100">{{ $value }}</span>
                 </div>
-                <div class="flex-1 min-w-0">
-                    <p class="text-2xl font-bold text-gray-900 dark:text-gray-100 leading-tight truncate">{{ $value }}</p>
-                    <p class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ $label }}</p>
-                    @if($subtitle)
-                        <p class="text-[11px] text-gray-400 dark:text-gray-500 truncate">{{ $subtitle }}</p>
-                    @endif
-                </div>
+                <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ $label }}</p>
+                @if($subtitle)
+                    <p class="text-[11px] text-gray-400 dark:text-gray-500">{{ $subtitle }}</p>
+                @endif
             </div>
             @endforeach
         </div>
@@ -103,47 +104,60 @@
 
         <hr class="border-t border-gray-100 dark:border-gray-700 my-6">
 
-        {{-- Priority breakdown — one card per priority. Card tint, border,
-             and badge colors are keyed off the priority enum value (Low=1
-             /blue, Medium=2/yellow, High=3/orange, Urgent=4/red). --}}
+        {{-- Priority breakdown — fully standalone cards (border-2 + bg
+             tint + matching divider). Compliance bar at the bottom mirrors
+             the rate; per-priority palette keyed off enum value:
+             Düşük (1)→blue, Orta (2)→amber, Yüksek (3)→orange, Acil (4)→red. --}}
         @if(!empty($overview['priority_breakdown'] ?? []))
         @php
             $priorityPalette = [
-                1 => ['card' => 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800',     'badge' => 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'],
-                2 => ['card' => 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800', 'badge' => 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300'],
-                3 => ['card' => 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800', 'badge' => 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300'],
-                4 => ['card' => 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800',         'badge' => 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'],
+                1 => ['border' => 'border-blue-200 dark:border-blue-800',     'bg' => 'bg-blue-50/30 dark:bg-blue-900/10',     'text' => 'text-blue-600 dark:text-blue-400',     'divider' => 'border-blue-200 dark:border-blue-800'],
+                2 => ['border' => 'border-amber-200 dark:border-amber-800',   'bg' => 'bg-amber-50/30 dark:bg-amber-900/10',   'text' => 'text-amber-600 dark:text-amber-400',   'divider' => 'border-amber-200 dark:border-amber-800'],
+                3 => ['border' => 'border-orange-200 dark:border-orange-800', 'bg' => 'bg-orange-50/30 dark:bg-orange-900/10', 'text' => 'text-orange-600 dark:text-orange-400', 'divider' => 'border-orange-200 dark:border-orange-800'],
+                4 => ['border' => 'border-red-200 dark:border-red-800',       'bg' => 'bg-red-50/30 dark:bg-red-900/10',       'text' => 'text-red-600 dark:text-red-400',       'divider' => 'border-red-200 dark:border-red-800'],
             ];
         @endphp
         <div>
             <h3 class="font-semibold text-gray-900 dark:text-white border-l-4 border-primary-500 pl-3 mb-3">Öncelik Dağılımı</h3>
-            <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
                 @foreach($overview['priority_breakdown'] as $row)
                     @php
-                        $pp = $priorityPalette[$row['priority']->value] ?? $priorityPalette[2];
-                        $r  = $row['compliance_rate'];
-                        $rateClass = $r >= 80 ? 'text-green-600 dark:text-green-400'
-                            : ($r >= 50 ? 'text-orange-600 dark:text-orange-400' : 'text-red-600 dark:text-red-400');
+                        $pp     = $priorityPalette[$row['priority']->value] ?? $priorityPalette[2];
+                        $rate   = $row['compliance_rate'];
+                        $rateText = $rate >= 80 ? 'text-emerald-600 dark:text-emerald-400'
+                            : ($rate >= 50 ? 'text-orange-600 dark:text-orange-400' : 'text-red-600 dark:text-red-400');
+                        $barFill  = $rate >= 80 ? 'bg-emerald-500'
+                            : ($rate >= 50 ? 'bg-orange-500' : 'bg-red-500');
                     @endphp
-                    <div class="rounded-xl shadow-sm p-4 border {{ $pp['card'] }}">
-                        <div class="flex items-center justify-between mb-3">
-                            <span class="text-xs font-semibold uppercase tracking-wide rounded-full px-2 py-0.5 {{ $pp['badge'] }}">{{ $row['label'] }}</span>
+                    <div class="rounded-2xl border-2 p-5 flex flex-col gap-4 {{ $pp['border'] }} {{ $pp['bg'] }}">
+                        {{-- Header: priority label + total --}}
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm font-bold uppercase tracking-wider {{ $pp['text'] }}">{{ $row['label'] }}</span>
+                            <span class="text-3xl font-black text-gray-800 dark:text-gray-100">{{ $row['total'] }}</span>
                         </div>
-                        <div class="text-3xl font-bold text-gray-900 dark:text-gray-100 leading-tight">{{ $row['total'] }}</div>
-                        <div class="text-xs text-gray-500 dark:text-gray-400 mb-3">Toplam</div>
-                        <div class="grid grid-cols-3 gap-2 text-xs pt-3 border-t border-gray-200/60 dark:border-gray-700/60">
-                            <div class="text-center">
-                                <div class="font-semibold text-green-600 dark:text-green-400">{{ $row['closed_on_time'] }}</div>
-                                <div class="text-gray-500 dark:text-gray-400 mt-0.5">Zamanında</div>
+
+                        {{-- Divider matching priority hue --}}
+                        <div class="border-t {{ $pp['divider'] }}"></div>
+
+                        {{-- Stats row — horizontal three-up --}}
+                        <div class="grid grid-cols-3 gap-2 text-center">
+                            <div>
+                                <p class="text-lg font-bold text-emerald-600 dark:text-emerald-400">{{ $row['closed_on_time'] }}</p>
+                                <p class="text-xs text-gray-500 dark:text-gray-400">Zamanında</p>
                             </div>
-                            <div class="text-center">
-                                <div class="font-semibold text-red-600 dark:text-red-400">{{ $row['breached'] }}</div>
-                                <div class="text-gray-500 dark:text-gray-400 mt-0.5">İhlal</div>
+                            <div>
+                                <p class="text-lg font-bold text-red-500 dark:text-red-400">{{ $row['breached'] }}</p>
+                                <p class="text-xs text-gray-500 dark:text-gray-400">İhlal</p>
                             </div>
-                            <div class="text-center">
-                                <div class="font-semibold {{ $rateClass }}">{{ $r }}%</div>
-                                <div class="text-gray-500 dark:text-gray-400 mt-0.5">Uyum</div>
+                            <div>
+                                <p class="text-lg font-bold {{ $rateText }}">{{ $rate }}%</p>
+                                <p class="text-xs text-gray-500 dark:text-gray-400">Uyum</p>
                             </div>
+                        </div>
+
+                        {{-- Compliance progress bar (full width) --}}
+                        <div class="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-1.5">
+                            <div class="h-1.5 rounded-full {{ $barFill }}" style="width: {{ $rate }}%"></div>
                         </div>
                     </div>
                 @endforeach
