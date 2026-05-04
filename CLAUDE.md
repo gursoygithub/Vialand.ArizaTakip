@@ -102,7 +102,7 @@ hard blocks in step `afterValidation` hooks. **Any new wizard step or
 setup feature must do the same** — validate prerequisites before allowing
 creation.
 
-### shield:generate overwrites custom policies
+### shield:generate overwrites custom policies — pass `--ignore-existing-policies`
 `php artisan shield:generate --all` rewrites these files with auto-generated
 stubs that use the wrong permission names (`view_ticket`, `create_ticket`)
 instead of our namespaced ones (`ticket.view.all`, `ticket.create`):
@@ -110,27 +110,16 @@ instead of our namespaced ones (`ticket.view.all`, `ticket.create`):
 - `app/Policies/GroupPolicy.php`
 - `app/Policies/SlaPolicyPolicy.php`
 
-If you must run `shield:generate --all` (e.g. after adding a new resource),
-restore these three policies from git immediately afterwards:
+**Always pass `--ignore-existing-policies`** when running it manually — Shield
+will then skip any policy class that already exists rather than clobbering it:
 ```bash
-git checkout HEAD -- app/Policies/TicketPolicy.php
-git checkout HEAD -- app/Policies/GroupPolicy.php
-git checkout HEAD -- app/Policies/SlaPolicyPolicy.php
+php artisan shield:generate --all --panel=dashboard --ignore-existing-policies
+```
+`InitSeeder` already passes this flag (plus `--no-interaction --panel=dashboard`),
+so `migrate:fresh --seed` is safe to re-run; the three policies stay untouched.
+
+If you ever forget the flag, restore from git:
+```bash
+git checkout HEAD -- app/Policies/TicketPolicy.php app/Policies/GroupPolicy.php app/Policies/SlaPolicyPolicy.php
 ```
 Each file has a header comment repeating this warning.
-
-### shield:generate inside InitSeeder prompts for panel
-`InitSeeder::run()` calls `Artisan::call('shield:generate', ['--all' => true])`
-without `--panel`, which throws `NonInteractiveValidationException` under
-`db:seed --no-interaction`. Workaround: run `shield:generate --all
---panel=dashboard --no-interaction` manually before seeding, then run the
-remaining seeder steps.
-
-### UnitSeeder needs an authenticated user
-`Unit::booted()` sets `created_by = auth()->id()` in the `creating` hook.
-`UnitSeeder` has no auth context, so `created_by` becomes `NULL` and the
-NOT NULL constraint fails. Run it under an authenticated user:
-```php
-auth()->login(User::where('username', 'sa')->first());
-(new UnitSeeder)->run();
-```
