@@ -15,9 +15,8 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\Relation;
 
-class TasksRelationManager extends RelationManager
+class TicketsRelationManager extends RelationManager
 {
-    // Modern alias: Unit::tickets() points at the same hasMany Ticket.
     protected static string $relationship = 'tickets';
 
     public static function getModelLabel(): ?string

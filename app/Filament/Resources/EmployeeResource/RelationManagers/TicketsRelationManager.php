@@ -14,10 +14,8 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 
-class TasksRelationManager extends RelationManager
+class TicketsRelationManager extends RelationManager
 {
-    // Modern alias: Employee::tickets() points at the same hasMany Ticket as
-    // the legacy ::tasks(). All new code uses tickets.
     protected static string $relationship = 'tickets';
 
     protected static ?string $icon = 'heroicon-o-wrench-screwdriver';

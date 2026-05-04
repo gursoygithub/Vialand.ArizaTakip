@@ -190,7 +190,7 @@ class EmployeeResource extends Resource
     public static function getRelations(): array
     {
         return [
-            RelationManagers\TasksRelationManager::class,
+            RelationManagers\TicketsRelationManager::class,
             RelationManagers\GroupMembershipsRelationManager::class,
             RelationManagers\SlaPoliciesRelationManager::class,
         ];
