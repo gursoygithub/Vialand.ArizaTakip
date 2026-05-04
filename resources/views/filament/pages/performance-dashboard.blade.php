@@ -35,48 +35,63 @@
             </form>
         </div>
 
-        {{-- 10 summary cards --}}
+        {{-- 10 summary cards — 2×5 grid (mobile 2 / md 3 / lg 5).
+             Each card: colored left border, icon tile in soft tint, then
+             value + label (+ optional subtitle). All Tailwind classes are
+             spelled out per palette so JIT picks them up reliably. --}}
         @if(!empty($overview))
         @php
-            $colorMap = [
-                'gray'   => 'text-gray-900 dark:text-gray-100',
-                'blue'   => 'text-blue-600',
-                'orange' => 'text-orange-500',
-                'red'    => 'text-red-500',
-                'green'  => 'text-green-600',
+            // Per-color class bundle. Adding a new color = add a new entry here.
+            $palette = [
+                'blue'   => ['border' => 'border-blue-500',   'bg' => 'bg-blue-50 dark:bg-blue-900/30',     'fg' => 'text-blue-600 dark:text-blue-400'],
+                'indigo' => ['border' => 'border-indigo-500', 'bg' => 'bg-indigo-50 dark:bg-indigo-900/30', 'fg' => 'text-indigo-600 dark:text-indigo-400'],
+                'yellow' => ['border' => 'border-yellow-500', 'bg' => 'bg-yellow-50 dark:bg-yellow-900/30', 'fg' => 'text-yellow-600 dark:text-yellow-400'],
+                'red'    => ['border' => 'border-red-500',    'bg' => 'bg-red-50 dark:bg-red-900/30',       'fg' => 'text-red-600 dark:text-red-400'],
+                'green'  => ['border' => 'border-green-500',  'bg' => 'bg-green-50 dark:bg-green-900/30',   'fg' => 'text-green-600 dark:text-green-400'],
+                'orange' => ['border' => 'border-orange-500', 'bg' => 'bg-orange-50 dark:bg-orange-900/30', 'fg' => 'text-orange-600 dark:text-orange-400'],
+                'purple' => ['border' => 'border-purple-500', 'bg' => 'bg-purple-50 dark:bg-purple-900/30', 'fg' => 'text-purple-600 dark:text-purple-400'],
             ];
 
-            // Reopen rate: green <5%, orange <15%, red ≥15%
+            $compliance      = $overview['sla_compliance_rate'];
+            $complianceColor = $compliance >= 80 ? 'green' : 'orange';
+
+            // Reopen rate: green <5%, orange <15%, red ≥15%.
             $reopenRate  = $overview['reopen_rate'] ?? 0;
             $reopenColor = $reopenRate < 5 ? 'green' : ($reopenRate < 15 ? 'orange' : 'red');
 
-            // At-risk: green = 0, orange > 0, red > 5
+            // At-risk: green = 0, orange > 0, red > 5.
             $atRisk      = $overview['at_risk'] ?? 0;
             $atRiskColor = $atRisk === 0 ? 'green' : ($atRisk > 5 ? 'red' : 'orange');
 
+            // Each row: [label, value, icon name (heroicon-o-*), color key, subtitle?]
             $cards = [
-                [__('ui.total_tickets'),  $overview['total_assigned'],                  'gray',   null],
-                [__('ui.open_tickets'),   $overview['currently_open'],                  'blue',   null],
-                ['Beklemede',             $overview['currently_on_hold'],               'orange', null],
-                ['Toplam İhlal',          $overview['total_breached'],                  'red',    null],
-                ['Zamanında Kapanan',     $overview['closed_on_time'],                  'green',  null],
-                [__('ui.compliance_rate'), $overview['sla_compliance_rate'].'%',
-                    $overview['sla_compliance_rate'] >= 80 ? 'green' : 'orange', null],
-                ['Ort. Çözüm',            $overview['avg_resolution_minutes'].' dk',    'gray',   null],
-                ['Ort. Yanıt',            $overview['avg_response_time_minutes'].' dk', 'gray',   null],
-                ['Yeniden Açılma',        $reopenRate.'%',                              $reopenColor, ($overview['reopen_count'] ?? 0).' adet'],
-                ['Risk Altında',          $atRisk,                                      $atRiskColor, '≤2sa içinde SLA'],
+                [__('ui.total_tickets'),    $overview['total_assigned'],                    'heroicon-o-ticket',                'blue',           null],
+                [__('ui.open_tickets'),     $overview['currently_open'],                    'heroicon-o-folder-open',           'indigo',         null],
+                ['Beklemede',               $overview['currently_on_hold'],                 'heroicon-o-pause-circle',          'yellow',         null],
+                ['Toplam İhlal',            $overview['total_breached'],                    'heroicon-o-exclamation-circle',    'red',            null],
+                ['Zamanında Kapanan',       $overview['closed_on_time'],                    'heroicon-o-check-circle',          'green',          null],
+                [__('ui.compliance_rate'),  $compliance . '%',                              'heroicon-o-shield-check',          $complianceColor, null],
+                ['Ort. Çözüm',              $overview['avg_resolution_minutes'] . ' dk',    'heroicon-o-clock',                 'purple',         null],
+                ['Ort. Yanıt',              $overview['avg_response_time_minutes'] . ' dk', 'heroicon-o-bolt',                  'purple',         null],
+                ['Yeniden Açılma',          $reopenRate . '%',                              'heroicon-o-arrow-path',            'orange',         ($overview['reopen_count'] ?? 0) . ' adet'],
+                ['Risk Altında',            $atRisk,                                        'heroicon-o-exclamation-triangle',  $atRiskColor,     '≤2sa içinde SLA'],
             ];
         @endphp
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-            @foreach($cards as [$label, $value, $color, $subtitle])
-                <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-4 text-center">
-                    <p class="text-2xl font-bold {{ $colorMap[$color] ?? $colorMap['gray'] }}">{{ $value }}</p>
-                    <p class="text-sm text-gray-500 mt-1">{{ $label }}</p>
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+            @foreach($cards as [$label, $value, $icon, $color, $subtitle])
+            @php $p = $palette[$color]; @endphp
+            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border-l-4 {{ $p['border'] }} px-4 py-3 flex items-center gap-3">
+                <div class="{{ $p['bg'] }} rounded-full w-11 h-11 flex items-center justify-center flex-shrink-0">
+                    @svg($icon, 'w-6 h-6 ' . $p['fg'])
+                </div>
+                <div class="flex-1 min-w-0">
+                    <p class="text-2xl font-bold text-gray-900 dark:text-gray-100 leading-tight truncate">{{ $value }}</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ $label }}</p>
                     @if($subtitle)
-                        <p class="text-xs text-gray-400 mt-0.5">{{ $subtitle }}</p>
+                        <p class="text-[11px] text-gray-400 dark:text-gray-500 truncate">{{ $subtitle }}</p>
                     @endif
                 </div>
+            </div>
             @endforeach
         </div>
         @endif
