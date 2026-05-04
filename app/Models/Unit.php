@@ -36,7 +36,7 @@ class Unit extends Model
         return $this->belongsTo(User::class, 'deleted_by');
     }
 
-    public function tasks()
+    public function tickets()
     {
         return $this->hasMany(\App\Models\Ticket::class, 'unit_id');
     }

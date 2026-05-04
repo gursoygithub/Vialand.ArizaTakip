@@ -415,7 +415,7 @@ class UserResource extends Resource
         // Check if the user is a super admin
         if (auth()->user()->hasRole('super_admin')) {
             // Super admin cannot delete if the user is associated with any Area, SubArea, or Task
-            if ($record->areas()->exists() || $record->subAreas()->exists() || $record->tasks()->exists()) {
+            if ($record->areas()->exists() || $record->subAreas()->exists() || $record->tickets()->exists()) {
                 return false;
             }
 
@@ -428,7 +428,7 @@ class UserResource extends Resource
         }
 
         // Check if the user is associated with any Area, SubArea, or Task
-        if ($record->areas()->exists() || $record->subAreas()->exists() || $record->tasks()->exists()) {
+        if ($record->areas()->exists() || $record->subAreas()->exists() || $record->tickets()->exists()) {
             return false;
         }
 

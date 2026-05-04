@@ -28,13 +28,6 @@ class Technician extends Model
         'deleted_by',
     ];
 
-    // legacy relation; tickets table has no technician_id column so this is
-    // effectively unused — kept only so existing callers don't fatally fail.
-    public function tasks()
-    {
-        return $this->hasMany(\App\Models\Ticket::class, 'technician_id');
-    }
-
     protected $casts = [
         'status' => ActiveStatusEnum::class,
     ];

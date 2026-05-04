@@ -132,6 +132,6 @@ class SubAreasRelationManager extends RelationManager
 
     protected function canDelete(Model $record): bool
     {
-        return $record->tasks()->count() === 0 && (auth()->user()->hasRole('super_admin') || $record->created_by === auth()->user()->id);
+        return $record->tickets()->count() === 0 && (auth()->user()->hasRole('super_admin') || $record->created_by === auth()->user()->id);
     }
 }

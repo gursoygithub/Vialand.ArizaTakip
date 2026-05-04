@@ -20,23 +20,23 @@ class TaskExporter extends Exporter
 
         $columns = [];
 
-        // Diğer sütunlar
         $columns = array_merge($columns, [
-//            ExportColumn::make('title')
-//                ->label(__('ui.task_title')),
+            // Canonical ticket identifier — leads the export.
+            ExportColumn::make('ticket_no')
+                ->label(__('ui.ticket_no') ?: 'Talep No'),
             ExportColumn::make('priority')
                 ->label(__('ui.priority'))
                 ->formatStateUsing(fn ($state): ?string =>
-                $state instanceof \App\Enums\TaskPriorityEnum
-                    ? $state->getLabel()
-                    : (string) $state
+                    $state instanceof \App\Enums\TaskPriorityEnum
+                        ? $state->getLabel()
+                        : (string) $state
                 ),
             ExportColumn::make('type_id')
                 ->label(__('ui.type'))
                 ->formatStateUsing(fn ($state): ?string =>
-                $state instanceof \App\Enums\TaskTypeEnum
-                    ? $state->getLabel()
-                    : (string) $state
+                    $state instanceof \App\Enums\TaskTypeEnum
+                        ? $state->getLabel()
+                        : (string) $state
                 ),
             ExportColumn::make('area.name')
                 ->label(__('ui.area')),
@@ -44,7 +44,6 @@ class TaskExporter extends Exporter
                 ->label(__('ui.sub_area')),
             ExportColumn::make('unit.name')
                 ->label(__('ui.unit')),
-            // related_person
             ExportColumn::make('employee.name')
                 ->label(__('ui.related_person')),
             ExportColumn::make('task_date')
@@ -52,18 +51,24 @@ class TaskExporter extends Exporter
                 ->formatStateUsing(fn ($state) => DateHelper::formatForExport($state, 'd F Y')),
             ExportColumn::make('description')
                 ->label(__('ui.description')),
-            ExportColumn::make('unit_description')
-                ->label(__('ui.unit_description')),
             ExportColumn::make('status')
                 ->label(__('ui.status'))
-                ->formatStateUsing(fn ($state): ?string => $state instanceof \App\Enums\TaskStatusEnum ? $state->getLabel() : (string) $state),
-//            ExportColumn::make('employee.name')
-//                ->label(__('ui.assigned_to')),
-            ExportColumn::make('completedBy.name')
+                ->formatStateUsing(fn ($state): ?string =>
+                    $state instanceof \App\Enums\TaskStatusEnum ? $state->getLabel() : (string) $state
+                ),
+            // Reform-era SLA + close metadata. Replaces the legacy
+            // due_date / completedBy / unit_description columns.
+            ExportColumn::make('sla_deadline')
+                ->label('SLA Son Tarih')
+                ->formatStateUsing(fn ($state) => $state ? DateHelper::formatForExport($state, 'd F Y H:i') : ''),
+            ExportColumn::make('sla_breached')
+                ->label('SLA İhlali')
+                ->formatStateUsing(fn ($state) => $state ? 'Evet' : 'Hayır'),
+            ExportColumn::make('closed_at')
+                ->label('Kapanma')
+                ->formatStateUsing(fn ($state) => $state ? DateHelper::formatForExport($state, 'd F Y H:i') : ''),
+            ExportColumn::make('closedBy.name')
                 ->label(__('ui.closed_by')),
-            ExportColumn::make('due_date')
-                ->label(__('ui.due_date'))
-                ->formatStateUsing(fn ($state) => DateHelper::formatForExport($state, 'd F Y')),
             ExportColumn::make('resolution_notes')
                 ->label(__('ui.resolution_notes')),
         ]);
