@@ -39,8 +39,16 @@
                                 <span>{{ $sub['name'] }}</span>
                                 <button
                                     type="button"
+                                    wire:click="mountAction('editSubArea', { sub_area_id: {{ $sub['id'] }} })"
+                                    class="ml-1 text-blue-500 hover:text-blue-700"
+                                    title="Yeniden adlandır"
+                                >
+                                    ✎
+                                </button>
+                                <button
+                                    type="button"
                                     wire:click="mountAction('deleteSubArea', { sub_area_id: {{ $sub['id'] }} })"
-                                    class="ml-1 text-red-500 hover:text-red-700"
+                                    class="ml-0.5 text-red-500 hover:text-red-700"
                                     title="Sil"
                                 >
                                     ×

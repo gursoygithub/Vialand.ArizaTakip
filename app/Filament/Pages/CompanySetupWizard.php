@@ -108,12 +108,19 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
         return $form
             ->statePath('data')
             ->schema([
-                // Wizard renders its own header tabs and prev/İleri buttons,
-                // but the Tamamla submit lives in the page footer (see
-                // getFooterActions). Passing an Action object to
-                // ->submitAction() doesn't wire requiresConfirmation()
-                // correctly — modal infra needs to be registered as a page
-                // action, not a form-component action.
+                // Tamamla rides in the wizard's submit slot via an Htmlable
+                // (the wizard's submitAction signature is `string|Htmlable|null`).
+                // We can't pass an Action object directly because the wizard's
+                // blade calls requiresConfirmation() handling at render-time
+                // and silently drops the modal — that path only wires up if
+                // the action lives as a page action and is mounted via
+                // mountAction(). So the slot gets a tiny button that calls
+                // mountAction('submit'), which in turn opens the page-level
+                // submitAction() defined below (with the confirmation modal).
+                // Bonus: the wizard already wraps its submit slot in
+                // x-bind:class="{ hidden: ! isLastStep(), block: isLastStep() }"
+                // so the button is auto-hidden until the last step — no
+                // server-side step counter needed.
                 Wizard::make([
                     $this->stepCompany(),
                     $this->stepAreas(),
@@ -123,7 +130,18 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
                     $this->stepSummary(),
                 ])
                     ->persistStepInQueryString()
-                    ->submitAction(null),
+                    ->submitAction(new \Illuminate\Support\HtmlString(<<<'HTML'
+                        <button
+                            type="button"
+                            wire:click="mountAction('submit')"
+                            class="fi-btn fi-btn-color-primary fi-btn-size-md inline-flex items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold outline-none transition duration-75 focus-visible:ring-2 bg-primary-600 text-white hover:bg-primary-500 focus-visible:ring-primary-500/50"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-5 w-5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                            </svg>
+                            Tamamla
+                        </button>
+                    HTML)),
             ]);
     }
 
@@ -872,6 +890,29 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
                     'created_by' => auth()->id(),
                 ]);
                 Notification::make()->title('Lokasyon eklendi')->success()->send();
+            });
+    }
+
+    public function editSubAreaAction(): Action
+    {
+        return Action::make('editSubArea')
+            ->label('Yeniden adlandır')
+            ->icon('heroicon-o-pencil')
+            ->modalHeading('Lokasyon Adını Değiştir')
+            ->fillForm(function (array $arguments): array {
+                $sub = SubArea::find($arguments['sub_area_id'] ?? null);
+                return $sub ? ['name' => $sub->name] : [];
+            })
+            ->form([
+                TextInput::make('name')->label('Lokasyon Adı')->required(),
+            ])
+            ->action(function (array $arguments, array $data) {
+                $sub = SubArea::find($arguments['sub_area_id'] ?? null);
+                if (!$sub) {
+                    return;
+                }
+                $sub->update(['name' => $data['name']]);
+                Notification::make()->title('Lokasyon güncellendi')->success()->send();
             });
     }
 
