@@ -16,7 +16,9 @@ RUN set -eux; \
     chmod go+r /etc/apt/keyrings/microsoft.asc && \
     echo "deb [signed-by=/etc/apt/keyrings/microsoft.asc] https://packages.microsoft.com/debian/12/prod bookworm main" > /etc/apt/sources.list.d/mssql-release.list
 
-# --- PHP repo (sury.org - Launchpad PPA yerine) ---
+# --- PHP repo ---
+#RUN add-apt-repository -y ppa:ondrej/php && apt-get update
+
 RUN curl -sSLo /usr/share/keyrings/deb.sury.org-php.gpg https://packages.sury.org/php/apt.gpg && \
     echo "deb [signed-by=/usr/share/keyrings/deb.sury.org-php.gpg] https://packages.sury.org/php/ $(lsb_release -sc) main" > /etc/apt/sources.list.d/php.list && \
     apt-get update
@@ -44,22 +46,22 @@ RUN apt-get install -y \
     php8.4-pdo \
     php8.4-bz2 \
     php8.4-dev \
+    php8.4-igbinary \
     php8.4-intl \
     php8.4-opcache \
     php8.4-readline \
     php8.4-ldap \
+    php8.4-redis \
     php8.4-pgsql \
+    php8.4-ssh2 \
     php8.4-soap
 
-# --- PECL extensions (igbinary, redis, ssh2 sury.org'da yok) ---
+# --- SQL Server PHP extension ---
 RUN pecl channel-update pecl.php.net && \
-    pecl install igbinary redis ssh2-1.4 sqlsrv pdo_sqlsrv && \
-    echo "extension=igbinary.so" > /etc/php/8.4/mods-available/igbinary.ini && \
-    echo "extension=redis.so" > /etc/php/8.4/mods-available/redis.ini && \
-    echo "extension=ssh2.so" > /etc/php/8.4/mods-available/ssh2.ini && \
+    pecl install sqlsrv pdo_sqlsrv && \
     echo "extension=sqlsrv.so" > /etc/php/8.4/mods-available/sqlsrv.ini && \
     echo "extension=pdo_sqlsrv.so" > /etc/php/8.4/mods-available/pdo_sqlsrv.ini && \
-    phpenmod igbinary redis ssh2 sqlsrv pdo_sqlsrv
+    phpenmod sqlsrv pdo_sqlsrv
 
 # --- Composer ---
 RUN curl -sS https://getcomposer.org/installer | php && \
@@ -83,9 +85,6 @@ RUN composer install --no-interaction --prefer-dist --optimize-autoloader
 
 RUN npm install
 RUN npm run build
-
-# --- supervisor config ---
-COPY ./.docker/supervisord.conf /etc/supervisor/supervisord.conf
 
 # --- nginx ve start script ---
 COPY ./.docker/start.sh /start.sh
