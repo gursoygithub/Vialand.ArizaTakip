@@ -17,7 +17,11 @@ RUN set -eux; \
     echo "deb [signed-by=/etc/apt/keyrings/microsoft.asc] https://packages.microsoft.com/debian/12/prod bookworm main" > /etc/apt/sources.list.d/mssql-release.list
 
 # --- PHP repo ---
-RUN add-apt-repository -y ppa:ondrej/php && apt-get update
+#RUN add-apt-repository -y ppa:ondrej/php && apt-get update
+
+RUN curl -sSLo /usr/share/keyrings/deb.sury.org-php.gpg https://packages.sury.org/php/apt.gpg && \
+    echo "deb [signed-by=/usr/share/keyrings/deb.sury.org-php.gpg] https://packages.sury.org/php/ $(lsb_release -sc) main" > /etc/apt/sources.list.d/php.list && \
+    apt-get update
 
 # --- ODBC ve SQL Server tools ---
 RUN ACCEPT_EULA=Y apt-get install -y \
