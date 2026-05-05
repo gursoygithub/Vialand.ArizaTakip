@@ -55,9 +55,14 @@ class UserService
             ?? $ldapUser->getFirstAttribute('cn')
             ?? trim("{$firstName} {$lastName}");
 
+        $email = $ldapUser->getFirstAttribute('mail');
+        $employee = $email
+            ? \App\Models\Employee::where('email', $email)->first()
+            : null;
+
         return [
             'username' => $ldapUser->getFirstAttribute('samaccountname'),
-            'email' => $ldapUser->getFirstAttribute('mail'),
+            'email' => $email,
             'name' => $displayName,
             'first_name' => $firstName,
             'last_name' => $lastName,
@@ -72,6 +77,7 @@ class UserService
             'panel_user' => true,
             'status' => UserStatusEnum::ACTIVE,
             'password' => Hash::make($password),
+            'employee_id' => $employee?->employee_id,
         ];
     }
 
