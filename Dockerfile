@@ -51,6 +51,8 @@ RUN apt-get install -y \
     php8.4-pgsql \
     php8.4-soap
 
+RUN apt-get install -y libssh2-1-dev
+
 # --- PECL extensions (igbinary, redis, ssh2 sury.org'da yok) ---
 RUN pecl channel-update pecl.php.net && \
     pecl install igbinary redis ssh2-1.4 sqlsrv pdo_sqlsrv && \
