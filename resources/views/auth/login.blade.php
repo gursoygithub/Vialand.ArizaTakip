@@ -29,10 +29,10 @@
                 </svg>
             </div>
             <h1 class="text-3xl font-bold text-gray-900 tracking-tight">
-                {{ __('ui.app_name') }}
+                {{ env('APP_NAME') }}
             </h1>
             <p class="mt-2 text-sm text-gray-600">
-                {{ __('ui.sign_in_to_account') }}
+                {{ __('ui.gursoy_group') }}
             </p>
         </div>
 
@@ -69,7 +69,7 @@
                         </div>
                         <input type="text" name="username" id="username" value="{{ old('username') }}" required
                             autofocus autocomplete="username"
-                            placeholder="Kullanıcı adı (örn: brahimmahamoud)"
+                            placeholder="Kullanıcı adınızı giriniz"
                             class="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors">
                     </div>
                 </div>
