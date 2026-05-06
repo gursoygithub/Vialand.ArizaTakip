@@ -13,6 +13,7 @@ use Spatie\Activitylog\Traits\LogsActivity;
 use Spatie\MediaLibrary\HasMedia;
 use Spatie\MediaLibrary\InteractsWithMedia;
 use Illuminate\Support\Facades\Cache;
+use App\Models\GroupMember;
 
 class Ticket extends Model implements HasMedia
 {
@@ -316,17 +317,23 @@ class Ticket extends Model implements HasMedia
 
         $employeeId = $user->employee?->id;
 
-        // 2. ticket.view.group → tickets in user's supervised regions, AND
-        //    additionally restricted to the user's accessible companies. A
-        //    supervisor with cross-region (but single-company) access should
-        //    not see tickets from companies they don't manage.
+        // 2. ticket.view.group → tickets in areas of groups the user is a MEMBER
+        //    of (via group_members), OR tickets they created, OR tickets assigned
+        //    to them. Additionally restricted to the user's accessible companies.
         if ($user->hasPermissionTo('ticket.view.group')) {
-            $areaIds = Group::where('employee_id', $employeeId)->pluck('area_id');
+            $groupIds = GroupMember::where('employee_id', $employeeId)->pluck('group_id');
+            $areaIds  = Group::whereIn('id', $groupIds)->pluck('area_id');
 
             $companyIds = $user->scopedCompanyIds();
 
             return $query
-                ->whereIn('area_id', $areaIds)
+                ->where(function (Builder $q) use ($user, $employeeId, $areaIds) {
+                    $q->whereIn('area_id', $areaIds)
+                      ->orWhere('created_by', $user->id);
+                    if ($employeeId) {
+                        $q->orWhere('employee_id', $employeeId);
+                    }
+                })
                 ->when(!empty($companyIds), fn (Builder $q) => $q->whereHas(
                     'area',
                     fn (Builder $aq) => $aq->whereIn('company_id', $companyIds)
