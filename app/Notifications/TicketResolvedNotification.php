@@ -10,7 +10,11 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
-class SlaWarningNotification extends Notification implements ShouldQueue
+/**
+ * Sent to the ticket CREATOR when the ticket transitions → RESOLVED.
+ * Mail is always sent (ignores mail_enabled config).
+ */
+class TicketResolvedNotification extends Notification implements ShouldQueue
 {
     use Queueable;
 
@@ -18,7 +22,7 @@ class SlaWarningNotification extends Notification implements ShouldQueue
 
     public function getNotificationType(): string
     {
-        return 'sla_warning';
+        return 'ticket_resolved';
     }
 
     public function via(object $notifiable): array
@@ -35,14 +39,14 @@ class SlaWarningNotification extends Notification implements ShouldQueue
     public function toMail(object $notifiable): MailMessage
     {
         return (new MailMessage)
-            ->subject($this->ticket->ticket_no . ' — SLA Süresi Dolmak Üzere')
+            ->subject($this->ticket->ticket_no . ' — Talep Çözüldü')
             ->view('mail.ticket-event', [
                 'ticket'           => $this->ticket,
                 'notifiableName'   => $notifiable->name ?? $notifiable->email ?? '',
-                'eventTitle'       => 'SLA Uyarısı',
-                'eventDescription' => 'Bu talebin SLA süresi %80 doldu. Lütfen acilen ilgilenin.',
-                'headerColor'      => '#ffc107',
-                'headerColorDark'  => '#d39e00',
+                'eventTitle'       => 'Talep Çözüldü',
+                'eventDescription' => 'Açmış olduğunuz talep çözüldü.',
+                'headerColor'      => '#198754',
+                'headerColorDark'  => '#146c43',
                 'note'             => null,
             ]);
     }
@@ -50,14 +54,13 @@ class SlaWarningNotification extends Notification implements ShouldQueue
     public function toDatabase(object $notifiable): array
     {
         return FilamentNotification::make()
-            ->title($this->ticket->ticket_no . ' — SLA %80')
-            ->body($this->ticket->area?->name . ' • ' . __('ui.sla_deadline') . ': ' .
-                $this->ticket->sla_deadline?->format('d.m.Y H:i'))
-            ->icon('heroicon-o-clock')
-            ->iconColor('warning')
+            ->title($this->ticket->ticket_no . ' — Çözüldü')
+            ->body(($this->ticket->area?->name ?? '—') . ' • ' . ($this->ticket->priority?->getLabel() ?? ''))
+            ->icon('heroicon-o-check-circle')
+            ->iconColor('success')
             ->actions([
                 Action::make('view')
-                    ->label(__('ui.ticket_detail'))
+                    ->label('Talebi Aç')
                     ->url(url('/tickets/' . $this->ticket->id))
                     ->markAsRead(),
             ])

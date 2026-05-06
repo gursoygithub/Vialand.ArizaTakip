@@ -16,22 +16,35 @@ class TicketCancelledNotification extends Notification implements ShouldQueue
 
     public function __construct(public readonly Ticket $ticket) {}
 
+    public function getNotificationType(): string
+    {
+        return 'ticket_cancelled';
+    }
+
     public function via(object $notifiable): array
     {
-        $channels = ['database'];
-
-        if (config('notifications.mail_enabled', false)) {
-            $channels[] = 'mail';
+        // Always mail for this event regardless of mail_enabled config.
+        $channels = ['mail'];
+        if (!method_exists($notifiable, 'wantsNotification')
+            || $notifiable->wantsNotification($this->getNotificationType(), 'database')) {
+            $channels[] = 'database';
         }
-
         return $channels;
     }
 
     public function toMail(object $notifiable): MailMessage
     {
         return (new MailMessage)
-            ->subject($this->ticket->ticket_no . ' — iptal edildi')
-            ->line($this->ticket->ticket_no . ' iptal edildi.');
+            ->subject($this->ticket->ticket_no . ' — Talep İptal Edildi')
+            ->view('mail.ticket-event', [
+                'ticket'           => $this->ticket,
+                'notifiableName'   => $notifiable->name ?? $notifiable->email ?? '',
+                'eventTitle'       => 'Talep İptal Edildi',
+                'eventDescription' => 'Atandığınız talep iptal edildi.',
+                'headerColor'      => '#dc3545',
+                'headerColorDark'  => '#b02a37',
+                'note'             => null,
+            ]);
     }
 
     public function toDatabase(object $notifiable): array

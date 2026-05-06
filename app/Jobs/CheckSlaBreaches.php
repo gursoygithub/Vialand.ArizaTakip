@@ -113,18 +113,16 @@ class CheckSlaBreaches implements ShouldQueue
     }
 
     /**
-     * Canonical SLA recipients: assignee + the supervisor (manager) of the
-     * ticket's group. No role-name lookups, no admin fallback — both relations
-     * walk through Employee->user (LDAP-bound by email). If both are missing
-     * the notification simply doesn't fire; the dashboard SLA widget already
-     * surfaces the breach for admins through the panel UI.
+     * SLA recipients: assignee + ticket creator.
+     * No admin fallback by design — the dashboard SLA widget surfaces
+     * breaches for admins through the panel UI.
      */
-    private function slaRecipients(Ticket $ticket)
+    private function slaRecipients(Ticket $ticket): \Illuminate\Support\Collection
     {
-        $assigneeUser    = $ticket->employee?->user;
-        $groupSupervisor = $ticket->group?->employee?->user; // group.manager (employee) → user
+        $assigneeUser = $ticket->employee?->user;
+        $creator      = $ticket->created_by ? User::find($ticket->created_by) : null;
 
-        return collect([$assigneeUser, $groupSupervisor])
+        return collect([$assigneeUser, $creator])
             ->filter()
             ->unique('id')
             ->values();

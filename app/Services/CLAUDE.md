@@ -29,9 +29,20 @@ Widgets, or Observers (observers trigger services, they don't contain logic).
   - `closed → [assigned]` (reopen — permission gated separately by `ticket.reopen`)
   - `cancelled → []` (terminal — no path back; reopen-recalc still resets state if matrix opens later)
 
+### dispatchTransitionNotifications — targeted recipient rules
+`dispatchTransitionNotifications` was refactored to send to narrower recipient sets for key events:
+- **OPEN → ASSIGNED** → `TicketAssignedNotification` to assignee only (mail + panel + FCM)
+- **terminal → ASSIGNED (reopen)** → `TicketReopenedNotification` to assignee + creator (mail + panel + FCM); via `notifyReopened()`
+- **→ RESOLVED** → `TicketResolvedNotification` to creator only (mail + panel + FCM); via `notifyResolved()`
+- **→ CANCELLED** → `TicketCancelledNotification` to current assignee only (mail + panel + FCM); via `notifyCancelled()`
+- **all other transitions** → `TicketStatusChangedNotification` to full participant set (database-only bell + FCM)
+
+Private helpers: `notifyResolved(Ticket, User)`, `notifyCancelled(Ticket, User)`, `notifyReopened(Ticket, User)` — all check mute, skip actor, then notify and fire FCM directly.
+
 ## FcmService (`App\Services\FcmService`)
 - `sendToUser(User, string $title, string $body, ?string $url): void` / `sendToUsers(Collection, …)` — fans out to each user's `fcm_tokens` rows
-- Used by `TicketAssignedNotification`, `CheckSlaBreaches`, the comment / status / mute paths
+- **Data-only messages** — no `notification` key is sent to FCM; all payload is in the `data` field (`title`, `body`, `url`). This ensures the browser's `onMessage` handler fires in the foreground so Filament can render its own toast instead of the OS notification system intercepting the message.
+- Used by `TicketService` notification helpers (`notifyResolved`, `notifyCancelled`, `notifyReopened`), `notifyAssignee`, `notifyCreatorOfReassignment`, `CheckSlaBreaches`, and the comment / priority-change paths
 - Tokens stored in `fcm_tokens` (`user_id`, `token`, `last_seen_at`)
 
 ## PerformanceService (`App\Services\PerformanceService`)

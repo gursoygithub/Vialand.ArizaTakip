@@ -23,21 +23,26 @@ class TicketAssignedNotification extends Notification implements ShouldQueue
 
     public function via(object $notifiable): array
     {
-        return \App\Support\NotificationChannels::resolve($notifiable, $this->getNotificationType());
+        // Always mail for this event regardless of mail_enabled config.
+        $channels = ['mail'];
+        if (!method_exists($notifiable, 'wantsNotification')
+            || $notifiable->wantsNotification($this->getNotificationType(), 'database')) {
+            $channels[] = 'database';
+        }
+        return $channels;
     }
 
     public function toMail(object $notifiable): MailMessage
     {
         return (new MailMessage)
-            ->subject($this->ticket->ticket_no . ' — Size Atandı')
-            ->view('emails.ticket-notification', [
-                'ticketNo'         => $this->ticket->ticket_no,
-                'eventDescription' => $this->ticket->ticket_no . ' size atandı.',
-                'area'             => $this->ticket->area?->name,
-                'priority'         => $this->ticket->priority?->getLabel(),
-                'status'           => $this->ticket->status?->getLabel(),
-                'assignee'         => $this->ticket->employee?->name,
-                'url'              => url('/tickets/' . $this->ticket->id),
+            ->subject($this->ticket->ticket_no . ' — Talep Size Atandı')
+            ->view('mail.ticket-event', [
+                'ticket'           => $this->ticket,
+                'notifiableName'   => $notifiable->name ?? $notifiable->email ?? '',
+                'eventTitle'       => 'Talep Size Atandı',
+                'eventDescription' => 'Aşağıdaki talep size atandı. Lütfen en kısa sürede ilgilenin.',
+                'headerColor'      => '#007bff',
+                'headerColorDark'  => '#0056b3',
                 'note'             => null,
             ]);
     }

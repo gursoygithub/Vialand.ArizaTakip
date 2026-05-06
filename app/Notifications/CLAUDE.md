@@ -2,29 +2,57 @@
 
 ## Channels
 - All ticket notifications return `FilamentNotification::getDatabaseMessage()` from `toDatabase()` so the panel bell renders title / body / icon / action button automatically
-- Mail is opt-in globally via `config/notifications.php` → `mail_enabled`; FCM push is opt-in per-user via `UserNotificationPreference`
-- Database is the default channel for every event; mail and push only fire when both the global flag and the user's preference allow them
+- Mail is **always sent** for the 8 targeted events below — `mail_enabled` config is intentionally bypassed in their `via()` methods
+- FCM push is always **data-only** (no `notification` key in the payload) so the browser's `onMessage` handler fires in the foreground and Filament renders its own toast. All payload goes in the `data` field: `{ title, body, url }`
+- Database is the default channel for every event; the per-user `UserNotificationPreference` still controls whether the bell (database) fires per type
+
+## Targeted Event Rules (mail + panel + FCM)
+
+| Event | Recipient(s) | Class |
+|---|---|---|
+| Ticket created/assigned (initial) | Assignee only | `TicketAssignedNotification` |
+| Reassigned (devredildi) | New assignee (`TicketAssignedNotification`) + creator (`TicketReassignedNotification`) | two classes |
+| Resolved (çözüldü) | Creator only | `TicketResolvedNotification` |
+| Cancelled (iptal edildi) | Current assignee only | `TicketCancelledNotification` |
+| Reopened (yeniden açıldı) | Assignee (if any) + creator | `TicketReopenedNotification` |
+| SLA Warning (80% elapsed) | Assignee + creator | `SlaWarningNotification` |
+| SLA Breached | Assignee + creator | `SlaBreachedNotification` |
+
+For all 8 rules: mail fires unconditionally (ignores `mail_enabled` config). Muted users (ticket_mutes) are excluded from database + FCM but still receive mail.
+
+## Mail Template
+All 8 events use `resources/views/mail/ticket-event.blade.php`. Variables:
+- `$ticket` — Ticket model (provides ticket_no, area, subArea, unit, priority, sla_deadline, sla_breached, employee, createdBy)
+- `$notifiableName` — recipient display name for greeting
+- `$eventTitle` — e.g. "Talep Çözüldü", "Talep Devredildi"
+- `$eventDescription` — body explanation text
+- `$headerColor` / `$headerColorDark` — hex colors for the gradient header
+- `$note` — optional note box (e.g. "Eski → Yeni" for reassignment)
+
+Template always renders: ticket_no, status label, priority badge, area/location/unit, assignee name, creator name, SLA deadline (`translatedFormat('d F Y H:i')` → Turkish month names), SLA breach indicator, and a "Talebi Görüntüle" CTA button.
 
 ## Classes
-- `TicketAssignedNotification` — fires from `TicketObserver::updated` (direct reassign), `TicketObserver::created` (created already-assigned), and `TicketService::transition` (OPEN → ASSIGNED); each path also fires an FCM desktop push with actor-name-prefixed body (`"{actor} tarafından atandı — {area} / {priority}"`), gated on the user's `ticket_assigned` database preference
-- `TicketReassignedNotification` — sent to the **creator** by `TicketService::notifyCreatorOfReassignment` when someone else reassigns (skipped if creator is actor or new assignee)
-- `TicketStatusChangedNotification` — fired from `dispatchTransitionNotifications` for every status change except OPEN → ASSIGNED (which gets the dedicated assigned notification)
-- `TicketCommentNotification` — used by `TicketService::addComment`, `updateComment` (body: `"Not güncellendi: ..."`), AND `notifyPriorityChange` (body: `"{actor} önceliği {old} → {new} olarak değiştirdi"`). Its `via()` returns `['database']` only — fans out to bell + FCM, **never mail**
-- `TicketClosedNotification` — sent at close; body shows on-time vs. breach (derived from `resolved_at` / `closed_at` vs `sla_deadline`, not from the persisted column)
-- `TicketCancelledNotification` / `TicketReopenedNotification` — terminal-state alerts
-- `SlaWarningNotification` — 80% time elapsed, sent by `CheckSlaBreaches`
-- `SlaBreachedNotification` — sent by `CheckSlaBreaches` when the deadline is crossed
-- `UserCreated` — onboarding email for newly-created users
+- `TicketAssignedNotification` — fires from `TicketObserver::updated` (direct reassign), `TicketObserver::created` (created already-assigned), and `TicketService::dispatchTransitionNotifications` (OPEN → ASSIGNED); each path also fires an FCM data-only push; mail always sent
+- `TicketReassignedNotification` — sent to the **creator** by `TicketService::notifyCreatorOfReassignment` when someone else reassigns (skipped if creator is actor or new assignee); mail always sent
+- `TicketResolvedNotification` — sent to **creator only** by `TicketService::notifyResolved` when → RESOLVED; mail always sent
+- `TicketCancelledNotification` — sent to **current assignee only** by `TicketService::notifyCancelled` when → CANCELLED; mail always sent
+- `TicketReopenedNotification` — sent to **assignee + creator** by `TicketService::notifyReopened` on reopen (terminal → ASSIGNED); mail always sent
+- `TicketStatusChangedNotification` — database-only bell to full participant set for all other transitions (ON_HOLD, IN_PROGRESS, CLOSED, etc.); no mail
+- `TicketCommentNotification` — used by `TicketService::addComment`, `updateComment` (body: `"Not güncellendi: ..."`), AND `notifyPriorityChange`; `via()` returns `['database']` only — fans out to bell + FCM, **never mail**
+- `TicketClosedNotification` — sent at close (dispatched separately, not from dispatchTransitionNotifications); body shows on-time vs. breach
+- `SlaWarningNotification` — 80% time elapsed; sent by `CheckSlaBreaches` to assignee + creator; mail always sent
+- `SlaBreachedNotification` — sent by `CheckSlaBreaches` when deadline crossed; to assignee + creator; mail always sent
+- `UserCreated` — onboarding email for newly-created users; mail only
 
 ## Mute & Recipient Rules
-- Every sender call passes through `Ticket::isMutedBy($user)` (composite-unique on `ticket_mutes`); muted users get neither database nor push, but mail still respects the global flag
-- Canonical SLA recipients are assignee + group supervisor — see `CheckSlaBreaches::slaRecipients` (no admin fallback by design; the dashboard widget surfaces breaches for admins)
-- Self-actions never notify the actor (filtered in `TicketStatusChangedNotification` recipient resolver)
+- Targeted notifications (RULES 1–5): check `Ticket::isMutedBy($user)` before sending database + FCM. Mail still goes through since these are high-priority events.
+- `notifyParticipants` path (all other transitions): `getTicketParticipants` already strips muted users
+- Self-actions never notify the actor (enforced per-method and via `notifyParticipants`)
 
 ## Daily De-dupe (in CheckSlaBreaches)
 - `alreadySentToday(Ticket, NotificationClass)` reads today's `notifications` rows and inspects `data.actions[*].url` for `/tickets/{id}` to decide whether the same alert already fired
-- This is portable across MySQL/SQLite (no JSON-extract SQL) and survives the Observer flipping `sla_breached` mid-window
+- Portable across MySQL/SQLite (no JSON-extract SQL)
 
 ## Date Formatting
-- Use numeric `d.m.Y H:i` in mail templates — locale-independent, no translation surprises
-- For UI-bound bodies (database channel rendered through Filament), use `Carbon::translatedFormat('d F Y H:i')` for Turkish month names
+- Use `translatedFormat('d F Y H:i')` in `mail.ticket-event` for Turkish month names (Carbon locale is `tr`)
+- Use `d.m.Y H:i` in any plain-text context — locale-independent

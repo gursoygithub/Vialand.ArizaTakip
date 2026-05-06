@@ -34,23 +34,26 @@ class TicketReassignedNotification extends Notification implements ShouldQueue
 
     public function via(object $notifiable): array
     {
-        return \App\Support\NotificationChannels::resolve($notifiable, $this->getNotificationType());
+        // Always mail for this event regardless of mail_enabled config.
+        $channels = ['mail'];
+        if (!method_exists($notifiable, 'wantsNotification')
+            || $notifiable->wantsNotification($this->getNotificationType(), 'database')) {
+            $channels[] = 'database';
+        }
+        return $channels;
     }
 
     public function toMail(object $notifiable): MailMessage
     {
-        // Recipient is the ticket creator — describe the handover in third
-        // person; "old → new" goes into the note box.
         return (new MailMessage)
-            ->subject($this->ticket->ticket_no . ' — Devredildi')
-            ->view('emails.ticket-notification', [
-                'ticketNo'         => $this->ticket->ticket_no,
-                'eventDescription' => 'Talep yeni bir personele devredildi.',
-                'area'             => $this->ticket->area?->name,
-                'priority'         => $this->ticket->priority?->getLabel(),
-                'status'           => $this->ticket->status?->getLabel(),
-                'assignee'         => $this->newName,
-                'url'              => url('/tickets/' . $this->ticket->id),
+            ->subject($this->ticket->ticket_no . ' — Talep Devredildi')
+            ->view('mail.ticket-event', [
+                'ticket'           => $this->ticket,
+                'notifiableName'   => $notifiable->name ?? $notifiable->email ?? '',
+                'eventTitle'       => 'Talep Devredildi',
+                'eventDescription' => 'Takip ettiğiniz talep yeni bir personele devredildi.',
+                'headerColor'      => '#0d6efd',
+                'headerColorDark'  => '#0a58ca',
                 'note'             => "{$this->oldName} → {$this->newName}",
             ]);
     }

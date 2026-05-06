@@ -9,8 +9,6 @@ use Illuminate\Support\Facades\Log;
 use Kreait\Firebase\Factory;
 use Kreait\Firebase\Messaging;
 use Kreait\Firebase\Messaging\CloudMessage;
-use Kreait\Firebase\Messaging\Notification as FcmNotification;
-
 /**
  * Wraps Firebase Cloud Messaging dispatch. Each user can have multiple
  * tokens (laptop, phone, multiple browsers); we send to all active ones
@@ -76,9 +74,11 @@ class FcmService
                 // kreait/firebase-php 8.x dropped the static
                 // CloudMessage::withTarget('token', $token) constructor;
                 // build via ::new() and ->withToken() instead.
+                // Data-only message — no notification key so the browser's
+                // onMessage handler fires in the foreground and Filament
+                // can render its own toast. All payload is in data.
                 $message = CloudMessage::new()
                     ->withToken($token)
-                    ->withNotification(FcmNotification::create($title, $body))
                     ->withData([
                         'title' => $title,
                         'body'  => $body,

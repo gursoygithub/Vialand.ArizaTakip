@@ -11,8 +11,11 @@ use App\Models\TicketMute;
 use App\Models\TicketStatusHistory;
 use App\Models\User;
 use App\Notifications\TicketAssignedNotification;
+use App\Notifications\TicketCancelledNotification;
 use App\Notifications\TicketCommentNotification;
 use App\Notifications\TicketReassignedNotification;
+use App\Notifications\TicketReopenedNotification;
+use App\Notifications\TicketResolvedNotification;
 use App\Notifications\TicketStatusChangedNotification;
 use App\Observers\TicketObserver;
 use App\Enums\TaskPriorityEnum;
@@ -147,13 +150,18 @@ class TicketService
     /**
      * Fire the right notification(s) for a given status transition.
      *
-     * OPEN → ASSIGNED is the only special case — the assignee gets a
-     * dedicated TicketAssignedNotification. Every other transition fires
-     * TicketStatusChangedNotification to creator + assignee minus the
-     * actor (handled by notifyParticipants).
+     * Special-cased transitions (each sends to a narrower recipient set):
+     *   OPEN → ASSIGNED   → assignee only (TicketAssignedNotification)
+     *   terminal → ASSIGNED → assignee + creator (TicketReopenedNotification)
+     *   → RESOLVED         → creator only (TicketResolvedNotification)
+     *   → CANCELLED        → current assignee only (TicketCancelledNotification)
+     *
+     * All other transitions fan out TicketStatusChangedNotification (database
+     * only) to the full participant set via notifyParticipants.
      */
     private function dispatchTransitionNotifications(Ticket $ticket, ?TaskStatusEnum $from, TaskStatusEnum $to, User $actor): void
     {
+        // RULE 1: Initial assignment (OPEN → ASSIGNED)
         if ($from === TaskStatusEnum::OPEN
             && $to === TaskStatusEnum::ASSIGNED
             && $ticket->employee_id) {
@@ -165,6 +173,31 @@ class TicketService
             return;
         }
 
+        // RULE 5: Reopen (terminal → ASSIGNED)
+        $terminalStatuses = [
+            TaskStatusEnum::CLOSED,
+            TaskStatusEnum::COMPLETED,
+            TaskStatusEnum::RESOLVED,
+            TaskStatusEnum::CANCELLED,
+        ];
+        if ($to === TaskStatusEnum::ASSIGNED && in_array($from, $terminalStatuses, true)) {
+            $this->notifyReopened($ticket, $actor);
+            return;
+        }
+
+        // RULE 3: Resolved → creator only
+        if ($to === TaskStatusEnum::RESOLVED) {
+            $this->notifyResolved($ticket, $actor);
+            return;
+        }
+
+        // RULE 4: Cancelled → current assignee only
+        if ($to === TaskStatusEnum::CANCELLED) {
+            $this->notifyCancelled($ticket, $actor);
+            return;
+        }
+
+        // All other transitions: database-only bell to full participant set
         $fromLabel = $from?->getLabel() ?? '—';
         $toLabel   = $to->getLabel();
         $actorName = $this->actorDisplayName($actor);
@@ -176,6 +209,99 @@ class TicketService
             $ticket->ticket_no . ' • Durum Değişti',
             "{$actorName}: {$fromLabel} → {$toLabel}",
         );
+    }
+
+    /**
+     * RULE 3: Resolved — notify creator only (mail + panel + FCM).
+     * Skipped if creator is the actor or cannot be found.
+     */
+    private function notifyResolved(Ticket $ticket, User $actor): void
+    {
+        if (!$ticket->created_by) {
+            return;
+        }
+        $creator = User::find($ticket->created_by);
+        if (!$creator || $creator->id === $actor->id) {
+            return;
+        }
+        if ($ticket->isMutedBy($creator)) {
+            return;
+        }
+
+        $creator->notify(new TicketResolvedNotification($ticket));
+
+        app(FcmService::class)->sendToUser(
+            $creator,
+            $ticket->ticket_no . ' • Talep Çözüldü',
+            $this->actorDisplayName($actor) . ' talebi çözdü',
+            url('/tickets/' . $ticket->id),
+        );
+    }
+
+    /**
+     * RULE 4: Cancelled — notify current assignee only (mail + panel + FCM).
+     * Skipped if there is no assignee or the assignee is the actor.
+     */
+    private function notifyCancelled(Ticket $ticket, User $actor): void
+    {
+        if (!$ticket->employee_id) {
+            return;
+        }
+        $assignee = $this->userForEmployee($ticket->employee_id);
+        if (!$assignee || $assignee->id === $actor->id) {
+            return;
+        }
+        if ($ticket->isMutedBy($assignee)) {
+            return;
+        }
+
+        $assignee->notify(new TicketCancelledNotification($ticket));
+
+        app(FcmService::class)->sendToUser(
+            $assignee,
+            $ticket->ticket_no . ' • Talep İptal Edildi',
+            $this->actorDisplayName($actor) . ' talebi iptal etti',
+            url('/tickets/' . $ticket->id),
+        );
+    }
+
+    /**
+     * RULE 5: Reopened — notify assignee (if any) + creator (mail + panel + FCM).
+     * Each recipient gets one notification; actor and muted users are excluded.
+     */
+    private function notifyReopened(Ticket $ticket, User $actor): void
+    {
+        $recipients = collect();
+
+        if ($ticket->employee_id) {
+            $assignee = $this->userForEmployee($ticket->employee_id);
+            if ($assignee && $assignee->id !== $actor->id && !$ticket->isMutedBy($assignee)) {
+                $recipients->push($assignee);
+            }
+        }
+
+        if ($ticket->created_by) {
+            $creator = User::find($ticket->created_by);
+            if ($creator
+                && $creator->id !== $actor->id
+                && !$recipients->contains('id', $creator->id)
+                && !$ticket->isMutedBy($creator)) {
+                $recipients->push($creator);
+            }
+        }
+
+        $actorName = $this->actorDisplayName($actor);
+
+        foreach ($recipients as $user) {
+            $user->notify(new TicketReopenedNotification($ticket));
+
+            app(FcmService::class)->sendToUser(
+                $user,
+                $ticket->ticket_no . ' • Talep Yeniden Açıldı',
+                $actorName . ' talebi yeniden açtı',
+                url('/tickets/' . $ticket->id),
+            );
+        }
     }
 
     /**

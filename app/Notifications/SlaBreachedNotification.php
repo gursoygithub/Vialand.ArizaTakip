@@ -23,23 +23,27 @@ class SlaBreachedNotification extends Notification implements ShouldQueue
 
     public function via(object $notifiable): array
     {
-        return \App\Support\NotificationChannels::resolve($notifiable, $this->getNotificationType());
+        // Always mail for this event regardless of mail_enabled config.
+        $channels = ['mail'];
+        if (!method_exists($notifiable, 'wantsNotification')
+            || $notifiable->wantsNotification($this->getNotificationType(), 'database')) {
+            $channels[] = 'database';
+        }
+        return $channels;
     }
 
     public function toMail(object $notifiable): MailMessage
     {
-        $deadline = $this->ticket->sla_deadline?->format('d.m.Y H:i');
         return (new MailMessage)
-            ->subject($this->ticket->ticket_no . ' — 🚨 SLA İhlali')
-            ->view('emails.ticket-notification', [
-                'ticketNo'         => $this->ticket->ticket_no,
-                'eventDescription' => '⚠️ Bu talebin SLA süresi doldu.',
-                'area'             => $this->ticket->area?->name,
-                'priority'         => $this->ticket->priority?->getLabel(),
-                'status'           => $this->ticket->status?->getLabel(),
-                'assignee'         => $this->ticket->employee?->name,
-                'url'              => url('/tickets/' . $this->ticket->id),
-                'note'             => $deadline ? 'Son tarih: ' . $deadline : null,
+            ->subject($this->ticket->ticket_no . ' — SLA Süresi Doldu')
+            ->view('mail.ticket-event', [
+                'ticket'           => $this->ticket,
+                'notifiableName'   => $notifiable->name ?? $notifiable->email ?? '',
+                'eventTitle'       => 'SLA İhlali',
+                'eventDescription' => 'Bu talebin SLA süresi doldu. Acil müdahale gerekiyor.',
+                'headerColor'      => '#dc3545',
+                'headerColorDark'  => '#b02a37',
+                'note'             => null,
             ]);
     }
 
