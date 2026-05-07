@@ -91,10 +91,8 @@ class PerformanceService
                     return null;
                 }
 
-                $closed = $forPriority->filter(fn ($t) => $t->closed_at !== null);
-                $onTime = $closed->filter(fn ($t) =>
-                    $t->sla_deadline && $t->closed_at?->lte($t->sla_deadline)
-                )->count();
+                $closed = $forPriority->filter(fn ($t) => $t->resolved_at !== null);
+                $onTime = $closed->filter(fn ($t) => !$t->sla_breached)->count();
                 $breached = $forPriority->where('sla_breached', true)->count();
                 $compliance = $closed->count() > 0
                     ? round(($onTime / $closed->count()) * 100, 1)
@@ -157,8 +155,8 @@ class PerformanceService
             ->groupBy('area_id')
             ->map(function ($group) {
                 $first   = $group->first();
-                $closed  = $group->filter(fn ($t) => $t->closed_at !== null);
-                $onTime  = $closed->filter(fn ($t) => $t->sla_deadline && $t->closed_at?->lte($t->sla_deadline))->count();
+                $closed  = $group->filter(fn ($t) => $t->resolved_at !== null);
+                $onTime  = $closed->filter(fn ($t) => !$t->sla_breached)->count();
 
                 return [
                     'area_name'  => $first->area?->name ?? '—',
@@ -179,10 +177,8 @@ class PerformanceService
     {
         $tickets = collect($tickets)->reject(fn ($t) => $t->status === TaskStatusEnum::CANCELLED);
 
-        $closed       = $tickets->filter(fn ($t) => $t->closed_at !== null);
-        $onTime       = $closed->filter(fn ($t) =>
-            $t->sla_deadline && $t->closed_at?->lte($t->sla_deadline)
-        );
+        $closed       = $tickets->filter(fn ($t) => $t->resolved_at !== null);
+        $onTime       = $closed->filter(fn ($t) => !$t->sla_breached);
         $breached     = $tickets->where('sla_breached', true);
         $currentlyOpen = $tickets->whereIn('status', [
             TaskStatusEnum::OPEN, TaskStatusEnum::ASSIGNED, TaskStatusEnum::IN_PROGRESS,
@@ -190,7 +186,7 @@ class PerformanceService
         $onHold       = $tickets->where('status', TaskStatusEnum::ON_HOLD)->count();
 
         $avgResolution = $closed->filter(fn ($t) => $t->assigned_at)
-            ->map(fn ($t) => $t->assigned_at->diffInMinutes($t->closed_at))
+            ->map(fn ($t) => $t->assigned_at->diffInMinutes($t->resolved_at))
             ->avg() ?? 0;
 
         $avgResponse = $tickets->filter(fn ($t) => $t->assigned_at)

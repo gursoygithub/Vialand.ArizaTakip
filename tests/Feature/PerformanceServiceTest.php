@@ -158,6 +158,7 @@ class PerformanceServiceTest extends TestCase
         $this->ticket([
             'priority'     => TaskPriorityEnum::High,
             'status'       => TaskStatusEnum::CLOSED,
+            'resolved_at'  => now()->subHour(),
             'closed_at'    => now()->subHour(),
             'sla_deadline' => now(),
             'sla_breached' => false,
@@ -165,6 +166,7 @@ class PerformanceServiceTest extends TestCase
         $this->ticket([
             'priority'     => TaskPriorityEnum::High,
             'status'       => TaskStatusEnum::CLOSED,
+            'resolved_at'  => now(),
             'closed_at'    => now(),
             'sla_deadline' => now()->subHour(),
             'sla_breached' => true,
@@ -309,8 +311,9 @@ class PerformanceServiceTest extends TestCase
         Ticket::factory()->create($base + ['status' => TaskStatusEnum::OPEN]);
         Ticket::factory()->create($base + ['status' => TaskStatusEnum::IN_PROGRESS]);
         Ticket::factory()->create($base + [
-            'status'    => TaskStatusEnum::CLOSED,
-            'closed_at' => now(),
+            'status'      => TaskStatusEnum::CLOSED,
+            'resolved_at' => now(),
+            'closed_at'   => now(),
         ]);
 
         // 1 cancelled — must NOT inflate the area total
