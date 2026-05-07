@@ -306,11 +306,26 @@ class TicketResource extends Resource
                                 if (!$areaId) {
                                     return [];
                                 }
-                                $companyIds = auth()->user()?->scopedCompanyIds() ?? [];
+                                $user       = auth()->user();
+                                $companyIds = $user?->scopedCompanyIds() ?? [];
+                                $employeeId = $user?->employee?->id;
+
+                                $memberGroupIds = $employeeId
+                                    ? Group::whereHas('members', fn ($q) => $q->where('employee_id', $employeeId))
+                                        ->pluck('id')
+                                        ->toArray()
+                                    : [];
+
                                 return Group::query()
                                     ->where('area_id', $areaId)
-                                    ->when(!empty($companyIds), fn (\Illuminate\Database\Eloquent\Builder $query)
-                                        => $query->whereIn('company_id', $companyIds))
+                                    ->where(function ($q) use ($companyIds, $memberGroupIds) {
+                                        if (!empty($companyIds)) {
+                                            $q->whereIn('company_id', $companyIds);
+                                        }
+                                        if (!empty($memberGroupIds)) {
+                                            $q->orWhereIn('id', $memberGroupIds);
+                                        }
+                                    })
                                     ->where('status', ActiveStatusEnum::ACTIVE)
                                     ->orderBy('name')
                                     ->pluck('name', 'id')
@@ -511,10 +526,33 @@ class TicketResource extends Resource
             ->filters([
                 Tables\Filters\SelectFilter::make('area_id')
                     ->label(__('ui.area'))
-                    ->relationship('area', 'name')
                     ->multiple()
                     ->searchable()
-                    ->preload(),
+                    ->options(function (): array {
+                        $user       = auth()->user();
+                        $companyIds = $user?->scopedCompanyIds() ?? [];
+                        $employeeId = $user?->employee?->id;
+
+                        $groupAreaIds = $employeeId
+                            ? Group::whereHas('members', fn ($q) => $q->where('employee_id', $employeeId))
+                                ->pluck('area_id')
+                                ->toArray()
+                            : [];
+
+                        return Area::query()
+                            ->where(function ($q) use ($companyIds, $groupAreaIds) {
+                                if (!empty($companyIds)) {
+                                    $q->whereIn('company_id', $companyIds);
+                                }
+                                if (!empty($groupAreaIds)) {
+                                    $q->orWhereIn('id', $groupAreaIds);
+                                }
+                            })
+                            ->where('status', ActiveStatusEnum::ACTIVE)
+                            ->orderBy('name')
+                            ->pluck('name', 'id')
+                            ->toArray();
+                    }),
 
                 Tables\Filters\SelectFilter::make('status')
                     ->label(__('ui.status'))
@@ -636,9 +674,25 @@ class TicketResource extends Resource
     {
         $query = parent::getEloquentQuery()->visibleBy(auth()->user());
 
-        $companyIds = auth()->user()?->scopedCompanyIds() ?? [];
-        if (!empty($companyIds)) {
-            $query->whereHas('area', fn (Builder $q) => $q->whereIn('company_id', $companyIds));
+        $user       = auth()->user();
+        $companyIds = $user?->scopedCompanyIds() ?? [];
+        $employeeId = $user?->employee?->id;
+
+        $groupAreaIds = $employeeId
+            ? Group::whereHas('members', fn ($q) => $q->where('employee_id', $employeeId))
+                ->pluck('area_id')
+                ->toArray()
+            : [];
+
+        if (!empty($companyIds) || !empty($groupAreaIds)) {
+            $query->where(function (Builder $q) use ($companyIds, $groupAreaIds) {
+                if (!empty($companyIds)) {
+                    $q->whereHas('area', fn (Builder $aq) => $aq->whereIn('company_id', $companyIds));
+                }
+                if (!empty($groupAreaIds)) {
+                    $q->orWhereIn('area_id', $groupAreaIds);
+                }
+            });
         }
 
         return $query;
