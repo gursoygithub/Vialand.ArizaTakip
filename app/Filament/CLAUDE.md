@@ -43,9 +43,9 @@
   - `İşleme Al` / `Çözüldü` / `Beklemede` → assigned employee's user OR `super_admin`
   - `İptal Et` / `Kapat` → creator OR `super_admin`
   - `Yeniden Aç` (CLOSED/RESOLVED/COMPLETED → **ASSIGNED**) → creator OR `super_admin` (`TicketPolicy::reopen`). Rendered by `buildTransitionActions` when `$to === ASSIGNED && $from ∈ terminal-set`; the OPEN → ASSIGNED case is still skipped in favor of the dedicated `Ata` action. Server-side gate enforced via `->before(fn () => Gate::authorize('reopen', $ticket))` so a forged mountAction call is rejected with 403 even if `visible()` is bypassed. The legacy `ticket.reopen` Spatie permission is no longer consulted
-  - `Ata` / `Yeniden Ata` → `ticket.assign` AND **not** the creator (terminal-state hides it; reopen is a separate button)
+  - `Ata` / `Yeniden Ata` → `ticket.assign` AND **(creator OR current assignee's user)**, not terminal (reopen is a separate button)
   - `Düzenle` / `Sil` → creator OR `super_admin`
-  - `Not Ekle` / `Takibi Aç`/`Bırak` → any participant (creator / current assignee / anyone in `ticket_status_histories.changed_by`)
+  - `Not Ekle` / `Sesi Kapat`/`Sesi Aç` → any participant (creator / current assignee / anyone in `ticket_status_histories.changed_by`)
 - Assign action options: prefer active group members (when `group_id` set), fall back to active employees in same company, capped at 500
 
 ### Edit page (`Pages/EditTicket`)

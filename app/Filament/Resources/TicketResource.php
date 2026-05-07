@@ -323,6 +323,8 @@ class TicketResource extends Resource
                                     ->whereHas('groupMemberships', fn (\Illuminate\Database\Eloquent\Builder $q)
                                         => $q->where('group_id', $groupId))
                                     ->where('status', \App\Enums\ActiveStatusEnum::ACTIVE->value)
+                                    ->whereNotNull('email')
+                                    ->where('email', '!=', '')
                                     ->orderBy('name')
                                     ->pluck('name', 'id')
                                     ->toArray();

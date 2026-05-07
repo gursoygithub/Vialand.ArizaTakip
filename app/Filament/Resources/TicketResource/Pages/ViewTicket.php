@@ -42,9 +42,9 @@ class ViewTicket extends ViewRecord
      *   İşleme Al / Çözüldü / Beklemede → assigned personnel OR super_admin
      *   İptal Et / Kapat               → creator OR super_admin
      *   Yeniden Aç                     → creator OR super_admin (TicketPolicy::reopen)
-     *   Yeniden Ata                    → ticket.assign AND not creator
+     *   Ata / Yeniden Ata              → ticket.assign AND (creator OR current assignee's user), not terminal
      *   Düzenle / Sil                  → creator OR super_admin
-     *   Not Ekle                       → any participant
+     *   Not Ekle / Sesi Kapat/Aç      → any participant
      */
     private const ACTION_LABEL = [
         TaskStatusEnum::ASSIGNED->value    => 'Ata',
@@ -218,22 +218,27 @@ class ViewTicket extends ViewRecord
                     Notification::make()->title('Yorum eklendi')->success()->send();
                 }),
 
-            // ASSIGN / REASSIGN — visibility: ticket.assign permission AND
-            // not the creator (a manager opening their own ticket cannot
-            // reassign it). super_admin has ticket.assign by default.
+            // ASSIGN / REASSIGN — visible to (creator OR current assignee's
+            // user) when they hold ticket.assign, but not on terminal tickets.
+            // super_admin has ticket.assign by default.
             Actions\Action::make('assign')
                 ->label($ticket->employee_id ? 'Yeniden Ata' : 'Ata')
                 ->icon('heroicon-o-user-plus')
                 ->color('warning')
-                ->visible(function () use ($isTerminal, $isCreator): bool {
-                    if ($isTerminal || $isCreator) {
+                ->visible(function () use ($isTerminal, $isCreator, $ticket): bool {
+                    if ($isTerminal) {
                         return false;
                     }
                     $user = auth()->user();
                     if (!$user) {
                         return false;
                     }
-                    return $user->can('ticket.assign');
+                    if (!$user->can('ticket.assign')) {
+                        return false;
+                    }
+                    $isAssignee = $ticket->employee_id
+                        && (int) ($ticket->employee?->user?->id ?? 0) === (int) $user->id;
+                    return $isCreator || $isAssignee;
                 })
                 ->form([
                     Select::make('employee_id')
@@ -249,6 +254,8 @@ class ViewTicket extends ViewRecord
                                     ->whereHas('groupMemberships', fn (\Illuminate\Database\Eloquent\Builder $q)
                                         => $q->where('group_id', $groupId))
                                     ->where('status', \App\Enums\ActiveStatusEnum::ACTIVE->value)
+                                    ->whereNotNull('email')
+                                    ->where('email', '!=', '')
                                     ->orderBy('name')
                                     ->pluck('name', 'id');
 
@@ -263,6 +270,8 @@ class ViewTicket extends ViewRecord
                             return Employee::query()
                                 ->when($companyId, fn ($q) => $q->where('company_id', $companyId))
                                 ->where('status', \App\Enums\ActiveStatusEnum::ACTIVE->value)
+                                ->whereNotNull('email')
+                                ->where('email', '!=', '')
                                 ->orderBy('name')
                                 ->limit(500)
                                 ->pluck('name', 'id');
@@ -294,8 +303,8 @@ class ViewTicket extends ViewRecord
             // showing them a toggle would be misleading.
             Actions\Action::make('toggleMute')
                 ->label(fn () => $this->getRecord()->isMutedBy(auth()->user())
-                    ? 'Takibi Aç'
-                    : 'Takibi Bırak')
+                    ? 'Sesi Aç'
+                    : 'Sesi Kapat')
                 ->icon(fn () => $this->getRecord()->isMutedBy(auth()->user())
                     ? 'heroicon-o-bell-slash'
                     : 'heroicon-o-bell')
