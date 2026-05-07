@@ -91,6 +91,24 @@ breach scenario), either don't create an SLA policy for that ticket's combinatio
 or freeze time with `Carbon::setTestNow()` so `now() + policy.deadline_minutes`
 equals the value you need.
 
+## Reassign Coverage (`tests/Feature/TicketReassignTest.php`)
+Three scenarios, each asserting the contract of `TicketService::reassign()`:
+
+- **`IN_PROGRESS → reassign`**: status resets to `ASSIGNED`, `sla_deadline` rebased
+  to `now() + policy.deadline_minutes`, `sla_breached` cleared, a status-reset
+  history row (`IN_PROGRESS → ASSIGNED`, `note = null`) is written in addition to
+  the `__reassign__` employee-change log — 2 new rows total.
+- **`ON_HOLD → reassign`**: same as IN_PROGRESS plus `on_hold_since` is nulled.
+  Clearing `on_hold_since` is required so `getRemainingMinutes()` and
+  `getElapsedPercentage()` don't compute against a stale pause timestamp for the
+  new assignee.
+- **`ASSIGNED → reassign`**: status and `sla_deadline` are both unchanged; only
+  the `__reassign__` employee-change log row is written (1 new row, not 2).
+
+**Not covered here** (covered by `NotificationTest`): the `OPEN → reassign` path,
+which delegates to `TicketService::transition(OPEN → ASSIGNED)` and is exercised
+by `test_reassignment_notifies_new_assignee_and_creator`.
+
 ## Reopen Coverage (`tests/Feature/TicketReopenTest.php`)
 - Two scenarios covered: `RESOLVED → ASSIGNED` and `CLOSED → ASSIGNED`. Both assert the same 7 invariants (status, `assigned_at` re-stamp, deadline rebase, `sla_breached=false`, cleared timestamps, history row, `TicketStatusChangedNotification` to assignee). The CLOSED variant additionally checks `closed_at` and `closed_by` are nulled.
 - **`CANCELLED → ASSIGNED` is intentionally NOT tested.** The transition matrix keeps `cancelled → []` (terminal — no path back); the source set in `TicketService::transition`'s reopen branch still includes `CANCELLED` as defensive code in case the matrix opens that arm later, but until it does the path is unreachable from any caller. Add a test only after the matrix is opened — otherwise the test would have to fabricate an invalid transition to exercise dead code.
