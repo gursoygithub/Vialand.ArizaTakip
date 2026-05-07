@@ -330,6 +330,7 @@ class TicketResource extends Resource
                                     ->pluck('name', 'id')
                                     ->toArray();
                             })
+                            ->getOptionLabelUsing(fn ($value): string => Employee::find($value)?->name ?? (string) $value)
                             ->helperText(fn (Forms\Get $get): ?string =>
                                 $get('group_id') ? null : 'Önce grup seçiniz.')
                             ->searchable(),
