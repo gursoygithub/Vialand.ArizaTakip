@@ -154,7 +154,7 @@ class PerformanceDashboard extends Page implements HasForms, HasTable
                     $row['total_assigned'],
                     $row['closed_on_time'],
                     $row['closed_breached'],
-                    $row['sla_compliance_rate'] . '%',
+                    '%' . number_format($row['sla_compliance_rate'], 1, ',', '.'),
                     $row['avg_resolution_minutes'],
                     $row['avg_response_time_minutes'],
                 ]);
