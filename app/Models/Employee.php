@@ -110,7 +110,7 @@ class Employee extends Model
             ->where(function ($q) {
                 $q->where('sla_breached', true)
                   ->orWhere(function ($q) {
-                      $q->where('sla_breached', false)->whereNotNull('closed_at');
+                      $q->where('sla_breached', false)->whereNotNull('resolved_at');
                   });
             })
             ->pluck('unit_id')

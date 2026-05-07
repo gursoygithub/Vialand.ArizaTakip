@@ -94,8 +94,8 @@ class NotificationPreferences extends Page implements HasForms
             Placeholder::make('note')
                 ->hiddenLabel()
                 ->content(new \Illuminate\Support\HtmlString(
-                    '<div style="background:#fef3c7;border-left:4px solid #f59e0b;padding:12px 16px;border-radius:6px;color:#92400e;">'
-                    . '⚠️ <strong>Kritik bildirimler</strong> (Atama ve SLA İhlali) kapatılamaz.'
+                    '<div class="border-l-4 border-amber-400 rounded-md bg-amber-50 dark:bg-amber-900/30 p-4">'
+                    . '<span class="text-amber-800 dark:text-amber-200">⚠️ <strong>Kritik bildirimler</strong> (Atama ve SLA İhlali) kapatılamaz.</span>'
                     . '</div>'
                 )),
         ];
@@ -122,9 +122,9 @@ class NotificationPreferences extends Page implements HasForms
                 Placeholder::make('label_' . $type)
                     ->hiddenLabel()
                     ->content(new \Illuminate\Support\HtmlString(
-                        '<div style="font-weight:600;color:#111827;padding-top:6px;">'
+                        '<div class="font-semibold text-gray-900 dark:text-white" style="padding-top:6px;">'
                         . e($label)
-                        . ($alwaysOnDb ? ' <span style="font-size:0.75em;color:#dc2626;font-weight:500;">(zorunlu)</span>' : '')
+                        . ($alwaysOnDb ? ' <span class="text-red-600 dark:text-red-400" style="font-size:0.75em;font-weight:500;">(zorunlu)</span>' : '')
                         . '</div>'
                     )),
 

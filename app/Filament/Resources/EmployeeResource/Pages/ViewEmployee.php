@@ -202,9 +202,12 @@ class ViewEmployee extends ViewRecord
                                 TextEntry::make('percentage')
                                     ->label('Oran')
                                     ->badge()
-                                    ->color(fn ($state, $record) =>
-                                        ($record['raw_percentage'] ?? 0) >= 80 ? 'success' : (($record['raw_percentage'] ?? 0) >= 50 ? 'warning' : 'danger')
-                                    ),
+                                    ->color(function ($state) {
+                                        // $record in RepeatableEntry closures is the parent Eloquent model,
+                                        // not the current array item — parse the float from the formatted string.
+                                        $rate = (float) str_replace(',', '.', ltrim((string) $state, '%'));
+                                        return $rate >= 80 ? 'success' : ($rate >= 50 ? 'warning' : 'danger');
+                                    }),
                             ]),
                     ]),
 
@@ -263,9 +266,12 @@ class ViewEmployee extends ViewRecord
                                 TextEntry::make('percentage')
                                     ->label('Başarı Oranı')
                                     ->badge()
-                                    ->color(fn ($state, $record) =>
-                                        ($record['raw_percentage'] ?? 0) >= 80 ? 'success' : (($record['raw_percentage'] ?? 0) >= 50 ? 'warning' : 'danger')
-                                    ),
+                                    ->color(function ($state) {
+                                        // $record in RepeatableEntry closures is the parent Eloquent model,
+                                        // not the current array item — parse the float from the formatted string.
+                                        $rate = (float) str_replace(',', '.', ltrim((string) $state, '%'));
+                                        return $rate >= 80 ? 'success' : ($rate >= 50 ? 'warning' : 'danger');
+                                    }),
                             ]),
                     ]),
             ]);

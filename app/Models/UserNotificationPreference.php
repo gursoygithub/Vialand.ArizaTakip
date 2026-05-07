@@ -35,6 +35,7 @@ class UserNotificationPreference extends Model
      */
     public const ALWAYS_ON_DATABASE = [
         'ticket_assigned',
+        'ticket_cancelled',
         'sla_breach',
     ];
 

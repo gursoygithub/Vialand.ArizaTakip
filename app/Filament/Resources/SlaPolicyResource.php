@@ -376,6 +376,6 @@ class SlaPolicyResource extends Resource
             return false;
         }
 
-        return auth()->user()->hasRole('super_admin') || auth()->id === $record->created_by;
+        return auth()->user()->hasRole('super_admin') || auth()->id() === $record->created_by;
     }
 }
