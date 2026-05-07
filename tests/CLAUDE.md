@@ -234,6 +234,29 @@ prior `resolved_at`).
 signal — do not use `resolved_at <= sla_deadline` inline, as it ignores on-hold
 pause credits baked into `sla_breached` at write time.
 
+## Turkish Percent Format: `%66,7` not `66.7%`
+
+All compliance and rate percentages in the UI use the Turkish convention:
+percent sign **before** the number, comma as the decimal separator.
+
+```php
+'%' . number_format($value, 1, ',', '.')   // → "%66,7"
+```
+
+Five display sites follow this rule:
+- `TicketStatsOverview` — SLA compliance stat label
+- `PerformanceDashboard` — Uyum summary card, Yeniden Açılma summary card,
+  priority breakdown bar label, region compliance pill, per-person compliance pill
+
+**CSS `width:X%` layout values are never formatted this way** — those are CSS
+and must remain plain integers followed by `%`.
+
+**If you add display tests for percentage values**, assert the `%X,Y` form:
+```php
+$this->assertStringContainsString('%66,7', $renderedOutput);
+// NOT: '66.7%' or '66,7%'
+```
+
 ## Reopen Coverage (`tests/Feature/TicketReopenTest.php`)
 - Two scenarios covered: `RESOLVED → ASSIGNED` and `CLOSED → ASSIGNED`. Both assert the same 7 invariants (status, `assigned_at` re-stamp, deadline rebase, `sla_breached=false`, cleared timestamps, history row, `TicketStatusChangedNotification` to assignee). The CLOSED variant additionally checks `closed_at` and `closed_by` are nulled.
 - **`CANCELLED → ASSIGNED` is intentionally NOT tested.** The transition matrix keeps `cancelled → []` (terminal — no path back); the source set in `TicketService::transition`'s reopen branch still includes `CANCELLED` as defensive code in case the matrix opens that arm later, but until it does the path is unreachable from any caller. Add a test only after the matrix is opened — otherwise the test would have to fabricate an invalid transition to exercise dead code.
