@@ -136,6 +136,32 @@ label in test context):
 - **`test_employee_label_resolver_returns_name_for_known_id`** — known ID → employee name
 - **`test_employee_label_resolver_falls_back_to_id_string_for_unknown_id`** — unknown ID → ID cast to string
 
+## Group-Membership Area Scoping Coverage (`tests/Feature/TicketGroupMembershipScopingTest.php`)
+
+Users whose employee belongs to a group in a foreign company's area must see that
+area's tickets and groups — even though their `scopedCompanyIds()` only returns their
+own company. Three fixed locations in `TicketResource` are each covered by a positive
+(membership present) and negative (no membership) test:
+
+- **`getEloquentQuery()`**: calls `TicketResource::getEloquentQuery()` directly after
+  `actingAs()`. Verifies that the `orWhereIn('area_id', $groupAreaIds)` OR branch
+  surfaces foreign-area tickets for members and hides them for non-members.
+- **`group_id` Select options**: reproduces the closure query. Verifies that
+  `orWhereIn('id', $memberGroupIds)` includes foreign-company groups the user is a
+  member of, and excludes groups with no membership.
+- **`area_id` list filter options**: reproduces the closure query. Verifies that
+  `orWhereIn('id', $groupAreaIds)` includes both own-company areas and foreign
+  group-membership areas, and excludes foreign areas without membership.
+
+**setUp note**: Company (and other models) have `created_by` boot hooks. This class
+calls `actingAs(User::factory()->create())` in `setUp()` as a placeholder so company
+factories at the top of each test don't fail with NOT NULL. Each test then calls
+`actingAs($user)` again to switch to the actual scoped user.
+
+**Permission note**: tests use `ticket.view.own` (NOT `ticket.view.all`). `view.all`
+makes `scopedCompanyIds()` return `[]` — bypassing the company filter entirely and
+making the group-membership OR branch untestable.
+
 ## Reopen Coverage (`tests/Feature/TicketReopenTest.php`)
 - Two scenarios covered: `RESOLVED → ASSIGNED` and `CLOSED → ASSIGNED`. Both assert the same 7 invariants (status, `assigned_at` re-stamp, deadline rebase, `sla_breached=false`, cleared timestamps, history row, `TicketStatusChangedNotification` to assignee). The CLOSED variant additionally checks `closed_at` and `closed_by` are nulled.
 - **`CANCELLED → ASSIGNED` is intentionally NOT tested.** The transition matrix keeps `cancelled → []` (terminal — no path back); the source set in `TicketService::transition`'s reopen branch still includes `CANCELLED` as defensive code in case the matrix opens that arm later, but until it does the path is unreachable from any caller. Add a test only after the matrix is opened — otherwise the test would have to fabricate an invalid transition to exercise dead code.
