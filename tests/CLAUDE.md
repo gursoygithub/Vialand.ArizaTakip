@@ -299,6 +299,54 @@ Turkish format fix `floatval('%66,7')` returns `0.0`:
 `CompanySetupWizard`. The relation manager tab was deleted from `EmployeeResource`
 to prevent bypassing the wizard's guards via `AttachAction`.
 
+## `markClosed()`: `sla_breached` uses `resolved_at`, not `now()`
+
+`TicketService::markClosed()` evaluates the breach outcome against `resolved_at ?? now()`,
+not bare `now()`:
+
+```php
+$finalAt = $ticket->resolved_at ?? now();
+$ticket->sla_breached = $ticket->sla_deadline && $finalAt->isAfter($ticket->sla_deadline);
+```
+
+**Why:** RESOLVED → CLOSED is a supervisor administrative action that typically happens hours
+or days after the technician resolved the ticket. Using `now()` as the reference timestamp
+meant any ticket resolved before the deadline was flipped to `sla_breached = true` at close
+time, corrupting all historical compliance metrics for the RESOLVED → CLOSED path.
+
+**Corollary for tests:** when testing the RESOLVED → CLOSED transition, assert that
+`sla_breached` reflects the moment of resolution, not the moment of closure. The test fixture
+in `TicketReopenTest` (CLOSED → ASSIGNED) creates CLOSED tickets with `resolved_at` set —
+that fixture is correct; the breach column was evaluated at resolve time.
+
+## `getSlaStatusAttribute()` removed — use `getSlaStatusLabel()`
+
+`Ticket::getSlaStatusAttribute()` (which returned legacy strings `'SUCCESS'`/`'FAILED'`/
+`'SLA_BREACHED'`/`'IN_PROGRESS'`) has been deleted. It was dead code: nothing in the
+codebase read `->sla_status`. It also had the `closed_at` bug — RESOLVED tickets
+(`closed_at = null`) would be misclassified as active.
+
+The Reform-era replacement is `Ticket::getSlaStatusLabel(): string`, which returns
+human-readable Turkish strings and correctly handles all lifecycle states including
+RESOLVED. Never re-introduce `getSlaStatusAttribute()` or `->sla_status`.
+
+## `ticket.view.all` permission: check both old and new name
+
+`Ticket::scopeVisibleBy()` explicitly checks both `ticket.view.all` (Reform-era) and
+`view_all_tasks` (legacy) for backward compatibility. Any code that hand-rolls its own
+permission check for "can this user see all tickets?" must also check both:
+
+```php
+$user->can('view_all_tasks') || $user->can('ticket.view.all')
+```
+
+**Sites fixed:**
+- `UnitResource/RelationManagers/TicketsRelationManager::applyTaskPermissionFilter()`
+- `TaskExporter` — `$canViewAllTasks` gate for the `createdBy` export column
+
+If you add a new relation manager or custom query that gates on ticket-view-all access,
+always use the dual check above, not just one name.
+
 ## Reopen Coverage (`tests/Feature/TicketReopenTest.php`)
 - Two scenarios covered: `RESOLVED → ASSIGNED` and `CLOSED → ASSIGNED`. Both assert the same 7 invariants (status, `assigned_at` re-stamp, deadline rebase, `sla_breached=false`, cleared timestamps, history row, `TicketStatusChangedNotification` to assignee). The CLOSED variant additionally checks `closed_at` and `closed_by` are nulled.
 - **`CANCELLED → ASSIGNED` is intentionally NOT tested.** The transition matrix keeps `cancelled → []` (terminal — no path back); the source set in `TicketService::transition`'s reopen branch still includes `CANCELLED` as defensive code in case the matrix opens that arm later, but until it does the path is unreachable from any caller. Add a test only after the matrix is opened — otherwise the test would have to fabricate an invalid transition to exercise dead code.
