@@ -176,6 +176,26 @@ factories at the top of each test don't fail with NOT NULL. Each test then calls
 makes `scopedCompanyIds()` return `[]` — bypassing the company filter entirely and
 making the group-membership OR branch untestable.
 
+## SLA Compliance Window: `resolved_at` not `closed_at`
+
+`TicketStatsOverview` and `SlaComplianceTrendChart` both window on `resolved_at`:
+
+```php
+->whereNotNull('resolved_at')->where('resolved_at', '>=', $thirtyDaysAgo)
+```
+
+**Why:** tickets are completed at resolution, not at administrative close. Using
+`closed_at` excluded RESOLVED tickets from the window entirely — a ticket can sit in
+RESOLVED state indefinitely before a supervisor closes it. `resolved_at` is set by
+`TicketService::transition` on every path that reaches RESOLVED, so it is always
+present for resolved tickets and is also preserved through CLOSED (CLOSED always has a
+prior `resolved_at`).
+
+**If you add widget tests:** assert against `resolved_at`-windowed queries, not
+`closed_at`. The `sla_breached` column (boolean) is still the correct on-time
+signal — do not use `resolved_at <= sla_deadline` inline, as it ignores on-hold
+pause credits baked into `sla_breached` at write time.
+
 ## Reopen Coverage (`tests/Feature/TicketReopenTest.php`)
 - Two scenarios covered: `RESOLVED → ASSIGNED` and `CLOSED → ASSIGNED`. Both assert the same 7 invariants (status, `assigned_at` re-stamp, deadline rebase, `sla_breached=false`, cleared timestamps, history row, `TicketStatusChangedNotification` to assignee). The CLOSED variant additionally checks `closed_at` and `closed_by` are nulled.
 - **`CANCELLED → ASSIGNED` is intentionally NOT tested.** The transition matrix keeps `cancelled → []` (terminal — no path back); the source set in `TicketService::transition`'s reopen branch still includes `CANCELLED` as defensive code in case the matrix opens that arm later, but until it does the path is unreachable from any caller. Add a test only after the matrix is opened — otherwise the test would have to fabricate an invalid transition to exercise dead code.
