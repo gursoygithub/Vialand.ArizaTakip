@@ -319,11 +319,11 @@ class Ticket extends Model implements HasMedia
 
         // 2. ticket.view.group → tickets in areas of groups the user is a MEMBER
         //    of (via group_members), OR tickets they created, OR tickets assigned
-        //    to them. Additionally restricted to the user's accessible companies.
+        //    to them. Company filter uses OR so that group-membership areas in a
+        //    foreign company are included alongside own-company tickets.
         if ($user->hasPermissionTo('ticket.view.group')) {
-            $groupIds = GroupMember::where('employee_id', $employeeId)->pluck('group_id');
-            $areaIds  = Group::whereIn('id', $groupIds)->pluck('area_id');
-
+            $groupIds   = GroupMember::where('employee_id', $employeeId)->pluck('group_id');
+            $areaIds    = Group::whereIn('id', $groupIds)->pluck('area_id');
             $companyIds = $user->scopedCompanyIds();
 
             return $query
@@ -334,23 +334,46 @@ class Ticket extends Model implements HasMedia
                         $q->orWhere('employee_id', $employeeId);
                     }
                 })
-                ->when(!empty($companyIds), fn (Builder $q) => $q->whereHas(
-                    'area',
-                    fn (Builder $aq) => $aq->whereIn('company_id', $companyIds)
+                ->when(!empty($companyIds), fn (Builder $q) => $q->where(
+                    function (Builder $aq) use ($companyIds, $areaIds) {
+                        $aq->whereHas('area', fn (Builder $cq) => $cq->whereIn('company_id', $companyIds));
+                        if ($areaIds->isNotEmpty()) {
+                            $aq->orWhereIn('area_id', $areaIds);
+                        }
+                    }
                 ));
         }
 
-        // 3. ticket.view.own → own + assigned tickets.
+        // 3. ticket.view.own → own + assigned tickets, restricted to accessible
+        //    companies plus group-membership areas (which may span companies).
         // 4. NO relevant permission → SAME as ticket.view.own. Navigation
         //    visibility is gated separately by Shield's view_any_ticket; this
         //    scope is only reached when the user is already in the panel, so
         //    fall back to a non-empty (but minimal) result instead of 1=0.
-        return $query->where(function (Builder $q) use ($user, $employeeId) {
-            $q->where('created_by', $user->id);
-            if ($employeeId) {
-                $q->orWhere('employee_id', $employeeId);
-            }
-        });
+        $companyIds   = $user->scopedCompanyIds();
+        $groupAreaIds = $employeeId
+            ? Group::whereHas('members', fn ($q) => $q->where('employee_id', $employeeId))
+                ->pluck('area_id')
+                ->toArray()
+            : [];
+
+        return $query
+            ->where(function (Builder $q) use ($user, $employeeId) {
+                $q->where('created_by', $user->id);
+                if ($employeeId) {
+                    $q->orWhere('employee_id', $employeeId);
+                }
+            })
+            ->when(!empty($companyIds) || !empty($groupAreaIds), fn (Builder $q) =>
+                $q->where(function (Builder $aq) use ($companyIds, $groupAreaIds) {
+                    if (!empty($companyIds)) {
+                        $aq->whereHas('area', fn (Builder $cq) => $cq->whereIn('company_id', $companyIds));
+                    }
+                    if (!empty($groupAreaIds)) {
+                        $aq->orWhereIn('area_id', $groupAreaIds);
+                    }
+                })
+            );
     }
 
     // --- Boot ---

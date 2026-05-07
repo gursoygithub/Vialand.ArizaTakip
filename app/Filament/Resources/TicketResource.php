@@ -665,37 +665,13 @@ class TicketResource extends Resource
     }
 
     /**
-     * Apply the permission-aware visibility scope so the table only shows
-     * tickets the current user is allowed to see (own / group / all), then
-     * additionally restrict by the user's accessible companies. The company
-     * filter is a no-op for admins (scopedCompanyIds returns []).
+     * Apply the permission-aware visibility scope. Company and group-membership
+     * area filtering is fully handled inside scopeVisibleBy() for all permission
+     * branches, so no extra WHERE is needed here.
      */
     public static function getEloquentQuery(): Builder
     {
-        $query = parent::getEloquentQuery()->visibleBy(auth()->user());
-
-        $user       = auth()->user();
-        $companyIds = $user?->scopedCompanyIds() ?? [];
-        $employeeId = $user?->employee?->id;
-
-        $groupAreaIds = $employeeId
-            ? Group::whereHas('members', fn ($q) => $q->where('employee_id', $employeeId))
-                ->pluck('area_id')
-                ->toArray()
-            : [];
-
-        if (!empty($companyIds) || !empty($groupAreaIds)) {
-            $query->where(function (Builder $q) use ($companyIds, $groupAreaIds) {
-                if (!empty($companyIds)) {
-                    $q->whereHas('area', fn (Builder $aq) => $aq->whereIn('company_id', $companyIds));
-                }
-                if (!empty($groupAreaIds)) {
-                    $q->orWhereIn('area_id', $groupAreaIds);
-                }
-            });
-        }
-
-        return $query;
+        return parent::getEloquentQuery()->visibleBy(auth()->user());
     }
 
     public static function getPages(): array
