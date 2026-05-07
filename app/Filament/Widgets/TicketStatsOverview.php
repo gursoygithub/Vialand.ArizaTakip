@@ -54,13 +54,13 @@ class TicketStatsOverview extends BaseWidget
         $thirtyDaysAgo = now()->subDays(30);
         $totalClosedRecent = Ticket::query()
             ->visibleBy(auth()->user())
-            ->whereNotNull('closed_at')
-            ->where('closed_at', '>=', $thirtyDaysAgo)
+            ->whereNotNull('resolved_at')
+            ->where('resolved_at', '>=', $thirtyDaysAgo)
             ->count();
         $onTimeRecent = Ticket::query()
             ->visibleBy(auth()->user())
-            ->whereNotNull('closed_at')
-            ->where('closed_at', '>=', $thirtyDaysAgo)
+            ->whereNotNull('resolved_at')
+            ->where('resolved_at', '>=', $thirtyDaysAgo)
             ->where('sla_breached', false)
             ->count();
 
@@ -81,7 +81,7 @@ class TicketStatsOverview extends BaseWidget
 
         $complianceDesc = $compliance === null
             ? 'Henüz kapatılan talep yok'
-            : number_format($onTimeRecent) . ' / ' . number_format($totalClosedRecent) . ' zamanında';
+            : number_format($onTimeRecent) . ' / ' . number_format($totalClosedRecent) . ' zamanında çözüldü';
 
         return [
             Stat::make('Açık Talepler', number_format($openCount))
