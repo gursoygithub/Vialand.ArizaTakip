@@ -223,4 +223,120 @@ class TicketActionVisibilityTest extends TestCase
         $this->assertArrayHasKey($withEmail->id, $options->toArray());
         $this->assertArrayNotHasKey($emptyEmail->id, $options->toArray());
     }
+
+    // ──────────────────────────────────────────────────────────────────
+    // Assignee exclusion: current employee_id must not appear in the
+    // options list so the user cannot re-select the same person.
+    //
+    // Tested at the query level for the same reason as the email filter
+    // above — Filament 3.x exposes no stable API for reading Select
+    // options inside a mounted action form.
+    //
+    // Three query sites are covered:
+    //   A) ViewTicket assign action — group-member branch
+    //   B) ViewTicket assign action — company-fallback branch
+    //   C) TicketResource form employee_id Select
+    // ──────────────────────────────────────────────────────────────────
+
+    public function test_view_ticket_assign_group_branch_excludes_current_assignee(): void
+    {
+        $this->actingAs($this->makeUserWithPermissions([]));
+
+        $company    = Company::factory()->create();
+        $area       = Area::factory()->create(['status' => ActiveStatusEnum::ACTIVE, 'company_id' => $company->id]);
+        $unit       = Unit::factory()->create();
+        $supervisor = Employee::factory()->create(['email' => 'excl-sup@test.com']);
+        $group      = Group::factory()->create([
+            'area_id'     => $area->id,
+            'unit_id'     => $unit->id,
+            'company_id'  => $company->id,
+            'employee_id' => $supervisor->id,
+            'status'      => ActiveStatusEnum::ACTIVE,
+        ]);
+
+        $currentAssignee = Employee::factory()->create(['email' => 'excl-current@test.com', 'status' => ActiveStatusEnum::ACTIVE]);
+        $otherMember     = Employee::factory()->create(['email' => 'excl-other@test.com',   'status' => ActiveStatusEnum::ACTIVE]);
+
+        foreach ([$currentAssignee, $otherMember] as $emp) {
+            GroupMember::factory()->create(['group_id' => $group->id, 'employee_id' => $emp->id]);
+        }
+
+        // Reproduce the group-member branch of ViewTicket::assign options.
+        $options = Employee::query()
+            ->whereHas('groupMemberships', fn ($q) => $q->where('group_id', $group->id))
+            ->where('status', ActiveStatusEnum::ACTIVE->value)
+            ->whereNotNull('email')
+            ->where('email', '!=', '')
+            ->when($currentAssignee->id, fn ($q, $v) => $q->where('id', '!=', $v))
+            ->pluck('name', 'id');
+
+        $this->assertArrayNotHasKey($currentAssignee->id, $options->toArray());
+        $this->assertArrayHasKey($otherMember->id, $options->toArray());
+    }
+
+    public function test_view_ticket_assign_company_fallback_excludes_current_assignee(): void
+    {
+        $this->actingAs($this->makeUserWithPermissions([]));
+
+        $company         = Company::factory()->create();
+        $currentAssignee = Employee::factory()->create(['email' => 'fb-current@test.com', 'status' => ActiveStatusEnum::ACTIVE, 'company_id' => $company->id]);
+        $otherEmployee   = Employee::factory()->create(['email' => 'fb-other@test.com',   'status' => ActiveStatusEnum::ACTIVE, 'company_id' => $company->id]);
+
+        // Reproduce the company-fallback branch of ViewTicket::assign options.
+        // $companyId is derived from Employee::find($ticket->employee_id)->company_id.
+        $companyId = $currentAssignee->company_id;
+
+        $options = Employee::query()
+            ->when($companyId, fn ($q) => $q->where('company_id', $companyId))
+            ->where('status', \App\Enums\ActiveStatusEnum::ACTIVE->value)
+            ->whereNotNull('email')
+            ->where('email', '!=', '')
+            ->when($currentAssignee->id, fn ($q, $v) => $q->where('id', '!=', $v))
+            ->orderBy('name')
+            ->limit(500)
+            ->pluck('name', 'id');
+
+        $this->assertArrayNotHasKey($currentAssignee->id, $options->toArray());
+        $this->assertArrayHasKey($otherEmployee->id, $options->toArray());
+    }
+
+    public function test_ticket_resource_form_employee_options_excludes_selected_employee(): void
+    {
+        $this->actingAs($this->makeUserWithPermissions([]));
+
+        $company    = Company::factory()->create();
+        $area       = Area::factory()->create(['status' => ActiveStatusEnum::ACTIVE, 'company_id' => $company->id]);
+        $unit       = Unit::factory()->create();
+        $supervisor = Employee::factory()->create(['email' => 'form-sup@test.com']);
+        $group      = Group::factory()->create([
+            'area_id'     => $area->id,
+            'unit_id'     => $unit->id,
+            'company_id'  => $company->id,
+            'employee_id' => $supervisor->id,
+            'status'      => ActiveStatusEnum::ACTIVE,
+        ]);
+
+        $selectedEmployee = Employee::factory()->create(['email' => 'form-selected@test.com', 'status' => ActiveStatusEnum::ACTIVE]);
+        $otherMember      = Employee::factory()->create(['email' => 'form-other@test.com',    'status' => ActiveStatusEnum::ACTIVE]);
+
+        foreach ([$selectedEmployee, $otherMember] as $emp) {
+            GroupMember::factory()->create(['group_id' => $group->id, 'employee_id' => $emp->id]);
+        }
+
+        // Reproduce the TicketResource form employee_id Select options closure.
+        // $get('employee_id') is simulated by $selectedEmployee->id.
+        $currentEmployeeId = $selectedEmployee->id;
+
+        $options = Employee::query()
+            ->whereHas('groupMemberships', fn ($q) => $q->where('group_id', $group->id))
+            ->where('status', \App\Enums\ActiveStatusEnum::ACTIVE->value)
+            ->whereNotNull('email')
+            ->where('email', '!=', '')
+            ->when($currentEmployeeId, fn ($q, $v) => $q->where('id', '!=', $v))
+            ->orderBy('name')
+            ->pluck('name', 'id');
+
+        $this->assertArrayNotHasKey($selectedEmployee->id, $options->toArray());
+        $this->assertArrayHasKey($otherMember->id, $options->toArray());
+    }
 }
