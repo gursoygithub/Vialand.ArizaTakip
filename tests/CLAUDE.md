@@ -109,6 +109,19 @@ Three scenarios, each asserting the contract of `TicketService::reassign()`:
 which delegates to `TicketService::transition(OPEN → ASSIGNED)` and is exercised
 by `test_reassignment_notifies_new_assignee_and_creator`.
 
+## Assignee Exclusion Coverage (`tests/Feature/TicketActionVisibilityTest.php`)
+
+The `->when($ticket->employee_id / $get('employee_id'), fn ($q, $v) => $q->where('id', '!=', $v))`
+filter is added to three query sites so the current assignee cannot be re-selected:
+
+- **ViewTicket group-member branch**: `test_view_ticket_assign_group_branch_excludes_current_assignee`
+- **ViewTicket company-fallback branch**: `test_view_ticket_assign_company_fallback_excludes_current_assignee`
+- **TicketResource form Select**: `test_ticket_resource_form_employee_options_excludes_selected_employee`
+
+All three are query-level tests. Filament 3.x provides no stable public API for reading
+Select options inside a mounted action form, so each test reproduces the exact query the
+options closure uses and asserts: current assignee absent, a different eligible member present.
+
 ## Reopen Coverage (`tests/Feature/TicketReopenTest.php`)
 - Two scenarios covered: `RESOLVED → ASSIGNED` and `CLOSED → ASSIGNED`. Both assert the same 7 invariants (status, `assigned_at` re-stamp, deadline rebase, `sla_breached=false`, cleared timestamps, history row, `TicketStatusChangedNotification` to assignee). The CLOSED variant additionally checks `closed_at` and `closed_by` are nulled.
 - **`CANCELLED → ASSIGNED` is intentionally NOT tested.** The transition matrix keeps `cancelled → []` (terminal — no path back); the source set in `TicketService::transition`'s reopen branch still includes `CANCELLED` as defensive code in case the matrix opens that arm later, but until it does the path is unreachable from any caller. Add a test only after the matrix is opened — otherwise the test would have to fabricate an invalid transition to exercise dead code.
