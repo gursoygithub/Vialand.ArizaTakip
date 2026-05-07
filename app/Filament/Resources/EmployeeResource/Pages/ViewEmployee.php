@@ -48,8 +48,8 @@ class ViewEmployee extends ViewRecord
 
         $totalCohortCount = (clone $performanceCohort)->count();
         $closedOnTime     = (clone $performanceCohort)
-            ->whereNotNull('closed_at')
-            ->whereColumn('closed_at', '<=', 'sla_deadline')
+            ->whereNotNull('resolved_at')
+            ->where('sla_breached', false)
             ->count();
         $totalBreached    = (clone $performanceCohort)
             ->where('sla_breached', true)
@@ -120,7 +120,7 @@ class ViewEmployee extends ViewRecord
                     ->schema([
                         TextEntry::make('compliance_rate')
                             ->label('SLA Başarı Oranı')
-                            ->state($complianceRate === null ? '—' : $complianceRate . '%')
+                            ->state($complianceRate === null ? '—' : '%' . number_format($complianceRate, 1, ',', '.'))
                             ->weight('bold')
                             ->color(fn () => match ($isCompliant) {
                                 true  => 'success',
@@ -130,7 +130,7 @@ class ViewEmployee extends ViewRecord
 
                         TextEntry::make('current_threshold')
                             ->label('SLA Hedef Oranı')
-                            ->state($threshold === null ? '—' : round($threshold, 1) . '%'),
+                            ->state($threshold === null ? '—' : '%' . number_format($threshold, 1, ',', '.')),
 
                         TextEntry::make('cohort_size')
                             ->label('İş Hacmi')
@@ -167,7 +167,7 @@ class ViewEmployee extends ViewRecord
                                     ->whereNotIn('status', [TaskStatusEnum::CANCELLED->value])
                                     ->selectRaw('
                                         unit_id,
-                                        SUM(CASE WHEN closed_at IS NOT NULL AND closed_at <= sla_deadline THEN 1 ELSE 0 END) as on_time_count,
+                                        SUM(CASE WHEN resolved_at IS NOT NULL AND sla_breached = 0 THEN 1 ELSE 0 END) as on_time_count,
                                         SUM(CASE WHEN sla_breached = 1 THEN 1 ELSE 0 END) as breached_count
                                     ')
                                     ->groupBy('unit_id')
@@ -181,9 +181,10 @@ class ViewEmployee extends ViewRecord
                                             : 0;
 
                                         return [
-                                            'unit_name'  => $stat->unit?->name ?? 'Tanımsız Birim',
-                                            'stats'      => "{$stat->on_time_count} / {$sealed}",
-                                            'percentage' => $rate . '%',
+                                            'unit_name'      => $stat->unit?->name ?? 'Tanımsız Birim',
+                                            'stats'          => "{$stat->on_time_count} / {$sealed}",
+                                            'percentage'     => '%' . number_format($rate, 1, ',', '.'),
+                                            'raw_percentage' => $rate,
                                         ];
                                     });
                             })
@@ -201,8 +202,8 @@ class ViewEmployee extends ViewRecord
                                 TextEntry::make('percentage')
                                     ->label('Oran')
                                     ->badge()
-                                    ->color(fn ($state) =>
-                                        floatval($state) >= 80 ? 'success' : (floatval($state) >= 50 ? 'warning' : 'danger')
+                                    ->color(fn ($state, $record) =>
+                                        ($record['raw_percentage'] ?? 0) >= 80 ? 'success' : (($record['raw_percentage'] ?? 0) >= 50 ? 'warning' : 'danger')
                                     ),
                             ]),
                     ]),
@@ -220,7 +221,7 @@ class ViewEmployee extends ViewRecord
                                     ->whereNotIn('status', [TaskStatusEnum::CANCELLED->value])
                                     ->selectRaw('
                                         priority,
-                                        SUM(CASE WHEN closed_at IS NOT NULL AND closed_at <= sla_deadline THEN 1 ELSE 0 END) as on_time_count,
+                                        SUM(CASE WHEN resolved_at IS NOT NULL AND sla_breached = 0 THEN 1 ELSE 0 END) as on_time_count,
                                         SUM(CASE WHEN sla_breached = 1 THEN 1 ELSE 0 END) as breached_count
                                     ')
                                     ->groupBy('priority')
@@ -240,7 +241,7 @@ class ViewEmployee extends ViewRecord
                                             'priority_label' => $priorityEnum?->getLabel() ?? 'Bilinmiyor',
                                             'priority_color' => $priorityEnum?->getColor() ?? 'gray',
                                             'stats'          => "{$stat->on_time_count} / {$sealed}",
-                                            'percentage'     => $rate . '%',
+                                            'percentage'     => '%' . number_format($rate, 1, ',', '.'),
                                             'raw_percentage' => $rate,
                                         ];
                                     });
@@ -262,8 +263,8 @@ class ViewEmployee extends ViewRecord
                                 TextEntry::make('percentage')
                                     ->label('Başarı Oranı')
                                     ->badge()
-                                    ->color(fn ($state) =>
-                                        floatval($state) >= 80 ? 'success' : (floatval($state) >= 50 ? 'warning' : 'danger')
+                                    ->color(fn ($state, $record) =>
+                                        ($record['raw_percentage'] ?? 0) >= 80 ? 'success' : (($record['raw_percentage'] ?? 0) >= 50 ? 'warning' : 'danger')
                                     ),
                             ]),
                     ]),

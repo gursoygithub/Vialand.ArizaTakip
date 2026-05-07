@@ -137,7 +137,7 @@ class EmployeeResource extends Resource
                 // than a misleading "0%".
                 Tables\Columns\TextColumn::make('performance_score')
                     ->label('SLA Başarısı')
-                    ->formatStateUsing(fn ($state) => is_null($state) ? '—' : round($state, 1) . '%')
+                    ->formatStateUsing(fn ($state) => is_null($state) ? '—' : '%' . number_format($state, 1, ',', '.'))
                     ->badge()
                     ->sortable()
                     ->color(function ($record) {
@@ -151,7 +151,7 @@ class EmployeeResource extends Resource
 
                 Tables\Columns\TextColumn::make('current_threshold')
                     ->label(__('ui.sla_target_threshold'))
-                    ->formatStateUsing(fn ($state) => is_null($state) ? '—' : '%' . round($state, 1))
+                    ->formatStateUsing(fn ($state) => is_null($state) ? '—' : '%' . number_format($state, 1, ',', '.'))
                     ->description('Yönetici Hedefi')
                     ->sortable(),
 
@@ -192,7 +192,6 @@ class EmployeeResource extends Resource
         return [
             RelationManagers\TicketsRelationManager::class,
             RelationManagers\GroupMembershipsRelationManager::class,
-            RelationManagers\SlaPoliciesRelationManager::class,
         ];
     }
 

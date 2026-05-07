@@ -88,7 +88,7 @@ class Employee extends Model
     {
         $stats = $this->tickets()
             ->selectRaw('
-                SUM(CASE WHEN sla_breached = 0 AND closed_at IS NOT NULL THEN 1 ELSE 0 END) as success_count,
+                SUM(CASE WHEN sla_breached = 0 AND resolved_at IS NOT NULL THEN 1 ELSE 0 END) as success_count,
                 SUM(CASE WHEN sla_breached = 1 THEN 1 ELSE 0 END) as failed_count
             ')
             ->first();
@@ -157,10 +157,10 @@ class Employee extends Model
         return $this->tickets()
             ->select('unit_id')
             ->selectRaw('
-                SUM(CASE WHEN sla_breached = 0 AND closed_at IS NOT NULL THEN 1 ELSE 0 END) +
+                SUM(CASE WHEN sla_breached = 0 AND resolved_at IS NOT NULL THEN 1 ELSE 0 END) +
                 SUM(CASE WHEN sla_breached = 1 THEN 1 ELSE 0 END) as total
             ')
-            ->selectRaw('SUM(CASE WHEN sla_breached = 0 AND closed_at IS NOT NULL THEN 1 ELSE 0 END) as success_count')
+            ->selectRaw('SUM(CASE WHEN sla_breached = 0 AND resolved_at IS NOT NULL THEN 1 ELSE 0 END) as success_count')
             ->groupBy('unit_id')
             ->with('unit')
             ->get();
