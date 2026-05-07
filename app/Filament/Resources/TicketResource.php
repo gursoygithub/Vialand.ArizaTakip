@@ -325,6 +325,7 @@ class TicketResource extends Resource
                                     ->where('status', \App\Enums\ActiveStatusEnum::ACTIVE->value)
                                     ->whereNotNull('email')
                                     ->where('email', '!=', '')
+                                    ->when($get('employee_id'), fn ($q, $v) => $q->where('id', '!=', $v))
                                     ->orderBy('name')
                                     ->pluck('name', 'id')
                                     ->toArray();

@@ -260,6 +260,7 @@ class ViewTicket extends ViewRecord
                                     ->where('status', \App\Enums\ActiveStatusEnum::ACTIVE->value)
                                     ->whereNotNull('email')
                                     ->where('email', '!=', '')
+                                    ->when($ticket->employee_id, fn ($q, $v) => $q->where('id', '!=', $v))
                                     ->orderBy('name')
                                     ->pluck('name', 'id');
 
@@ -276,6 +277,7 @@ class ViewTicket extends ViewRecord
                                 ->where('status', \App\Enums\ActiveStatusEnum::ACTIVE->value)
                                 ->whereNotNull('email')
                                 ->where('email', '!=', '')
+                                ->when($ticket->employee_id, fn ($q, $v) => $q->where('id', '!=', $v))
                                 ->orderBy('name')
                                 ->limit(500)
                                 ->pluck('name', 'id');
