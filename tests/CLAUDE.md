@@ -122,6 +122,20 @@ All three are query-level tests. Filament 3.x provides no stable public API for 
 Select options inside a mounted action form, so each test reproduces the exact query the
 options closure uses and asserts: current assignee absent, a different eligible member present.
 
+## `getOptionLabelUsing` Coverage (`tests/Feature/TicketActionVisibilityTest.php`)
+
+The `employee_id` Select in `TicketResource` uses `->getOptionLabelUsing()` to resolve
+a stored ID to the employee name independently of `->options()`. Without it, Filament
+displays the raw integer when the options list doesn't contain the current value — which
+happens when `group_id` is not yet reactive on load, or when the self-exclusion filter
+has removed the current assignee from the list.
+
+Two closure-level tests (Filament 3.x has no stable API for reading a hydrated field
+label in test context):
+
+- **`test_employee_label_resolver_returns_name_for_known_id`** — known ID → employee name
+- **`test_employee_label_resolver_falls_back_to_id_string_for_unknown_id`** — unknown ID → ID cast to string
+
 ## Reopen Coverage (`tests/Feature/TicketReopenTest.php`)
 - Two scenarios covered: `RESOLVED → ASSIGNED` and `CLOSED → ASSIGNED`. Both assert the same 7 invariants (status, `assigned_at` re-stamp, deadline rebase, `sla_breached=false`, cleared timestamps, history row, `TicketStatusChangedNotification` to assignee). The CLOSED variant additionally checks `closed_at` and `closed_by` are nulled.
 - **`CANCELLED → ASSIGNED` is intentionally NOT tested.** The transition matrix keeps `cancelled → []` (terminal — no path back); the source set in `TicketService::transition`'s reopen branch still includes `CANCELLED` as defensive code in case the matrix opens that arm later, but until it does the path is unreachable from any caller. Add a test only after the matrix is opened — otherwise the test would have to fabricate an invalid transition to exercise dead code.
