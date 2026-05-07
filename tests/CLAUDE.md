@@ -140,16 +140,30 @@ label in test context):
 
 Users whose employee belongs to a group in a foreign company's area must see that
 area's tickets and groups — even though their `scopedCompanyIds()` only returns their
-own company. Three fixed locations in `TicketResource` are each covered by a positive
-(membership present) and negative (no membership) test:
+own company. The logic lives entirely in `Ticket::scopeVisibleBy()` (not in
+`TicketResource::getEloquentQuery()`, which is now a single-line passthrough to the
+scope).
 
-- **`getEloquentQuery()`**: calls `TicketResource::getEloquentQuery()` directly after
-  `actingAs()`. Verifies that the `orWhereIn('area_id', $groupAreaIds)` OR branch
-  surfaces foreign-area tickets for members and hides them for non-members.
-- **`group_id` Select options**: reproduces the closure query. Verifies that
+**How the scope works after the refactor:**
+
+- **`ticket.view.group` branch**: builds `$areaIds` from `GroupMember` → `Group`,
+  then applies `AND (area.company_id IN $companyIds OR area_id IN $areaIds)`. The OR
+  ensures foreign-company areas reachable via group membership are not filtered out by
+  the company restriction.
+- **`ticket.view.own` branch**: applies the same company+groupArea OR filter on top of
+  the own/assigned WHERE, so widgets and other callers of `scopeVisibleBy()` get
+  correct scoping without any extra WHERE in the resource.
+
+**Tests — three locations each with a positive (membership present) and negative (no
+membership) case:**
+
+- **Ticket list** (`getEloquentQuery()`): calls `TicketResource::getEloquentQuery()`
+  directly after `actingAs()`. Since `getEloquentQuery()` delegates to `scopeVisibleBy()`,
+  this exercises the scope's `ticket.view.own` branch end-to-end.
+- **`group_id` Select options**: reproduces the closure query directly. Verifies that
   `orWhereIn('id', $memberGroupIds)` includes foreign-company groups the user is a
   member of, and excludes groups with no membership.
-- **`area_id` list filter options**: reproduces the closure query. Verifies that
+- **`area_id` list filter options**: reproduces the closure query directly. Verifies that
   `orWhereIn('id', $groupAreaIds)` includes both own-company areas and foreign
   group-membership areas, and excludes foreign areas without membership.
 
