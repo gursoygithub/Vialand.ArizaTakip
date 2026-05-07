@@ -176,6 +176,44 @@ factories at the top of each test don't fail with NOT NULL. Each test then calls
 makes `scopedCompanyIds()` return `[]` — bypassing the company filter entirely and
 making the group-membership OR branch untestable.
 
+## PerformanceService: `resolved_at` and `sla_breached` (not `closed_at`)
+
+`PerformanceService::aggregate()`, `getOverview()` priority breakdown, and
+`getRegionBreakdown()` all define "closed" as `resolved_at !== null` and
+"on-time" as `!sla_breached`:
+
+```php
+$closed = $tickets->filter(fn ($t) => $t->resolved_at !== null);
+$onTime = $closed->filter(fn ($t) => !$t->sla_breached);
+```
+
+**Why `resolved_at`:** RESOLVED tickets (the dominant terminal state) set
+`resolved_at` but leave `closed_at` null until a supervisor explicitly closes
+them. Using `closed_at` excluded all RESOLVED tickets from compliance and
+resolution-time metrics.
+
+**Why `!sla_breached`:** the inline `closed_at <= sla_deadline` comparison
+ignored on-hold pause credits baked into `sla_breached` at write time, and
+used the wrong timestamp. `sla_breached` is the single authoritative source.
+
+**`avg_resolution_minutes`** measures `assigned_at → resolved_at` (not `closed_at`).
+
+**Test fixture rule:** when creating a CLOSED ticket in tests, always set
+`resolved_at` alongside `closed_at` — in production the lifecycle always
+goes through RESOLVED first, so CLOSED tickets always carry both timestamps.
+A CLOSED ticket with no `resolved_at` is never counted in `$closed` and will
+silently produce wrong compliance numbers in tests.
+
+```php
+// CORRECT — matches production lifecycle
+Ticket::factory()->create([
+    'status'      => TaskStatusEnum::CLOSED,
+    'resolved_at' => now(),
+    'closed_at'   => now(),
+    'sla_breached' => false,
+]);
+```
+
 ## SLA Compliance Window: `resolved_at` not `closed_at`
 
 `TicketStatsOverview` and `SlaComplianceTrendChart` both window on `resolved_at`:
