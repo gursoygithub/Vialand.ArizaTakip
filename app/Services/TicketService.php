@@ -488,8 +488,47 @@ class TicketService
                 return $ticket->fresh();
             }
 
-            // Status didn't change — log the reassignment as a from=to entry
-            // so the timeline still shows it (rendered same as a comment).
+            // CHANGE 1 + 2: IN_PROGRESS / ON_HOLD → reset to ASSIGNED and
+            // recalculate SLA from now() so the new assignee gets a fresh clock.
+            if (in_array($statusBefore, [TaskStatusEnum::IN_PROGRESS, TaskStatusEnum::ON_HOLD], true)) {
+                $live = $ticket->fresh();
+
+                if ($statusBefore === TaskStatusEnum::ON_HOLD) {
+                    $live->on_hold_since = null;
+                }
+
+                $live->status = TaskStatusEnum::ASSIGNED;
+
+                $priorityValue = is_object($live->priority)
+                    ? $live->priority->value
+                    : $live->priority;
+
+                if ($live->area_id && $priorityValue !== null) {
+                    $policy = $this->slaService->resolvePolicy(
+                        (int) $live->area_id,
+                        $live->sub_area_id ? (int) $live->sub_area_id : null,
+                        $live->unit_id ? (int) $live->unit_id : null,
+                        $priorityValue,
+                    );
+                    if ($policy) {
+                        $live->sla_deadline = $this->slaService->calculateDeadline($policy, now());
+                        $live->sla_breached = false;
+                    }
+                }
+
+                $live->save();
+
+                TicketStatusHistory::create([
+                    'ticket_id'   => $live->id,
+                    'from_status' => $statusBefore->value,
+                    'to_status'   => TaskStatusEnum::ASSIGNED->value,
+                    'changed_by'  => $by->id,
+                    'note'        => null,
+                ]);
+            }
+
+            // Log the employee change as a from=to entry so the timeline
+            // shows a 👤 Personel Değişikliği card.
             $this->logReassign($ticket->fresh(), $by, $fullNote);
             $this->notifyAssignee($ticket->fresh(), $by);
             $this->notifyCreatorOfReassignment($ticket->fresh(), $by, $oldEmployeeName, $newEmployeeName);
