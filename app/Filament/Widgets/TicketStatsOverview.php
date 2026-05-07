@@ -77,7 +77,7 @@ class TicketStatsOverview extends BaseWidget
 
         $complianceLabel = $compliance === null
             ? '—'
-            : number_format($compliance, 1, ',', '.') . '%';
+            : '%' . number_format($compliance, 1, ',', '.');
 
         $complianceDesc = $compliance === null
             ? 'Henüz kapatılan talep yok'

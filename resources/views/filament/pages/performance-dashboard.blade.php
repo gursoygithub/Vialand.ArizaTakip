@@ -66,9 +66,9 @@
             @foreach([
                 // 7 KPI-focused cards. Operational metrics (Açık, Beklemede,
                 // Risk Altında) live on Genel Bakış, not here.
-                ['label'=>'Uyum','value'=>$overview['sla_compliance_rate'].'%','icon'=>'shield-check','color'=>$overview['sla_compliance_rate']>=80?'emerald':($overview['sla_compliance_rate']>=50?'amber':'red')],
+                ['label'=>'Uyum','value'=>'%'.number_format($overview['sla_compliance_rate'],1,',','.'),'icon'=>'shield-check','color'=>$overview['sla_compliance_rate']>=80?'emerald':($overview['sla_compliance_rate']>=50?'amber':'red')],
                 ['label'=>'İhlal','value'=>$overview['total_breached'],'icon'=>'exclamation-triangle','color'=>'red'],
-                ['label'=>'Yeniden Açılma','value'=>$overview['reopen_rate'].'%','sub'=>$overview['reopen_count'].' adet','icon'=>'arrow-path','color'=>'orange'],
+                ['label'=>'Yeniden Açılma','value'=>'%'.number_format($overview['reopen_rate'],1,',','.'),'sub'=>$overview['reopen_count'].' adet','icon'=>'arrow-path','color'=>'orange'],
                 ['label'=>'Zamanında','value'=>$overview['closed_on_time'],'icon'=>'check-circle','color'=>'emerald'],
                 ['label'=>'Ort. Çözüm','value'=>$overview['avg_resolution_minutes'].'dk','icon'=>'clock','color'=>'violet'],
                 ['label'=>'Ort. Yanıt','value'=>$overview['avg_response_time_minutes'].'dk','icon'=>'bolt','color'=>'sky'],
@@ -136,7 +136,7 @@
                             <div class="flex-1 bg-gray-100 dark:bg-gray-700 rounded-full h-2">
                                 <div class="h-2 rounded-full {{ $barFill }}" style="width: {{ min($rate, 100) }}%"></div>
                             </div>
-                            <span class="text-xs font-bold w-10 text-right {{ $rateText }}">{{ $rate }}%</span>
+                            <span class="text-xs font-bold w-10 text-right {{ $rateText }}">%{{ number_format($rate, 1, ',', '.') }}</span>
                         </div>
                     </div>
 
@@ -200,7 +200,7 @@
                                 <td class="px-4 py-3 text-center text-green-600">{{ $row['on_time'] }}</td>
                                 <td class="px-4 py-3 text-center text-red-500">{{ $row['breached'] }}</td>
                                 <td class="px-4 py-3 text-center">
-                                    <span class="px-2 py-0.5 rounded-full text-xs font-semibold {{ $pillClass }}">{{ $rc }}%</span>
+                                    <span class="px-2 py-0.5 rounded-full text-xs font-semibold {{ $pillClass }}">%{{ number_format($rc, 1, ',', '.') }}</span>
                                 </td>
                             </tr>
                             <tr>
@@ -271,7 +271,7 @@
                                     @endif
                                 </td>
                                 <td class="px-4 py-3 text-center">
-                                    <span class="px-2 py-0.5 rounded-full text-xs font-semibold {{ $compPill }}">{{ $r }}%</span>
+                                    <span class="px-2 py-0.5 rounded-full text-xs font-semibold {{ $compPill }}">%{{ number_format($r, 1, ',', '.') }}</span>
                                 </td>
                                 <td class="px-4 py-3 text-center text-gray-600 dark:text-gray-300">{{ $row['avg_resolution_minutes'] }}</td>
                                 <td class="px-4 py-3 text-center text-gray-600 dark:text-gray-300">{{ $row['avg_response_time_minutes'] }}</td>
