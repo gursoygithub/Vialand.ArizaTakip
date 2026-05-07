@@ -59,12 +59,16 @@ class ViewTicket extends ViewRecord
     public function infolist(Infolist $infolist): Infolist
     {
         $record       = $this->getRecord();
-        $inProgressAt = $record->statusHistories()
-            ->where('to_status', TaskStatusEnum::IN_PROGRESS->value)
-            ->where('created_at', '>=', $record->assigned_at)
-            ->orderBy('created_at')
-            ->first()
-            ?->created_at;
+        // Guard: assigned_at is null for OPEN/unassigned tickets.
+        // Passing null to >= would throw an InvalidArgumentException.
+        $inProgressAt = $record->assigned_at
+            ? $record->statusHistories()
+                ->where('to_status', TaskStatusEnum::IN_PROGRESS->value)
+                ->where('created_at', '>=', $record->assigned_at)
+                ->orderBy('created_at')
+                ->first()
+                ?->created_at
+            : null;
 
         return $infolist
             ->schema([
