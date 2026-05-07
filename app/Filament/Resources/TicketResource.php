@@ -707,11 +707,7 @@ class TicketResource extends Resource
             TaskStatusEnum::CANCELLED,
         ], true);
         if ($terminal) {
-            $finalAt  = $record->resolved_at ?? $record->closed_at;
-            $breached = $finalAt
-                ? $finalAt->gt($record->sla_deadline)
-                : now()->gt($record->sla_deadline);
-            return $breached ? 'danger' : 'success';
+            return $record->sla_breached ? 'danger' : 'success';
         }
 
         if (now()->isAfter($record->sla_deadline)) {

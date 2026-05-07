@@ -93,7 +93,7 @@ class ViewEmployee extends ViewRecord
                     ->schema([
                         Grid::make(3)->schema([
                             TextEntry::make('active_tickets')
-                                ->label('Aktif Ticket')
+                                ->label('Devam Eden')
                                 ->badge()
                                 ->color($activeCount > 0 ? 'warning' : 'gray')
                                 ->state($activeCount),
