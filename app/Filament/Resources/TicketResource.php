@@ -169,11 +169,27 @@ class TicketResource extends Resource
                             ->placeholder('Bölge seçiniz')
                             ->prefixIcon('heroicon-o-map')
                             ->options(function (): array {
-                                $companyIds = auth()->user()?->scopedCompanyIds() ?? [];
+                                $user       = auth()->user();
+                                $companyIds = $user?->scopedCompanyIds() ?? [];
+                                $employeeId = $user?->employee?->id;
+
+                                $groupAreaIds = $employeeId
+                                    ? \App\Models\Group::whereHas('members',
+                                        fn ($q) => $q->where('employee_id', $employeeId))
+                                        ->pluck('area_id')
+                                        ->toArray()
+                                    : [];
+
                                 return Area::query()
                                     ->with('company')
-                                    ->when(!empty($companyIds), fn (\Illuminate\Database\Eloquent\Builder $query)
-                                        => $query->whereIn('company_id', $companyIds))
+                                    ->where(function ($q) use ($companyIds, $groupAreaIds) {
+                                        if (!empty($companyIds)) {
+                                            $q->whereIn('company_id', $companyIds);
+                                        }
+                                        if (!empty($groupAreaIds)) {
+                                            $q->orWhereIn('id', $groupAreaIds);
+                                        }
+                                    })
                                     ->where('status', ActiveStatusEnum::ACTIVE)
                                     ->orderBy('name')
                                     ->get()
