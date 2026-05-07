@@ -34,9 +34,9 @@ class SlaComplianceTrendChart extends ChartWidget
 
         $rows = Ticket::query()
             ->visibleBy(auth()->user())
-            ->whereNotNull('closed_at')
-            ->whereBetween('closed_at', [$start, $end])
-            ->selectRaw('DATE(closed_at) as day, sla_breached, COUNT(*) as total')
+            ->whereNotNull('resolved_at')
+            ->whereBetween('resolved_at', [$start, $end])
+            ->selectRaw('DATE(resolved_at) as day, sla_breached, COUNT(*) as total')
             ->groupBy('day', 'sla_breached')
             ->get();
 
