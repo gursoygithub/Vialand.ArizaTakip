@@ -243,10 +243,11 @@ percent sign **before** the number, comma as the decimal separator.
 '%' . number_format($value, 1, ',', '.')   // → "%66,7"
 ```
 
-Five display sites follow this rule:
+Six sites follow this rule:
 - `TicketStatsOverview` — SLA compliance stat label
-- `PerformanceDashboard` — Uyum summary card, Yeniden Açılma summary card,
+- `PerformanceDashboard` blade — Uyum summary card, Yeniden Açılma summary card,
   priority breakdown bar label, region compliance pill, per-person compliance pill
+- `PerformanceDashboard::exportCsv()` — Uyum column in the CSV download
 
 **CSS `width:X%` layout values are never formatted this way** — those are CSS
 and must remain plain integers followed by `%`.
