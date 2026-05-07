@@ -7,7 +7,6 @@ use App\Models\Ticket;
 use App\Models\TicketStatusHistory;
 use App\Models\User;
 use App\Notifications\TicketAssignedNotification;
-use App\Notifications\TicketClosedNotification;
 use App\Services\SlaService;
 
 class TicketObserver
