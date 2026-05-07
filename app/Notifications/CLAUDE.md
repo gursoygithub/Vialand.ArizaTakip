@@ -39,7 +39,7 @@ Template always renders: ticket_no, status label, priority badge, area/location/
 - `TicketReopenedNotification` — sent to **assignee + creator** by `TicketService::notifyReopened` on reopen (terminal → ASSIGNED); mail always sent
 - `TicketStatusChangedNotification` — database-only bell to full participant set for all other transitions (ON_HOLD, IN_PROGRESS, CLOSED, etc.); no mail
 - `TicketCommentNotification` — used by `TicketService::addComment`, `updateComment` (body: `"Not güncellendi: ..."`), AND `notifyPriorityChange`; `via()` returns `['database']` only — fans out to bell + FCM, **never mail**
-- `TicketClosedNotification` — sent at close (dispatched separately, not from dispatchTransitionNotifications); body shows on-time vs. breach
+- `TicketClosedNotification` — **dead code**: the class exists and is imported in `TicketObserver`, but is never instantiated anywhere. The `→ CLOSED` transition falls through to `TicketStatusChangedNotification` (database-only) via `notifyParticipants`. The import in `TicketObserver.php` is an orphan.
 - `SlaWarningNotification` — 80% time elapsed; sent by `CheckSlaBreaches` to assignee + creator; mail always sent
 - `SlaBreachedNotification` — sent by `CheckSlaBreaches` when deadline crossed; to assignee + creator; mail always sent
 - `UserCreated` — onboarding email for newly-created users; mail only
