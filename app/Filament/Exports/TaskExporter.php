@@ -16,7 +16,7 @@ class TaskExporter extends Exporter
     {
         $isSuperAdmin = auth()->user()->hasRole('super_admin');
         $canViewTcNo = auth()->user()->can('view_tc_no');
-        $canViewAllTasks = auth()->user()->can('view_all_tasks');
+        $canViewAllTasks = auth()->user()->can('view_all_tasks') || auth()->user()->can('ticket.view.all');
 
         $columns = [];
 
@@ -64,6 +64,9 @@ class TaskExporter extends Exporter
             ExportColumn::make('sla_breached')
                 ->label('SLA İhlali')
                 ->formatStateUsing(fn ($state) => $state ? 'Evet' : 'Hayır'),
+            ExportColumn::make('resolved_at')
+                ->label('Çözülme')
+                ->formatStateUsing(fn ($state) => $state ? DateHelper::formatForExport($state, 'd F Y H:i') : ''),
             ExportColumn::make('closed_at')
                 ->label('Kapanma')
                 ->formatStateUsing(fn ($state) => $state ? DateHelper::formatForExport($state, 'd F Y H:i') : ''),

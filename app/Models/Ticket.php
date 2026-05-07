@@ -186,20 +186,6 @@ class Ticket extends Model implements HasMedia
         });
     }
 
-    public function getSlaStatusAttribute(): string
-    {
-        $target = $this->target_date;
-        if (!$target) {
-            return 'NO_SLA';
-        }
-
-        if (!$this->closed_at) {
-            return now() > $target ? 'SLA_BREACHED' : 'IN_PROGRESS';
-        }
-
-        return $this->closed_at <= $target ? 'SUCCESS' : 'FAILED';
-    }
-
     public function getRemainingMinutes(): int
     {
         if (!$this->sla_deadline) {

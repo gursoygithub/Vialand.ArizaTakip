@@ -821,9 +821,13 @@ class TicketService
 
     private function markClosed(Ticket $ticket, User $by): void
     {
-        $ticket->closed_at    = now();
-        $ticket->closed_by    = $by->id;
-        $ticket->sla_breached = $ticket->sla_deadline && now()->isAfter($ticket->sla_deadline);
+        $ticket->closed_at = now();
+        $ticket->closed_by = $by->id;
+        // Use resolved_at as the reference timestamp when available so that
+        // a ticket resolved on time is not flipped to breached when the
+        // supervisor closes it days later (after the deadline has passed).
+        $finalAt = $ticket->resolved_at ?? now();
+        $ticket->sla_breached = $ticket->sla_deadline && $finalAt->isAfter($ticket->sla_deadline);
     }
 
     private function markCancelled(Ticket $ticket, User $by): void

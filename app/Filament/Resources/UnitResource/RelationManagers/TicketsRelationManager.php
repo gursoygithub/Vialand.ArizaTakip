@@ -250,7 +250,8 @@ class TicketsRelationManager extends RelationManager
 
         $hasPermission =
             $user->hasRole('super_admin') ||
-            $user->can('view_all_tasks');
+            $user->can('view_all_tasks') ||
+            $user->can('ticket.view.all');
 
         if (!$hasPermission) {
             $query->where(function ($query) use ($user) {
