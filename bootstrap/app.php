@@ -31,6 +31,16 @@ return Application::configure(basePath: dirname(__DIR__))
             ->timezone(config('app.timezone', 'UTC'))
             ->name('check-sla-breaches')
             ->withoutOverlapping();
+
+        // Yarının log dosyasını önceden oluştur
+        $schedule->call(function () {
+            $tomorrow = now()->addDay()->format('Y-m-d');
+            $file = storage_path("logs/laravel-{$tomorrow}.log");
+            if (!file_exists($file)) {
+                touch($file);
+                chmod($file, 0777);
+            }
+        })->dailyAt('23:55');
     })
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->trustProxies(at: '*');
