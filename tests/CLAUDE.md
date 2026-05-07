@@ -243,11 +243,13 @@ percent sign **before** the number, comma as the decimal separator.
 '%' . number_format($value, 1, ',', '.')   // → "%66,7"
 ```
 
-Six sites follow this rule:
+Eleven sites follow this rule:
 - `TicketStatsOverview` — SLA compliance stat label
 - `PerformanceDashboard` blade — Uyum summary card, Yeniden Açılma summary card,
   priority breakdown bar label, region compliance pill, per-person compliance pill
 - `PerformanceDashboard::exportCsv()` — Uyum column in the CSV download
+- `EmployeeResource` list — `performance_score` badge, `current_threshold` column
+- `ViewEmployee` infolist — SLA Başarı Oranı, SLA Hedef Oranı, unit section `percentage`, priority section `percentage`
 
 **CSS `width:X%` layout values are never formatted this way** — those are CSS
 and must remain plain integers followed by `%`.
@@ -257,6 +259,45 @@ and must remain plain integers followed by `%`.
 $this->assertStringContainsString('%66,7', $renderedOutput);
 // NOT: '66.7%' or '66,7%'
 ```
+
+## Employee: `resolved_at` and `sla_breached` (not `closed_at`)
+
+`Employee::refreshPerformanceMetrics()` and `Employee::getUnitPerformanceStats()` define
+the "on-time" signal as `sla_breached = 0 AND resolved_at IS NOT NULL` — not `closed_at`:
+
+```sql
+SUM(CASE WHEN sla_breached = 0 AND resolved_at IS NOT NULL THEN 1 ELSE 0 END) as success_count
+```
+
+`ViewEmployee` applies the same rule in three places:
+
+1. **Performance cohort** (section 3 denominator):
+   ```php
+   ->whereNotNull('resolved_at')->where('sla_breached', false)
+   // NOT: ->whereNotNull('closed_at')->whereColumn('closed_at', '<=', 'sla_deadline')
+   ```
+
+2. **Unit section `selectRaw`** (section 4):
+   ```sql
+   SUM(CASE WHEN resolved_at IS NOT NULL AND sla_breached = 0 THEN 1 ELSE 0 END) as on_time_count
+   ```
+
+3. **Priority section `selectRaw`** (section 5) — same expression grouped by `priority`.
+
+**`raw_percentage` key in RepeatableEntry data:** both the unit and priority sections store
+a numeric `raw_percentage` key alongside the formatted `percentage` string. Badge color
+closures use `$record['raw_percentage']` — not `floatval($state)` — because after the
+Turkish format fix `floatval('%66,7')` returns `0.0`:
+
+```php
+->color(fn ($state, $record) =>
+    ($record['raw_percentage'] ?? 0) >= 80 ? 'success' : (($record['raw_percentage'] ?? 0) >= 50 ? 'warning' : 'danger')
+),
+```
+
+**`SlaPoliciesRelationManager` removed:** the employee↔SLA pivot is managed through
+`CompanySetupWizard`. The relation manager tab was deleted from `EmployeeResource`
+to prevent bypassing the wizard's guards via `AttachAction`.
 
 ## Reopen Coverage (`tests/Feature/TicketReopenTest.php`)
 - Two scenarios covered: `RESOLVED → ASSIGNED` and `CLOSED → ASSIGNED`. Both assert the same 7 invariants (status, `assigned_at` re-stamp, deadline rebase, `sla_breached=false`, cleared timestamps, history row, `TicketStatusChangedNotification` to assignee). The CLOSED variant additionally checks `closed_at` and `closed_by` are nulled.
