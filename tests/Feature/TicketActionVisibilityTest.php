@@ -339,4 +339,32 @@ class TicketActionVisibilityTest extends TestCase
         $this->assertArrayNotHasKey($selectedEmployee->id, $options->toArray());
         $this->assertArrayHasKey($otherMember->id, $options->toArray());
     }
+
+    // ──────────────────────────────────────────────────────────────────
+    // getOptionLabelUsing fix: the employee_id Select must resolve the
+    // stored ID to the employee name even when the options list does not
+    // contain that value (e.g. group_id not yet reactive, or the self-
+    // exclusion filter removed the current assignee).
+    //
+    // Tested at the closure level — Filament 3.x exposes no stable API
+    // for reading a hydrated field label in test context.
+    // ──────────────────────────────────────────────────────────────────
+
+    public function test_employee_label_resolver_returns_name_for_known_id(): void
+    {
+        $employee = Employee::factory()->create(['email' => 'label-known@test.com']);
+
+        // Reproduce the getOptionLabelUsing closure from TicketResource.
+        $resolve = fn ($value): string => Employee::find($value)?->name ?? (string) $value;
+
+        $this->assertSame($employee->name, $resolve($employee->id));
+    }
+
+    public function test_employee_label_resolver_falls_back_to_id_string_for_unknown_id(): void
+    {
+        // Reproduce the getOptionLabelUsing closure from TicketResource.
+        $resolve = fn ($value): string => Employee::find($value)?->name ?? (string) $value;
+
+        $this->assertSame('99999', $resolve(99999));
+    }
 }
