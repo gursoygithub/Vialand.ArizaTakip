@@ -795,6 +795,7 @@ return [
     'page_performance_kpi_count_unit'     => 'adet',
     'page_performance_kpi_compliance'     => 'Uyum',
     'page_performance_kpi_breached'       => 'İhlal',
+    'page_performance_kpi_on_time'        => 'Zamanında',
     'page_performance_kpi_reopen'         => 'Yeniden Açılma',
     'page_performance_kpi_avg_resolution' => 'Ort. Çözüm',
     'page_performance_kpi_avg_response'   => 'Ort. Yanıt',
