@@ -4,7 +4,6 @@ namespace App\Filament\Resources\UnitResource\RelationManagers;
 
 use App\Enums\TaskPriorityEnum;
 use App\Enums\TaskStatusEnum;
-use App\Enums\TaskTypeEnum;
 use App\Filament\Resources\TicketResource;
 use Filament\Forms\Form;
 use Filament\Resources\Components\Tab;
@@ -86,13 +85,6 @@ class TicketsRelationManager extends RelationManager
                         $record->sla_breached ? 'danger'
                         : ($record->status === TaskStatusEnum::ON_HOLD ? 'warning' : 'success')
                     ),
-
-                Tables\Columns\TextColumn::make('type_id')
-                    ->label(__('ui.type'))
-                    ->badge()
-                    ->formatStateUsing(fn ($state) => $state instanceof TaskTypeEnum ? $state->getLabel() : $state)
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
 
                 Tables\Columns\TextColumn::make('area.company.name')
                     ->label(__('ui.company'))
@@ -219,12 +211,48 @@ class TicketsRelationManager extends RelationManager
                         ->mapWithKeys(fn ($c) => [$c->value => $c->getLabel()])
                         ->toArray()),
 
-                Tables\Filters\SelectFilter::make('type_id')
-                    ->label(__('ui.type'))
+                Tables\Filters\SelectFilter::make('area_id')
+                    ->label(__('ui.area'))
                     ->multiple()
-                    ->options(collect(TaskTypeEnum::cases())
-                        ->mapWithKeys(fn ($c) => [$c->value => $c->getLabel()])
-                        ->toArray()),
+                    ->searchable()
+                    ->relationship('area', 'name')
+                    ->preload(),
+
+                Tables\Filters\SelectFilter::make('employee_id')
+                    ->label(__('ui.related_person'))
+                    ->multiple()
+                    ->searchable()
+                    ->relationship('employee', 'name')
+                    ->preload(),
+
+                Tables\Filters\Filter::make('task_date')
+                    ->label(__('ui.fault_date'))
+                    ->form([
+                        \Filament\Forms\Components\DatePicker::make('from')
+                            ->label(__('ui.filter_task_date_from')),
+                        \Filament\Forms\Components\DatePicker::make('until')
+                            ->label(__('ui.filter_task_date_to')),
+                    ])
+                    ->query(function (Builder $query, array $data): Builder {
+                        return $query
+                            ->when($data['from'] ?? null, fn ($q, $d) =>
+                                $q->whereDate('task_date', '>=', $d))
+                            ->when($data['until'] ?? null, fn ($q, $d) =>
+                                $q->whereDate('task_date', '<=', $d));
+                    }),
+
+                Tables\Filters\Filter::make('created_at')
+                    ->label('Oluşturma Tarihi')
+                    ->form([
+                        \Filament\Forms\Components\DatePicker::make('from')
+                            ->label(__('ui.filter_created_from')),
+                        \Filament\Forms\Components\DatePicker::make('to')
+                            ->label(__('ui.filter_created_to')),
+                    ])
+                    ->query(fn (Builder $q, array $data) => $q
+                        ->when($data['from'] ?? null, fn ($q, $v) => $q->whereDate('created_at', '>=', $v))
+                        ->when($data['to'] ?? null, fn ($q, $v) => $q->whereDate('created_at', '<=', $v))
+                    ),
 
                 // Active SLA breach surface — currently breached, not yet
                 // closed. Mirrors the dashboard's "İhlal" semantic.
@@ -300,7 +328,7 @@ class TicketsRelationManager extends RelationManager
             'all' => Tab::make(__('ui.all'))
                 ->badge(fn () => $count($owner->tickets()->getQuery())),
 
-            'active' => Tab::make('Aktif')
+            'active' => Tab::make(__('ui.tab_active'))
                 ->badge(fn () => $count($owner->tickets()
                     ->whereIn('status', [
                         TaskStatusEnum::OPEN,
@@ -315,22 +343,22 @@ class TicketsRelationManager extends RelationManager
                     TaskStatusEnum::IN_PROGRESS,
                 ])),
 
-            'on_hold' => Tab::make('Beklemede')
+            'on_hold' => Tab::make(__('ui.tab_on_hold'))
                 ->badge(fn () => $count($owner->tickets()->where('status', TaskStatusEnum::ON_HOLD)->getQuery()))
                 ->badgeColor('warning')
                 ->modifyQueryUsing(fn (Builder $query) => $query->where('status', TaskStatusEnum::ON_HOLD)),
 
-            'resolved' => Tab::make('Çözüldü')
+            'resolved' => Tab::make(__('ui.tab_resolved'))
                 ->badge(fn () => $count($owner->tickets()->where('status', TaskStatusEnum::RESOLVED)->getQuery()))
                 ->badgeColor('success')
                 ->modifyQueryUsing(fn (Builder $query) => $query->where('status', TaskStatusEnum::RESOLVED)),
 
-            'closed' => Tab::make('Kapatıldı')
+            'closed' => Tab::make(__('ui.tab_closed'))
                 ->badge(fn () => $count($owner->tickets()->where('status', TaskStatusEnum::CLOSED)->getQuery()))
                 ->badgeColor('gray')
                 ->modifyQueryUsing(fn (Builder $query) => $query->where('status', TaskStatusEnum::CLOSED)),
 
-            'breached' => Tab::make('İhlal')
+            'breached' => Tab::make(__('ui.tab_breached'))
                 ->badge(fn () => $count($owner->tickets()->where('sla_breached', true)->getQuery()))
                 ->badgeColor('danger')
                 ->modifyQueryUsing(fn (Builder $query) => $query->where('sla_breached', true)),
