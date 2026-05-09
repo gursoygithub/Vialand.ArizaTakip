@@ -202,18 +202,24 @@ class ViewEmployee extends ViewRecord
                                     ->havingRaw('(on_time_count + breached_count) > 0')
                                     ->with('unit')
                                     ->get()
-                                    ->map(function ($stat) {
+                                    ->map(function ($stat) use ($record) {
                                         $onTime = (int) $stat->on_time_count;
                                         $sealed = $onTime + (int) $stat->breached_count;
                                         $rate   = (float) ($sealed > 0
                                             ? round($onTime / $sealed * 100, 1)
                                             : 0);
 
+                                        $threshold = (float) ($record->current_threshold ?? 80);
+                                        $hi        = $threshold;
+                                        $lo        = $threshold * 0.75;
+                                        $color     = $rate >= $hi ? 'success' : ($rate >= $lo ? 'warning' : 'danger');
+
                                         return [
                                             'unit_name'      => $stat->unit?->name ?? 'Tanımsız Birim',
                                             'stats'          => "{$onTime} / {$sealed}",
                                             'percentage'     => '%' . number_format($rate, 1, ',', '.'),
                                             'raw_percentage' => $rate,
+                                            'color'          => $color,
                                         ];
                                     });
                             })
@@ -231,12 +237,7 @@ class ViewEmployee extends ViewRecord
                                 TextEntry::make('percentage')
                                     ->label(__('ui.employee_col_rate'))
                                     ->badge()
-                                    ->color(function ($state, $record) use ($threshold) {
-                                        $rate = (float) ($record['raw_percentage'] ?? 0);
-                                        $hi   = (float) ($threshold ?? 80);
-                                        $lo   = $threshold !== null ? (float) $threshold * 0.75 : 50.0;
-                                        return $rate >= $hi ? 'success' : ($rate >= $lo ? 'warning' : 'danger');
-                                    }),
+                                    ->color(fn ($state, $record) => $record['color'] ?? 'gray'),
                             ]),
                     ]),
 
