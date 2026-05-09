@@ -42,7 +42,7 @@ class ViewTicket extends ViewRecord
      *   İşleme Al / Çözüldü / Beklemede → assigned personnel OR super_admin
      *   İptal Et / Kapat               → creator OR super_admin
      *   Yeniden Aç                     → creator OR super_admin (TicketPolicy::reopen)
-     *   Ata / Yeniden Ata              → ticket.assign AND (creator OR current assignee's user), not terminal
+     *   Ata / Yeniden Ata              → ticket.assign AND (creator OR current assignee's user OR group supervisor), not terminal
      *   Düzenle / Sil                  → creator OR super_admin
      *   Not Ekle / Sesi Kapat/Aç      → any participant
      */
@@ -223,8 +223,8 @@ class ViewTicket extends ViewRecord
                 }),
 
             // ASSIGN / REASSIGN — visible to (creator OR current assignee's
-            // user) when they hold ticket.assign, but not on terminal tickets.
-            // super_admin has ticket.assign by default.
+            // user OR group supervisor) when they hold ticket.assign, but not
+            // on terminal tickets. super_admin has ticket.assign by default.
             Actions\Action::make('assign')
                 ->label($ticket->employee_id ? 'Yeniden Ata' : 'Ata')
                 ->icon('heroicon-o-user-plus')
@@ -242,7 +242,12 @@ class ViewTicket extends ViewRecord
                     }
                     $isAssignee = $ticket->employee_id
                         && (int) ($ticket->employee?->user?->id ?? 0) === (int) $user->id;
-                    return $isCreator || $isAssignee;
+                    $isSupervisorOfTicketGroup = $ticket->group_id
+                        && $user->employee
+                        && \App\Models\Group::where('id', $ticket->group_id)
+                            ->where('employee_id', $user->employee->id)
+                            ->exists();
+                    return $isCreator || $isAssignee || $isSupervisorOfTicketGroup;
                 })
                 ->form([
                     Select::make('employee_id')
