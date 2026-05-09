@@ -663,6 +663,25 @@ class ViewTicket extends ViewRecord
                         </div>
                     </div>
                 HTML;
+
+                // When the ticket was born already-assigned, the single creation row
+                // carries to_status=ASSIGNED but renderTimeline() previously discarded
+                // it. Emit a second card at the same timestamp so the assignment fact
+                // is visible in the timeline without touching the DB or the observer.
+                if ($entry->to_status === \App\Enums\TaskStatusEnum::ASSIGNED) {
+                    $assigneeName = e($record->employee?->name ?? '—');
+                    $assignDotColor = '#3b82f6';
+                    $html .= <<<HTML
+                        <div style="position:relative;margin-bottom:24px;">
+                            <div style="position:absolute;left:-30px;top:6px;width:24px;height:24px;border-radius:50%;background:#fff;border:3px solid {$assignDotColor};display:flex;align-items:center;justify-content:center;font-size:12px;">👤</div>
+                            <div style="background:#fff;border:1px solid #e5e7eb;border-left:4px solid {$assignDotColor};border-radius:8px;padding:14px 16px;width:100%;">
+                                <div style="font-weight:700;color:#111827;font-size:1em;">Atandı: {$assigneeName}</div>
+                                <div style="font-size:0.875em;color:#6b7280;margin-top:6px;">{$author} tarafından • {$when}</div>
+                            </div>
+                        </div>
+                    HTML;
+                }
+
                 continue;
             }
 
