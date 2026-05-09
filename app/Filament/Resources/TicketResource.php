@@ -683,35 +683,6 @@ class TicketResource extends Resource
                             ->toArray();
                     }),
 
-                // SLA filter: only column-backed states. The previous
-                // 'on_time' and 'warning' options used raw TIMESTAMPDIFF
-                // SQL (MySQL-only, broken on SQLite) and ignored the
-                // on_hold pause + total_on_hold_minutes credit, leaving
-                // them inconsistent with the per-row live label. Use
-                // Ticket::getSlaStatusLabel() for live display; this
-                // filter is for the persisted breach/no-policy axis only.
-                Tables\Filters\SelectFilter::make('sla_status')
-                    ->label(__('ui.sla_status'))
-                    ->multiple()
-                    ->options([
-                        'breached' => __('ui.sla_breached'),
-                        'no_sla'   => __('ui.no_sla'),
-                    ])
-                    ->query(function (Builder $query, array $data): Builder {
-                        $values = $data['values'] ?? [];
-                        if (empty($values)) {
-                            return $query;
-                        }
-                        return $query->where(function (Builder $q) use ($values) {
-                            if (in_array('breached', $values)) {
-                                $q->orWhere('sla_breached', true);
-                            }
-                            if (in_array('no_sla', $values)) {
-                                $q->orWhereNull('sla_deadline');
-                            }
-                        });
-                    }),
-
                 Tables\Filters\Filter::make('created_at')
                     ->label('Oluşturma Tarihi')
                     ->form([
