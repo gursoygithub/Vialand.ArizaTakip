@@ -381,7 +381,13 @@ class Ticket extends Model implements HasMedia
             }
 
             if (empty($ticket->status)) {
-                $ticket->status = TaskStatusEnum::OPEN;
+                // Promote to ASSIGNED when an employee is already attached so
+                // the observer's assigned_at stamp and the history row both
+                // reflect the correct initial status. Mirrors the observer's
+                // own check but runs first (model boot beats observer order).
+                $ticket->status = $ticket->employee_id
+                    ? TaskStatusEnum::ASSIGNED
+                    : TaskStatusEnum::OPEN;
             }
         });
 

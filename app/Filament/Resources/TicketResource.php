@@ -106,13 +106,6 @@ class TicketResource extends Resource
                         // it sits next to the description in a Grid(2). See the
                         // entry there for placeholder + maxDate + default.
 
-                        // Hidden default on create so new tickets always start as OPEN.
-                        // The DB default is PENDING (legacy) — explicit injection here
-                        // overrides that for the ticket lifecycle.
-                        Forms\Components\Hidden::make('status')
-                            ->default(TaskStatusEnum::OPEN->value)
-                            ->visible(fn ($livewire) => $livewire instanceof \App\Filament\Resources\TicketResource\Pages\CreateTicket),
-
                         // type_id is NOT NULL with no DB default but the Tür field was
                         // removed from the form. Pin it to OPERATION so creates pass
                         // the constraint until/unless the column is dropped.

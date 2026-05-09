@@ -93,17 +93,21 @@ class TicketReassignTest extends TestCase
         // 1. Status rolled back to ASSIGNED
         $this->assertEquals(TaskStatusEnum::ASSIGNED, $fresh->status);
 
-        // 2. SLA deadline rebased from now() + 120 min = 12:00
+        // 2. assigned_at stamped to now()
+        $this->assertNotNull($fresh->assigned_at);
+        $this->assertEquals('2026-06-01 10:00:00', $fresh->assigned_at->toDateTimeString());
+
+        // 3. SLA deadline rebased from now() + 120 min = 12:00
         $this->assertNotNull($fresh->sla_deadline);
         $this->assertEquals(
             '2026-06-01 12:00:00',
             $fresh->sla_deadline->toDateTimeString(),
         );
 
-        // 3. Breach flag cleared
+        // 4. Breach flag cleared
         $this->assertFalse((bool) $fresh->sla_breached);
 
-        // 4. History row written for the status rollback (IN_PROGRESS → ASSIGNED)
+        // 5. History row written for the status rollback (IN_PROGRESS → ASSIGNED)
         $this->assertDatabaseHas('ticket_status_histories', [
             'ticket_id'   => $ticket->id,
             'from_status' => TaskStatusEnum::IN_PROGRESS->value,
@@ -111,7 +115,7 @@ class TicketReassignTest extends TestCase
             'changed_by'  => $this->actor->id,
         ]);
 
-        // 5. Two new history rows total: status reset + employee-change log
+        // 6. Two new history rows total: status reset + employee-change log
         $this->assertSame($historyBefore + 2, TicketStatusHistory::where('ticket_id', $ticket->id)->count());
 
         Carbon::setTestNow();
@@ -151,17 +155,21 @@ class TicketReassignTest extends TestCase
         //    getRemainingMinutes / getElapsedPercentage for the new assignee
         $this->assertNull($fresh->on_hold_since);
 
-        // 3. SLA deadline rebased from now() + 120 min = 12:00
+        // 3. assigned_at stamped to now()
+        $this->assertNotNull($fresh->assigned_at);
+        $this->assertEquals('2026-06-01 10:00:00', $fresh->assigned_at->toDateTimeString());
+
+        // 4. SLA deadline rebased from now() + 120 min = 12:00
         $this->assertNotNull($fresh->sla_deadline);
         $this->assertEquals(
             '2026-06-01 12:00:00',
             $fresh->sla_deadline->toDateTimeString(),
         );
 
-        // 4. Breach flag cleared
+        // 5. Breach flag cleared
         $this->assertFalse((bool) $fresh->sla_breached);
 
-        // 5. History row written for the status rollback (ON_HOLD → ASSIGNED)
+        // 6. History row written for the status rollback (ON_HOLD → ASSIGNED)
         $this->assertDatabaseHas('ticket_status_histories', [
             'ticket_id'   => $ticket->id,
             'from_status' => TaskStatusEnum::ON_HOLD->value,
@@ -169,17 +177,15 @@ class TicketReassignTest extends TestCase
             'changed_by'  => $this->actor->id,
         ]);
 
-        // 6. Two new history rows total: status reset + employee-change log
+        // 7. Two new history rows total: status reset + employee-change log
         $this->assertSame($historyBefore + 2, TicketStatusHistory::where('ticket_id', $ticket->id)->count());
 
         Carbon::setTestNow();
     }
 
-    public function test_reassign_from_assigned_keeps_status_and_does_not_recalculate_sla(): void
+    public function test_reassign_from_assigned_resets_assigned_at_and_recalculates_sla(): void
     {
         Carbon::setTestNow('2026-06-01 10:00:00');
-
-        $originalDeadline = Carbon::parse('2026-06-01 14:00:00');
 
         [$oldEmployee] = $this->makeAssignee('asgn-old');
         [$newEmployee] = $this->makeAssignee('asgn-new');
@@ -191,14 +197,8 @@ class TicketReassignTest extends TestCase
             'employee_id'  => $oldEmployee->id,
             'priority'     => TaskPriorityEnum::Medium,
             'status'       => TaskStatusEnum::ASSIGNED,
-            'sla_deadline' => $originalDeadline,
             'sla_breached' => false,
         ]);
-
-        // TicketObserver::creating() recalculates sla_deadline when a policy
-        // exists, so capture the actual deadline from the DB after creation
-        // rather than the value passed to the factory.
-        $deadlineAfterCreate = $ticket->fresh()->sla_deadline->copy();
 
         $historyBefore = TicketStatusHistory::where('ticket_id', $ticket->id)->count();
 
@@ -206,21 +206,25 @@ class TicketReassignTest extends TestCase
 
         $fresh = $ticket->fresh();
 
-        // 1. Status unchanged
+        // 1. Status stays ASSIGNED (no status-change row, no transition needed)
         $this->assertEquals(TaskStatusEnum::ASSIGNED, $fresh->status);
 
-        // 2. SLA deadline unchanged — ASSIGNED reassignment must not rebase
-        $this->assertNotNull($fresh->sla_deadline);
-        $this->assertEquals(
-            $deadlineAfterCreate->toDateTimeString(),
-            $fresh->sla_deadline->toDateTimeString(),
-        );
+        // 2. assigned_at updated to now() for the new assignee's clock
+        $this->assertNotNull($fresh->assigned_at);
+        $this->assertEquals('2026-06-01 10:00:00', $fresh->assigned_at->toDateTimeString());
 
-        // 3. Exactly one new history row: only the employee-change log,
-        //    no spurious status-reset row
+        // 3. SLA deadline recalculated from now() + 120 min = 12:00
+        $this->assertNotNull($fresh->sla_deadline);
+        $this->assertEquals('2026-06-01 12:00:00', $fresh->sla_deadline->toDateTimeString());
+
+        // 4. Breach flag cleared
+        $this->assertFalse((bool) $fresh->sla_breached);
+
+        // 5. Exactly one new history row: the employee-change log only —
+        //    no status-transition row (ASSIGNED → ASSIGNED is a no-op)
         $this->assertSame($historyBefore + 1, TicketStatusHistory::where('ticket_id', $ticket->id)->count());
 
-        // 4. That sole new row is the __reassign__ log (from == to, prefixed note)
+        // 6. That sole new row is the __reassign__ log (from == to, prefixed note)
         $logRow = TicketStatusHistory::where('ticket_id', $ticket->id)
             ->latest('id')
             ->first();

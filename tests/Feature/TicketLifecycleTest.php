@@ -2,9 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Enums\ActiveStatusEnum;
+use App\Enums\TaskPriorityEnum;
 use App\Enums\TaskStatusEnum;
 use App\Exceptions\TicketTransitionException;
 use App\Models\Area;
+use App\Models\Employee;
 use App\Models\SubArea;
 use App\Models\Ticket;
 use App\Models\TicketStatusHistory;
@@ -43,6 +46,55 @@ class TicketLifecycleTest extends TestCase
             'unit_id'     => $unit->id,
             'status'      => TaskStatusEnum::OPEN,
         ], $overrides));
+    }
+
+    public function test_ticket_created_without_assignee_is_open_with_one_history_row(): void
+    {
+        $ticket = $this->makeTicket(['employee_id' => null, 'status' => TaskStatusEnum::OPEN]);
+
+        // Observer::creating() must set status = OPEN when no employee is present
+        $this->assertEquals(TaskStatusEnum::OPEN, $ticket->fresh()->status);
+        $this->assertNull($ticket->fresh()->assigned_at);
+
+        // Exactly one history row: null → OPEN
+        $rows = TicketStatusHistory::where('ticket_id', $ticket->id)->get();
+        $this->assertCount(1, $rows);
+        $this->assertNull($rows[0]->from_status);
+        $this->assertEquals(TaskStatusEnum::OPEN, $rows[0]->to_status);
+    }
+
+    public function test_ticket_created_with_assignee_is_assigned_with_one_history_row(): void
+    {
+        $area    = Area::factory()->create(['status' => ActiveStatusEnum::ACTIVE]);
+        $subArea = SubArea::factory()->create(['area_id' => $area->id]);
+        $unit    = Unit::factory()->create();
+
+        $email    = 'lifecycle-assignee@test.com';
+        $employee = Employee::factory()->create(['email' => $email]);
+        User::factory()->create(['email' => $email, 'username' => 'lifecycle-assignee']);
+
+        $ticket = Ticket::factory()->create([
+            'area_id'     => $area->id,
+            'sub_area_id' => $subArea->id,
+            'unit_id'     => $unit->id,
+            'employee_id' => $employee->id,
+            // Pass null to clear the factory's OPEN default so the observer's
+            // auto-promotion logic (empty($ticket->status) check) fires —
+            // mirrors what the Filament form does after removing the Hidden field.
+            'status'      => null,
+        ]);
+
+        $fresh = $ticket->fresh();
+
+        // Observer::creating() must auto-promote to ASSIGNED when employee_id is set
+        $this->assertEquals(TaskStatusEnum::ASSIGNED, $fresh->status);
+        $this->assertNotNull($fresh->assigned_at);
+
+        // Exactly one history row: null → ASSIGNED (not two rows)
+        $rows = TicketStatusHistory::where('ticket_id', $ticket->id)->get();
+        $this->assertCount(1, $rows);
+        $this->assertNull($rows[0]->from_status);
+        $this->assertEquals(TaskStatusEnum::ASSIGNED, $rows[0]->to_status);
     }
 
     public function test_ticket_no_is_auto_generated(): void

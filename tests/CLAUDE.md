@@ -102,12 +102,15 @@ Three scenarios, each asserting the contract of `TicketService::reassign()`:
   Clearing `on_hold_since` is required so `getRemainingMinutes()` and
   `getElapsedPercentage()` don't compute against a stale pause timestamp for the
   new assignee.
-- **`ASSIGNED → reassign`**: status and `sla_deadline` are both unchanged; only
-  the `__reassign__` employee-change log row is written (1 new row, not 2).
+- **`ASSIGNED → reassign`**: status stays ASSIGNED; `assigned_at` is updated to
+  `now()`, `sla_deadline` is recalculated from `now() + policy.deadline_minutes`,
+  `sla_breached` cleared. Only the `__reassign__` employee-change log row is written
+  (1 new row — no status-transition row since from == to).
 
 **Not covered here** (covered by `NotificationTest`): the `OPEN → reassign` path,
-which delegates to `TicketService::transition(OPEN → ASSIGNED)` and is exercised
-by `test_reassignment_notifies_new_assignee_and_creator`.
+which goes through the unified post-reassign block (OPEN → ASSIGNED transition row +
+reassign log = 2 rows) and is exercised by
+`test_reassignment_notifies_new_assignee_and_creator`.
 
 ## Assignee Exclusion Coverage (`tests/Feature/TicketActionVisibilityTest.php`)
 
