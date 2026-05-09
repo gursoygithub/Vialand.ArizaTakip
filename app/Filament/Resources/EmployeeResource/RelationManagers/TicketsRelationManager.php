@@ -201,7 +201,7 @@ class TicketsRelationManager extends RelationManager
                     ->searchable()
                     ->options(fn () => Area::query()
                         ->whereHas('tickets', fn ($q) =>
-                            $q->visibleBy(auth()->user()))
+                            $q->visibleBy(filament()->auth()->user()))
                         ->orderBy('name')
                         ->pluck('name', 'id')
                         ->toArray()),
@@ -225,7 +225,7 @@ class TicketsRelationManager extends RelationManager
                     ->multiple()
                     ->options(fn () => \App\Models\Unit::query()
                         ->whereIn('id', \App\Models\Ticket::query()
-                            ->visibleBy(auth()->user())
+                            ->visibleBy(filament()->auth()->user())
                             ->whereNotNull('unit_id')
                             ->distinct()
                             ->pluck('unit_id'))
