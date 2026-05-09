@@ -7,6 +7,7 @@ use App\Enums\TaskPriorityEnum;
 use App\Enums\TaskStatusEnum;
 use App\Filament\Pages\PerformanceDashboard;
 use App\Models\Area;
+use App\Models\Company;
 use App\Models\Employee;
 use App\Models\Group;
 use App\Models\GroupMember;
@@ -99,6 +100,63 @@ class PerformanceDashboardTest extends TestCase
             $page->teamStats,
             'Supervisor via groups.employee_id should see non-empty teamStats'
         );
+    }
+
+    /**
+     * getVisibleAreas() returns only areas whose company_id matches the user's
+     * scoped company, or areas reachable via group membership or managed groups.
+     * Areas from a completely unrelated company must NOT appear.
+     */
+    public function test_area_dropdown_scoped_to_visible_areas_only(): void
+    {
+        $company      = Company::factory()->create();
+        $otherCompany = Company::factory()->create();
+
+        // Employee belonging to $company
+        $email    = 'perf-scope@test.com';
+        $employee = Employee::factory()->create([
+            'email'      => $email,
+            'company_id' => $company->id,
+            'status'     => ActiveStatusEnum::ACTIVE,
+        ]);
+        $user = User::factory()->create(['email' => $email, 'username' => 'perf-scope']);
+        $user->assignRole('supervisor');
+
+        // Area in user's own company — should be visible
+        $ownArea = Area::factory()->create([
+            'company_id' => $company->id,
+            'status'     => ActiveStatusEnum::ACTIVE,
+        ]);
+
+        // Area in an unrelated company — must NOT be visible
+        $foreignArea = Area::factory()->create([
+            'company_id' => $otherCompany->id,
+            'status'     => ActiveStatusEnum::ACTIVE,
+        ]);
+
+        // Area reachable via group membership (different company, but user is a member)
+        $memberArea = Area::factory()->create([
+            'company_id' => $otherCompany->id,
+            'status'     => ActiveStatusEnum::ACTIVE,
+        ]);
+        $memberGroup = Group::factory()->create([
+            'area_id' => $memberArea->id,
+        ]);
+        GroupMember::factory()->create([
+            'group_id'    => $memberGroup->id,
+            'employee_id' => $employee->id,
+        ]);
+
+        $this->actingAs($user);
+
+        $page = new PerformanceDashboard();
+        $page->mount();
+
+        $visibleIds = $page->getVisibleAreas()->pluck('id')->toArray();
+
+        $this->assertContains($ownArea->id, $visibleIds, 'Own company area must be visible');
+        $this->assertContains($memberArea->id, $visibleIds, 'Area reachable via group membership must be visible');
+        $this->assertNotContains($foreignArea->id, $visibleIds, 'Unrelated foreign area must not be visible');
     }
 
     /**

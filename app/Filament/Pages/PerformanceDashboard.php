@@ -70,6 +70,55 @@ class PerformanceDashboard extends Page implements HasForms, HasTable
         $this->loadStats();
     }
 
+    /**
+     * Area IDs the current user is allowed to see, used for both the dropdown
+     * and the stats-iteration loop so both stay in sync.
+     *
+     * ticket.view.all → every area (admin sees all).
+     * Others → union of company-scoped areas + group-member areas + managed areas.
+     * Mirrors the dual-path used in Ticket::scopeVisibleBy() and the supervisor
+     * branch added in 2ef9df8.
+     */
+    private function resolveVisibleAreaIds(): Collection
+    {
+        $user = auth()->user();
+
+        if (!$user) {
+            return collect();
+        }
+
+        if ($user->can('ticket.view.all')) {
+            return Area::pluck('id');
+        }
+
+        $employee   = \App\Models\Employee::where('email', $user->email)->first();
+        $employeeId = $employee?->id;
+        $companyIds = $user->scopedCompanyIds();
+
+        $companyAreaIds = !empty($companyIds)
+            ? Area::whereIn('company_id', $companyIds)->pluck('id')
+            : collect();
+
+        $memberAreaIds  = $employeeId
+            ? \App\Models\Group::whereHas('members', fn ($q) => $q->where('employee_id', $employeeId))->pluck('area_id')
+            : collect();
+
+        $managedAreaIds = $employeeId
+            ? \App\Models\Group::where('employee_id', $employeeId)->pluck('area_id')
+            : collect();
+
+        return $companyAreaIds->merge($memberAreaIds)->merge($managedAreaIds)->unique()->values();
+    }
+
+    /**
+     * Eloquent collection of Area models the current user can see,
+     * ordered by name. Used by the Blade dropdown.
+     */
+    public function getVisibleAreas(): \Illuminate\Database\Eloquent\Collection
+    {
+        return Area::whereIn('id', $this->resolveVisibleAreaIds())->orderBy('name')->get();
+    }
+
     public function loadStats(): void
     {
         if (!auth()->user()?->can('report.view')) {
@@ -86,33 +135,23 @@ class PerformanceDashboard extends Page implements HasForms, HasTable
         if ($this->areaId && auth()->user()?->can('ticket.view.all')) {
             $this->teamStats = $service->getTeamStats($this->areaId, $from, $to);
         } elseif (auth()->user()?->can('ticket.view.all')) {
-            // Admin: show all areas
+            // Admin: iterate all visible areas (= all areas for ticket.view.all users).
             $allStats = collect();
-            Area::pluck('id')->each(function ($id) use ($service, $from, $to, &$allStats) {
+            $this->resolveVisibleAreaIds()->each(function ($id) use ($service, $from, $to, &$allStats) {
                 $allStats = $allStats->merge($service->getTeamStats($id, $from, $to));
             });
             $this->teamStats = $allStats->unique(fn ($s) => $s['user']->id)->sortByDesc('compliance_rate')->values();
         } else {
             // Supervisor: resolve areas from BOTH group membership (group_members rows)
             // and groups where the user is the named manager (groups.employee_id).
-            // Mirrors the dual-path added to Ticket::scopeVisibleBy() in d5c1a30.
-            $supervisorEmployee = \App\Models\Employee::where('email', auth()->user()->email)->first();
-            $employeeId         = $supervisorEmployee?->id;
-
-            if ($employeeId) {
-                $memberAreaIds  = \App\Models\Group::whereHas('members',
-                    fn ($q) => $q->where('employee_id', $employeeId)
-                )->pluck('area_id');
-                $managedAreaIds = \App\Models\Group::where('employee_id', $employeeId)->pluck('area_id');
-                $areaIds        = $memberAreaIds->merge($managedAreaIds)->unique()->values();
-
-                if ($areaIds->isNotEmpty()) {
-                    $allStats = collect();
-                    $areaIds->each(function ($id) use ($service, $from, $to, &$allStats) {
-                        $allStats = $allStats->merge($service->getTeamStats($id, $from, $to));
-                    });
-                    $this->teamStats = $allStats->unique(fn ($s) => $s['user']->id)->values();
-                }
+            // Uses the same resolveVisibleAreaIds() helper so dropdown and iteration stay in sync.
+            $areaIds = $this->resolveVisibleAreaIds();
+            if ($areaIds->isNotEmpty()) {
+                $allStats = collect();
+                $areaIds->each(function ($id) use ($service, $from, $to, &$allStats) {
+                    $allStats = $allStats->merge($service->getTeamStats($id, $from, $to));
+                });
+                $this->teamStats = $allStats->unique(fn ($s) => $s['user']->id)->values();
             }
         }
     }
@@ -150,13 +189,13 @@ class PerformanceDashboard extends Page implements HasForms, HasTable
             fwrite($out, "\xEF\xBB\xBF");
 
             fputcsv($out, [
-                'Personel',
-                'Toplam Talep',
-                'Zamanında',
-                'İhlal',
-                'Uyum %',
-                'Ort. Çözüm (dk)',
-                'Ort. Yanıt (dk)',
+                __('ui.page_performance_csv_employee'),
+                __('ui.total_tickets'),
+                __('ui.on_time'),
+                __('ui.page_performance_col_breached'),
+                __('ui.page_performance_csv_compliance'),
+                __('ui.page_performance_csv_resolution'),
+                __('ui.page_performance_csv_response'),
             ]);
 
             foreach ($teamStats as $row) {

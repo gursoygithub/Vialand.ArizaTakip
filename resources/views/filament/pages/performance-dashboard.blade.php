@@ -41,14 +41,14 @@
                     <select wire:model="areaId"
                             class="block w-full rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white">
                         <option value="">{{ __('ui.all') }}</option>
-                        @foreach(\App\Models\Area::orderBy('name')->get() as $area)
+                        @foreach($this->getVisibleAreas() as $area)
                             <option value="{{ $area->id }}">{{ $area->name }}</option>
                         @endforeach
                     </select>
                 </div>
                 <div class="flex items-end gap-2">
                     <button type="submit" class="flex-1 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg px-4 py-2 text-sm transition">
-                        Filtrele
+                        {{ __('ui.page_performance_filter_submit') }}
                     </button>
                     <button type="button" wire:click="exportCsv" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg px-4 py-2 text-sm transition">
                         {{ __('ui.export_csv') }}
@@ -57,22 +57,21 @@
             </form>
         </div>
 
-        {{-- 10 summary cards — compact 5x2 grid. Icon tile on the left,
+        {{-- KPI summary cards — compact grid. Icon tile on the left,
              value + label (+ optional subtitle) on the right. Per-card
-             color resolves at render time for compliance / reopen / risk;
-             every variant is in the safelist at the top of this file. --}}
+             color resolves at render time; every variant is in the
+             safelist at the top of this file. --}}
         @if(!empty($overview))
         <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4" style="margin-top: 2rem;">
             @foreach([
-                // 7 KPI-focused cards. Operational metrics (Açık, Beklemede,
-                // Risk Altında) live on Genel Bakış, not here.
-                ['label'=>'Uyum','value'=>'%'.number_format($overview['sla_compliance_rate'],1,',','.'),'icon'=>'shield-check','color'=>$overview['sla_compliance_rate']>=80?'emerald':($overview['sla_compliance_rate']>=50?'amber':'red')],
-                ['label'=>'İhlal','value'=>$overview['total_breached'],'icon'=>'exclamation-triangle','color'=>'red'],
-                ['label'=>'Yeniden Açılma','value'=>'%'.number_format($overview['reopen_rate'],1,',','.'),'sub'=>$overview['reopen_count'].' adet','icon'=>'arrow-path','color'=>'orange'],
-                ['label'=>'Zamanında','value'=>$overview['closed_on_time'],'icon'=>'check-circle','color'=>'emerald'],
-                ['label'=>'Ort. Çözüm','value'=>$overview['avg_resolution_minutes'].'dk','icon'=>'clock','color'=>'violet'],
-                ['label'=>'Ort. Yanıt','value'=>$overview['avg_response_time_minutes'].'dk','icon'=>'bolt','color'=>'sky'],
-                ['label'=>'Toplam Talep','value'=>$overview['total_assigned'],'icon'=>'inbox','color'=>'blue'],
+                ['label'=>__('ui.page_performance_kpi_compliance'),'value'=>'%'.number_format($overview['sla_compliance_rate'],1,',','.'),'icon'=>'shield-check','color'=>$overview['sla_compliance_rate']>=80?'emerald':($overview['sla_compliance_rate']>=50?'amber':'red')],
+                ['label'=>__('ui.page_performance_kpi_breached'),'value'=>$overview['total_breached'],'icon'=>'exclamation-triangle','color'=>'red'],
+                ['label'=>__('ui.page_performance_kpi_reopen'),'value'=>'%'.number_format($overview['reopen_rate'],1,',','.'),'sub'=>$overview['reopen_count'].' '.__('ui.page_performance_kpi_count_unit'),'icon'=>'arrow-path','color'=>'orange'],
+                ['label'=>__('ui.page_performance_kpi_on_time'),'value'=>$overview['closed_on_time'],'icon'=>'check-circle','color'=>'emerald'],
+                ['label'=>__('ui.page_performance_kpi_avg_resolution'),'value'=>$overview['avg_resolution_minutes'].__('ui.page_performance_minutes_suffix'),'icon'=>'clock','color'=>'violet'],
+                ['label'=>__('ui.page_performance_kpi_avg_response'),'value'=>$overview['avg_response_time_minutes'].__('ui.page_performance_minutes_suffix'),'icon'=>'bolt','color'=>'sky'],
+                ['label'=>__('ui.total_tickets'),'value'=>$overview['total_assigned'],'icon'=>'inbox','color'=>'blue'],
+                ['label'=>__('ui.page_performance_kpi_at_risk'),'value'=>$overview['at_risk'],'icon'=>'fire','color'=>$overview['at_risk']===0?'emerald':($overview['at_risk']<=5?'orange':'red')],
             ] as $card)
                 <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-3 hover:shadow-md transition">
                     <div class="flex items-center gap-3">
@@ -110,7 +109,7 @@
         @endphp
         <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6" style="margin-top: 2rem;">
             <h3 class="text-sm font-semibold uppercase tracking-widest text-gray-400 mb-6">
-                Öncelik Dağılımı
+                {{ __('ui.page_performance_priority_heading') }}
             </h3>
 
             @foreach($overview['priority_breakdown'] as $row)
@@ -144,17 +143,17 @@
                     <div class="flex gap-6 shrink-0 text-center">
                         <div>
                             <p class="text-sm font-bold text-gray-700 dark:text-gray-200">{{ $row['total'] }}</p>
-                            <p class="text-xs text-gray-400">Toplam</p>
+                            <p class="text-xs text-gray-400">{{ __('ui.page_performance_col_total') }}</p>
                         </div>
                         <div>
                             <p class="text-sm font-bold text-emerald-500">{{ $row['closed_on_time'] }}</p>
-                            <p class="text-xs text-gray-400">Zamanında</p>
+                            <p class="text-xs text-gray-400">{{ __('ui.on_time') }}</p>
                         </div>
                         <div>
                             <p class="text-sm font-bold {{ $row['breached'] > 0 ? 'text-red-500' : 'text-gray-400' }}">
                                 {{ $row['breached'] }}
                             </p>
-                            <p class="text-xs text-gray-400">İhlal</p>
+                            <p class="text-xs text-gray-400">{{ __('ui.page_performance_col_breached') }}</p>
                         </div>
                     </div>
                 </div>
@@ -170,7 +169,7 @@
         @if($regionBreakdown->isNotEmpty())
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow overflow-hidden" style="margin-top: 2rem;">
             <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-                <h3 class="font-semibold text-gray-900 dark:text-white border-l-4 border-primary-500 pl-3">Bölge Dağılımı</h3>
+                <h3 class="font-semibold text-gray-900 dark:text-white border-l-4 border-primary-500 pl-3">{{ __('ui.page_performance_region_heading') }}</h3>
             </div>
             <div class="overflow-x-auto">
                 <table class="w-full text-sm">
@@ -178,9 +177,9 @@
                         <tr>
                             <th class="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-300">{{ __('ui.area') }}</th>
                             <th class="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-300">{{ __('ui.total_tickets') }}</th>
-                            <th class="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-300">Çözülen</th>
+                            <th class="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-300">{{ __('ui.page_performance_col_resolved') }}</th>
                             <th class="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-300">{{ __('ui.on_time') }}</th>
-                            <th class="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-300">İhlal</th>
+                            <th class="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-300">{{ __('ui.page_performance_col_breached') }}</th>
                             <th class="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-300">{{ __('ui.compliance_rate') }}</th>
                         </tr>
                     </thead>
@@ -230,13 +229,13 @@
                         <tr>
                             <th class="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-300">{{ __('ui.name') }}</th>
                             <th class="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-300">{{ __('ui.total_tickets') }}</th>
-                            <th class="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-300">Açık</th>
-                            <th class="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-300">Beklemede</th>
+                            <th class="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-300">{{ __('ui.page_performance_col_open') }}</th>
+                            <th class="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-300">{{ __('ui.page_performance_col_on_hold') }}</th>
                             <th class="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-300">{{ __('ui.on_time') }}</th>
-                            <th class="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-300">İhlal</th>
-                            <th class="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-300">Uyum</th>
-                            <th class="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-300">Çözüm dk</th>
-                            <th class="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-300">Yanıt dk</th>
+                            <th class="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-300">{{ __('ui.page_performance_col_breached') }}</th>
+                            <th class="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-300">{{ __('ui.page_performance_col_compliance') }}</th>
+                            <th class="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-300">{{ __('ui.page_performance_col_resolution_min') }}</th>
+                            <th class="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-300">{{ __('ui.page_performance_col_response_min') }}</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-200 dark:divide-gray-700">

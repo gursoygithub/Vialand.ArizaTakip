@@ -747,15 +747,72 @@ return [
     'sla_paused' => '⏸ Duraklatıldı',
 
     // Widget: Ticket Stats Overview
-    'widget_ticket_stats_heading'                  => 'Talep Genel Bakış',
-    'widget_ticket_stats_open_tickets'             => 'Açık Talepler',
-    'widget_ticket_stats_open_tickets_desc'        => 'Bekleyen iş yükü',
-    'widget_ticket_stats_sla_breached'             => 'SLA İhlali',
-    'widget_ticket_stats_sla_breached_desc_active' => 'Acil müdahale gerekli',
-    'widget_ticket_stats_sla_breached_desc_clear'  => 'Tüm talepler süresinde',
-    'widget_ticket_stats_resolved_today'           => 'Bugün Çözülen',
-    'widget_ticket_stats_resolved_today_desc'      => 'Bugün çözüme kavuşturulan talepler',
-    'widget_ticket_stats_sla_compliance'           => 'SLA Uyum Oranı',
-    'widget_ticket_stats_sla_compliance_no_data'   => 'Henüz kapatılan talep yok',
-    'widget_ticket_stats_sla_compliance_desc'      => ':onTime / :total zamanında çözüldü (son 30 gün)',
+    'widget_ticket_stats_heading'                       => 'Talep Genel Bakış',
+    'widget_ticket_stats_open_tickets'                  => 'Açık Talepler',
+    'widget_ticket_stats_open_tickets_desc'             => 'Bekleyen iş yükü',
+    'widget_ticket_stats_sla_breached'                  => 'SLA İhlali',
+    'widget_ticket_stats_sla_breached_desc_active'      => 'Acil müdahale gerekli',
+    'widget_ticket_stats_sla_breached_desc_clear'       => 'Tüm talepler süresinde',
+    'widget_ticket_stats_resolved_today'                => 'Bugün Çözülen',
+    'widget_ticket_stats_resolved_today_desc'           => 'Bugün Çözülen Talepler',
+    'widget_ticket_stats_resolved_this_month'           => 'Bu Ay Çözülen',
+    'widget_ticket_stats_resolved_this_month_desc'      => 'Bu ay çözüme kavuşturulan talepler',
+    'widget_ticket_stats_sla_compliance'                => 'SLA Uyum Oranı',
+    'widget_ticket_stats_sla_compliance_no_data'        => 'Henüz kapatılan talep yok',
+    'widget_ticket_stats_sla_compliance_desc'           => ':onTime / :total zamanında çözüldü (son 30 gün)',
+
+    // Widget: Recent Tickets Table
+    'widget_recent_tickets_heading'       => 'Son Açık Talepler',
+    'widget_recent_tickets_desc'          => 'En son oluşturulan açık talepler',
+    'widget_recent_tickets_empty_heading' => 'Açık talep bulunmuyor',
+    'widget_recent_tickets_empty_desc'    => 'Şu anda açık, atanmış veya işlemdeki talep yok.',
+    'widget_recent_tickets_col_type'      => 'Tür',
+    'widget_recent_tickets_col_assignee'  => 'Atanan',
+    'widget_recent_tickets_col_created'   => 'Oluşturma',
+    'widget_recent_tickets_sla_breached'  => '✗ İhlal',
+    'widget_recent_tickets_sla_ok'        => '✓ :hourss :minutesdk',
+
+    // Widget: SLA Compliance Trend Chart
+    'widget_sla_trend_heading'  => 'SLA Performans Trendi',
+    'widget_sla_trend_desc'     => 'Son 30 gün',
+    'widget_sla_trend_on_time'  => 'Zamanında Çözülen',
+    'widget_sla_trend_breached' => 'SLA İhlalli Çözülen',
+
+    // Widget: Tickets By Priority Chart
+    'widget_priority_chart_heading' => 'Öncelik Dağılımı',
+    'widget_priority_chart_desc'    => 'Açık taleplerin öncelik dağılımı',
+    'widget_priority_chart_dataset' => 'Açık talep',
+
+    // Widget: Tickets By Status Chart
+    'widget_status_chart_heading' => 'Durum Dağılımı',
+    'widget_status_chart_desc'    => 'Talep durumlarına göre dağılım',
+    'widget_status_chart_dataset' => 'Talep',
+    'widget_status_chart_no_data' => 'Veri yok',
+
+    // Page: Performance Dashboard — filter, KPI cards, section headings
+    'page_performance_filter_submit'      => 'Filtrele',
+    'page_performance_minutes_suffix'     => 'dk',
+    'page_performance_kpi_count_unit'     => 'adet',
+    'page_performance_kpi_compliance'     => 'Uyum',
+    'page_performance_kpi_breached'       => 'İhlal',
+    'page_performance_kpi_reopen'         => 'Yeniden Açılma',
+    'page_performance_kpi_avg_resolution' => 'Ort. Çözüm',
+    'page_performance_kpi_avg_response'   => 'Ort. Yanıt',
+    'page_performance_kpi_at_risk'        => 'Risk Altında',
+    'page_performance_priority_heading'   => 'Öncelik Dağılımı',
+    'page_performance_region_heading'     => 'Bölge Dağılımı',
+    'page_performance_col_total'          => 'Toplam',
+    'page_performance_col_resolved'       => 'Çözülen',
+    'page_performance_col_breached'       => 'İhlal',
+    'page_performance_col_open'           => 'Açık',
+    'page_performance_col_on_hold'        => 'Beklemede',
+    'page_performance_col_compliance'     => 'Uyum',
+    'page_performance_col_resolution_min' => 'Çözüm dk',
+    'page_performance_col_response_min'   => 'Yanıt dk',
+
+    // Page: Performance Dashboard — CSV export column headers
+    'page_performance_csv_employee'    => 'Personel',
+    'page_performance_csv_compliance'  => 'Uyum %',
+    'page_performance_csv_resolution'  => 'Ort. Çözüm (dk)',
+    'page_performance_csv_response'    => 'Ort. Yanıt (dk)',
 ];

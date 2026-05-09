@@ -12,15 +12,21 @@ class TicketsByStatusChart extends ChartWidget
 
     protected static ?string $pollingInterval = '60s';
 
-    protected static ?string $heading = 'Durum Dağılımı';
+    // Heading resolved via getHeading() so __() can be used.
+    protected static ?string $heading = null;
 
     protected static ?string $maxHeight = '320px';
 
     protected int|string|array $columnSpan = 1;
 
+    public function getHeading(): ?string
+    {
+        return __('ui.widget_status_chart_heading');
+    }
+
     public function getDescription(): ?string
     {
-        return 'Talep durumlarına göre dağılım';
+        return __('ui.widget_status_chart_desc');
     }
 
     protected function getType(): string
@@ -74,17 +80,17 @@ class TicketsByStatusChart extends ChartWidget
         if (empty($values)) {
             return [
                 'datasets' => [[
-                    'label'           => 'Talep',
+                    'label'           => __('ui.widget_status_chart_dataset'),
                     'data'            => [1],
                     'backgroundColor' => ['#e5e7eb'],
                 ]],
-                'labels' => ['Veri yok'],
+                'labels' => [__('ui.widget_status_chart_no_data')],
             ];
         }
 
         return [
             'datasets' => [[
-                'label'           => 'Talep',
+                'label'           => __('ui.widget_status_chart_dataset'),
                 'data'            => $values,
                 'backgroundColor' => $colors,
                 'borderWidth'     => 1,

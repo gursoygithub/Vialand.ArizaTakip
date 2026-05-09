@@ -11,15 +11,21 @@ class SlaComplianceTrendChart extends ChartWidget
 
     protected static ?string $pollingInterval = '300s';
 
-    protected static ?string $heading = 'SLA Performans Trendi';
+    // Heading resolved via getHeading() so __() can be used.
+    protected static ?string $heading = null;
 
     protected static ?string $maxHeight = '320px';
 
     protected int|string|array $columnSpan = 'full';
 
+    public function getHeading(): ?string
+    {
+        return __('ui.widget_sla_trend_heading');
+    }
+
     public function getDescription(): ?string
     {
-        return 'Son 30 gün';
+        return __('ui.widget_sla_trend_desc');
     }
 
     protected function getType(): string
@@ -61,7 +67,7 @@ class SlaComplianceTrendChart extends ChartWidget
         return [
             'datasets' => [
                 [
-                    'label'           => 'Zamanında Çözülen',
+                    'label'           => __('ui.widget_sla_trend_on_time'),
                     'data'            => $onTime,
                     'borderColor'     => '#22c55e',
                     'backgroundColor' => 'rgba(34,197,94,0.15)',
@@ -69,7 +75,7 @@ class SlaComplianceTrendChart extends ChartWidget
                     'tension'         => 0.3,
                 ],
                 [
-                    'label'           => 'SLA İhlalli Çözülen',
+                    'label'           => __('ui.widget_sla_trend_breached'),
                     'data'            => $breached,
                     'borderColor'     => '#ef4444',
                     'backgroundColor' => 'rgba(239,68,68,0.15)',

@@ -52,6 +52,15 @@ class TicketStatsOverview extends BaseWidget
             ->whereDate('resolved_at', today())
             ->count();
 
+        $resolvedThisMonth = Ticket::query()
+            ->visibleBy(auth()->user())
+            ->where('status', TaskStatusEnum::RESOLVED->value)
+            ->whereBetween('resolved_at', [
+                now()->startOfMonth(),
+                now()->endOfMonth(),
+            ])
+            ->count();
+
         $thirtyDaysAgo = now()->subDays(30);
         $totalClosedRecent = Ticket::query()
             ->visibleBy(auth()->user())
@@ -105,6 +114,12 @@ class TicketStatsOverview extends BaseWidget
                 ->descriptionIcon('heroicon-o-check-circle')
                 ->color('success')
                 ->icon('heroicon-o-check-circle'),
+
+            Stat::make(__('ui.widget_ticket_stats_resolved_this_month'), number_format($resolvedThisMonth))
+                ->description(__('ui.widget_ticket_stats_resolved_this_month_desc'))
+                ->descriptionIcon('heroicon-o-calendar')
+                ->color('info')
+                ->icon('heroicon-o-calendar'),
 
             Stat::make(__('ui.widget_ticket_stats_sla_compliance'), $complianceLabel)
                 ->description($complianceDesc)

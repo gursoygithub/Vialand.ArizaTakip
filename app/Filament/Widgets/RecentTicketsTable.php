@@ -14,16 +14,17 @@ class RecentTicketsTable extends BaseWidget
 
     protected int|string|array $columnSpan = 'full';
 
-    protected static ?string $heading = 'Son Açık Talepler';
+    // Heading resolved dynamically via getTableHeading() so __() can be used.
+    protected static ?string $heading = null;
 
     public function getTableHeading(): ?string
     {
-        return 'Son Açık Talepler';
+        return __('ui.widget_recent_tickets_heading');
     }
 
     public function getTableDescription(): ?string
     {
-        return 'En son oluşturulan açık talepler';
+        return __('ui.widget_recent_tickets_desc');
     }
 
     public function table(Table $table): Table
@@ -44,46 +45,49 @@ class RecentTicketsTable extends BaseWidget
             )
             ->paginated(false)
             ->defaultSort('created_at', 'desc')
-            ->emptyStateHeading('Açık talep bulunmuyor')
-            ->emptyStateDescription('Şu anda açık, atanmış veya işlemdeki talep yok.')
+            ->emptyStateHeading(__('ui.widget_recent_tickets_empty_heading'))
+            ->emptyStateDescription(__('ui.widget_recent_tickets_empty_desc'))
             ->emptyStateIcon('heroicon-o-inbox')
             ->recordUrl(fn (Ticket $record) => \App\Filament\Resources\TicketResource::getUrl('view', ['record' => $record]))
             ->columns([
                 Tables\Columns\TextColumn::make('ticket_no')
-                    ->label('Talep No')
+                    ->label(__('ui.ticket_no'))
                     ->searchable()
                     ->weight('bold'),
 
                 Tables\Columns\TextColumn::make('type_id')
-                    ->label('Tür')
+                    ->label(__('ui.widget_recent_tickets_col_type'))
                     ->badge(),
 
                 Tables\Columns\TextColumn::make('priority')
-                    ->label('Öncelik')
+                    ->label(__('ui.priority'))
                     ->badge(),
 
                 Tables\Columns\TextColumn::make('status')
-                    ->label('Durum')
+                    ->label(__('ui.status'))
                     ->badge(),
 
                 Tables\Columns\TextColumn::make('employee.name')
-                    ->label('Atanan')
+                    ->label(__('ui.widget_recent_tickets_col_assignee'))
                     ->placeholder('—')
                     ->limit(20),
 
                 Tables\Columns\TextColumn::make('sla_deadline')
-                    ->label('SLA')
+                    ->label(__('ui.sla'))
                     ->formatStateUsing(function (Ticket $record): string {
                         if (!$record->sla_deadline) {
-                            return 'SLA Yok';
+                            return __('ui.sla_no_policy');
                         }
                         if (now()->isAfter($record->sla_deadline)) {
-                            return '✗ İhlal';
+                            return __('ui.widget_recent_tickets_sla_breached');
                         }
-                        $diff = now()->diff($record->sla_deadline);
-                        $hours = (int) $diff->h + ($diff->days * 24);
+                        $diff    = now()->diff($record->sla_deadline);
+                        $hours   = (int) $diff->h + ($diff->days * 24);
                         $minutes = (int) $diff->i;
-                        return "✓ {$hours}s {$minutes}dk";
+                        return __('ui.widget_recent_tickets_sla_ok', [
+                            'hours'   => $hours,
+                            'minutes' => $minutes,
+                        ]);
                     })
                     ->badge()
                     ->color(function (Ticket $record): string {
@@ -103,7 +107,7 @@ class RecentTicketsTable extends BaseWidget
                     }),
 
                 Tables\Columns\TextColumn::make('created_at')
-                    ->label('Oluşturma')
+                    ->label(__('ui.widget_recent_tickets_col_created'))
                     ->dateTime('d.m.Y H:i')
                     ->sortable(),
             ]);
