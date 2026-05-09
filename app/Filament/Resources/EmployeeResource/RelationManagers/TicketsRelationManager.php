@@ -198,7 +198,6 @@ class TicketsRelationManager extends RelationManager
                 Tables\Filters\SelectFilter::make('area_id')
                     ->label(__('ui.area'))
                     ->multiple()
-                    ->searchable()
                     ->options(fn () => Area::query()
                         ->whereHas('tickets', fn ($q) =>
                             $q->visibleBy(filament()->auth()->user()))
