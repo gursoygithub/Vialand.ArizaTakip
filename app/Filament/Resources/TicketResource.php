@@ -8,6 +8,7 @@ use App\Enums\TaskStatusEnum;
 use App\Enums\TaskTypeEnum;
 use App\Filament\Resources\TicketResource\Pages;
 use App\Models\Area;
+use App\Models\Company;
 use App\Models\Employee;
 use App\Models\Group;
 use App\Models\SubArea;
@@ -556,6 +557,28 @@ class TicketResource extends Resource
                         : null),
             ])
             ->filters([
+                // company_id: admin/view.all only — others are already
+                // scoped to a single company via scopedCompanyIds().
+                Tables\Filters\SelectFilter::make('company_id')
+                    ->label(__('ui.company'))
+                    ->multiple()
+                    ->searchable()
+                    ->visible(fn () => auth()->user()?->hasRole('super_admin')
+                        || auth()->user()?->can('ticket.view.all'))
+                    ->options(fn () => Company::query()
+                        ->where('status', ActiveStatusEnum::ACTIVE)
+                        ->orderBy('name')
+                        ->pluck('name', 'id')
+                        ->toArray())
+                    ->query(function (Builder $query, array $data): Builder {
+                        $values = $data['values'] ?? [];
+                        if (empty($values)) {
+                            return $query;
+                        }
+                        return $query->whereHas('area', fn ($q) =>
+                            $q->whereIn('company_id', $values));
+                    }),
+
                 Tables\Filters\SelectFilter::make('area_id')
                     ->label(__('ui.area'))
                     ->multiple()
@@ -586,6 +609,20 @@ class TicketResource extends Resource
                             ->toArray();
                     }),
 
+                Tables\Filters\SelectFilter::make('sub_area_id')
+                    ->label(__('ui.sub_area'))
+                    ->multiple()
+                    ->searchable()
+                    ->relationship('subArea', 'name')
+                    ->preload(),
+
+                Tables\Filters\SelectFilter::make('unit_id')
+                    ->label(__('ui.unit'))
+                    ->multiple()
+                    ->searchable()
+                    ->relationship('unit', 'name')
+                    ->preload(),
+
                 Tables\Filters\SelectFilter::make('status')
                     ->label(__('ui.status'))
                     ->multiple()
@@ -600,22 +637,51 @@ class TicketResource extends Resource
                         ->mapWithKeys(fn ($c) => [$c->value => $c->getLabel()])
                         ->toArray()),
 
+                // employee_id: hidden for ticket.view.own users (they see
+                // only their own tickets — filtering by assignee is noise).
+                // Options are scoped: super_admin/view.all see all active
+                // employees; view.group users see only employees in their
+                // own member/managed groups.
                 Tables\Filters\SelectFilter::make('employee_id')
                     ->label(__('ui.assigned_employee'))
-                    ->relationship('employee', 'name')
                     ->multiple()
                     ->searchable()
-                    ->preload(),
+                    ->hidden(fn () => !auth()->user()?->can('ticket.view.group')
+                        && !auth()->user()?->hasRole('super_admin')
+                        && !auth()->user()?->can('ticket.view.all'))
+                    ->options(function (): array {
+                        $user = auth()->user();
 
-                Tables\Filters\Filter::make('created_at')
-                    ->form([
-                        \Filament\Forms\Components\DatePicker::make('from')->label(__('ui.date_from')),
-                        \Filament\Forms\Components\DatePicker::make('to')->label(__('ui.date_to')),
-                    ])
-                    ->query(fn (Builder $q, array $data) => $q
-                        ->when($data['from'] ?? null, fn ($q, $v) => $q->whereDate('created_at', '>=', $v))
-                        ->when($data['to'] ?? null, fn ($q, $v) => $q->whereDate('created_at', '<=', $v))
-                    ),
+                        if ($user->hasRole('super_admin') || $user->can('ticket.view.all')) {
+                            return Employee::query()
+                                ->where('status', ActiveStatusEnum::ACTIVE)
+                                ->orderBy('name')
+                                ->pluck('name', 'id')
+                                ->toArray();
+                        }
+
+                        // ticket.view.group: only employees in viewer's
+                        // member groups + managed (supervisor) groups.
+                        $employeeId = $user->employee?->id;
+                        if (!$employeeId) {
+                            return [];
+                        }
+
+                        $groupIds = \App\Models\GroupMember::where('employee_id', $employeeId)
+                            ->pluck('group_id')
+                            ->merge(
+                                Group::where('employee_id', $employeeId)->pluck('id')
+                            )
+                            ->unique();
+
+                        return Employee::query()
+                            ->where('status', ActiveStatusEnum::ACTIVE)
+                            ->whereHas('groupMemberships', fn ($q) =>
+                                $q->whereIn('group_id', $groupIds))
+                            ->orderBy('name')
+                            ->pluck('name', 'id')
+                            ->toArray();
+                    }),
 
                 // SLA filter: only column-backed states. The previous
                 // 'on_time' and 'warning' options used raw TIMESTAMPDIFF
@@ -625,25 +691,54 @@ class TicketResource extends Resource
                 // Ticket::getSlaStatusLabel() for live display; this
                 // filter is for the persisted breach/no-policy axis only.
                 Tables\Filters\SelectFilter::make('sla_status')
-                    ->label(__('ui.sla_indicator'))
+                    ->label(__('ui.sla_status'))
                     ->multiple()
                     ->options([
                         'breached' => __('ui.sla_breached'),
-                        'no_sla'   => 'SLA yok',
+                        'no_sla'   => __('ui.no_sla'),
                     ])
-                    ->query(function (Builder $q, array $data) {
+                    ->query(function (Builder $query, array $data): Builder {
                         $values = $data['values'] ?? [];
                         if (empty($values)) {
-                            return $q;
+                            return $query;
                         }
-                        return $q->where(function (Builder $inner) use ($values) {
+                        return $query->where(function (Builder $q) use ($values) {
                             if (in_array('breached', $values)) {
-                                $inner->orWhere('sla_breached', true);
+                                $q->orWhere('sla_breached', true);
                             }
                             if (in_array('no_sla', $values)) {
-                                $inner->orWhereNull('sla_deadline');
+                                $q->orWhereNull('sla_deadline');
                             }
                         });
+                    }),
+
+                Tables\Filters\Filter::make('created_at')
+                    ->label('Oluşturma Tarihi')
+                    ->form([
+                        \Filament\Forms\Components\DatePicker::make('from')
+                            ->label(__('ui.filter_created_from')),
+                        \Filament\Forms\Components\DatePicker::make('to')
+                            ->label(__('ui.filter_created_to')),
+                    ])
+                    ->query(fn (Builder $q, array $data) => $q
+                        ->when($data['from'] ?? null, fn ($q, $v) => $q->whereDate('created_at', '>=', $v))
+                        ->when($data['to'] ?? null, fn ($q, $v) => $q->whereDate('created_at', '<=', $v))
+                    ),
+
+                Tables\Filters\Filter::make('task_date')
+                    ->label('Arıza Tarihi')
+                    ->form([
+                        \Filament\Forms\Components\DatePicker::make('from')
+                            ->label(__('ui.filter_task_date_from')),
+                        \Filament\Forms\Components\DatePicker::make('until')
+                            ->label(__('ui.filter_task_date_to')),
+                    ])
+                    ->query(function (Builder $query, array $data): Builder {
+                        return $query
+                            ->when($data['from'] ?? null, fn ($q, $d) =>
+                                $q->whereDate('task_date', '>=', $d))
+                            ->when($data['until'] ?? null, fn ($q, $d) =>
+                                $q->whereDate('task_date', '<=', $d));
                     }),
             ])
             ->actions([
