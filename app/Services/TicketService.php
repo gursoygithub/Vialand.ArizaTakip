@@ -6,6 +6,7 @@ use App\Enums\TaskStatusEnum;
 use App\Events\TicketStatusChanged;
 use App\Exceptions\TicketTransitionException;
 use App\Models\Employee;
+use App\Models\Group;
 use App\Models\Ticket;
 use App\Models\TicketMute;
 use App\Models\TicketStatusHistory;
@@ -21,6 +22,7 @@ use App\Observers\TicketObserver;
 use App\Enums\TaskPriorityEnum;
 use Illuminate\Notifications\Notification as BaseNotification;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 
 class TicketService
 {
@@ -139,7 +141,7 @@ class TicketService
 
             $fresh = $ticket->fresh();
 
-            $this->dispatchTransitionNotifications($fresh, $from, $toStatus, $by);
+            $this->dispatchTransitionNotifications($fresh, $from, $toStatus, $by, $note);
 
             event(new TicketStatusChanged($fresh, $from, $toStatus, $by, $note));
 
@@ -159,7 +161,7 @@ class TicketService
      * All other transitions fan out TicketStatusChangedNotification (database
      * only) to the full participant set via notifyParticipants.
      */
-    private function dispatchTransitionNotifications(Ticket $ticket, ?TaskStatusEnum $from, TaskStatusEnum $to, User $actor): void
+    private function dispatchTransitionNotifications(Ticket $ticket, ?TaskStatusEnum $from, TaskStatusEnum $to, User $actor, ?string $note = null): void
     {
         // RULE 1: Initial assignment (OPEN → ASSIGNED)
         if ($from === TaskStatusEnum::OPEN
@@ -197,6 +199,42 @@ class TicketService
             return;
         }
 
+        // ON_HOLD: participants (standard) + group supervisor extra mail/bell
+        if ($to === TaskStatusEnum::ON_HOLD) {
+            $fromLabel = $from?->getLabel() ?? '—';
+            $actorName = $this->actorDisplayName($actor);
+
+            $this->notifyParticipants(
+                $ticket,
+                $actor,
+                new TicketStatusChangedNotification($ticket, $from, $to, $actor),
+                $ticket->ticket_no . ' • Beklemede',
+                "{$actorName}: {$fromLabel} → Beklemede",
+            );
+
+            // Additionally notify the group supervisor if they are not already
+            // a participant (creator / current assignee / history actor).
+            if ($ticket->group_id) {
+                $supervisor = Group::find($ticket->group_id)?->manager?->user;
+                if ($supervisor
+                    && $supervisor->id !== $actor->id
+                    && !$this->isParticipant($ticket, $supervisor)) {
+                    $supervisor->notify(
+                        new TicketStatusChangedNotification($ticket, $from, $to, $actor)
+                    );
+                    Mail::to($supervisor->email)
+                        ->queue(new \App\Mail\TicketOnHoldMail($ticket, $actor, $note));
+                    app(FcmService::class)->sendToUser(
+                        $supervisor,
+                        $ticket->ticket_no . ' • Beklemede',
+                        "{$actorName}: {$fromLabel} → Beklemede",
+                        url('/tickets/' . $ticket->id),
+                    );
+                }
+            }
+            return;
+        }
+
         // All other transitions: database-only bell to full participant set
         $fromLabel = $from?->getLabel() ?? '—';
         $toLabel   = $to->getLabel();
@@ -212,8 +250,9 @@ class TicketService
     }
 
     /**
-     * RULE 3: Resolved — notify creator only (mail + panel + FCM).
-     * Skipped if creator is the actor or cannot be found.
+     * RULE 3: Resolved — notify creator (mail + panel + FCM) and group
+     * supervisor (mail + panel) when the supervisor is not already the
+     * creator or the actor.
      */
     private function notifyResolved(Ticket $ticket, User $actor): void
     {
@@ -236,6 +275,17 @@ class TicketService
             $this->actorDisplayName($actor) . ' talebi çözdü',
             url('/tickets/' . $ticket->id),
         );
+
+        // Also notify the group supervisor, unless they are already the
+        // creator (already notified above) or they are the actor.
+        if ($ticket->group_id) {
+            $supervisor = Group::find($ticket->group_id)?->manager?->user;
+            if ($supervisor
+                && $supervisor->id !== $actor->id
+                && $supervisor->id !== (int) $ticket->created_by) {
+                $supervisor->notify(new TicketResolvedNotification($ticket));
+            }
+        }
     }
 
     /**
@@ -350,6 +400,28 @@ class TicketService
             ->whereNotIn('id', $mutedUserIds)
             ->where('id', '!=', $actorId)
             ->get();
+    }
+
+    /**
+     * Check whether a user is a participant on the ticket: creator, current
+     * assignee, or anyone who has touched it via ticket_status_histories.
+     * Used to avoid double-notifying the group supervisor when they are
+     * already in the regular participant set.
+     */
+    private function isParticipant(Ticket $ticket, User $user): bool
+    {
+        if ((int) $ticket->created_by === (int) $user->id) {
+            return true;
+        }
+
+        if ($ticket->employee_id
+            && (int) ($ticket->employee?->user?->id ?? 0) === (int) $user->id) {
+            return true;
+        }
+
+        return TicketStatusHistory::where('ticket_id', $ticket->id)
+            ->where('changed_by', $user->id)
+            ->exists();
     }
 
     /**
@@ -519,6 +591,23 @@ class TicketService
             $this->logReassign($ticket->fresh(), $by, $fullNote);
             $this->notifyAssignee($ticket->fresh(), $by);
             $this->notifyCreatorOfReassignment($ticket->fresh(), $by, $oldEmployeeName, $newEmployeeName);
+
+            // Notify group supervisor — skipped when supervisor is the actor,
+            // the new assignee, or the creator (creator already gets
+            // TicketReassignedNotification via notifyCreatorOfReassignment).
+            $freshForSupervisor = $ticket->fresh();
+            if ($freshForSupervisor->group_id) {
+                $supervisor        = Group::find($freshForSupervisor->group_id)?->manager?->user;
+                $newAssigneeUserId = $newEmployee->user?->id;
+                if ($supervisor
+                    && $supervisor->id !== $by->id
+                    && (is_null($newAssigneeUserId) || $supervisor->id !== (int) $newAssigneeUserId)
+                    && $supervisor->id !== (int) $freshForSupervisor->created_by) {
+                    $supervisor->notify(
+                        new TicketReassignedNotification($freshForSupervisor, $oldEmployeeName, $newEmployeeName, $by)
+                    );
+                }
+            }
 
             return $ticket->fresh();
         });

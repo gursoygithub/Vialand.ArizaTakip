@@ -539,7 +539,10 @@ class ViewTicket extends ViewRecord
                 ->color($to->getColor())
                 ->visible($allowedFn)
                 ->form([
-                    Textarea::make('note')->label(__('ui.note'))->rows(2),
+                    Textarea::make('note')
+                        ->label(__('ui.note'))
+                        ->rows(2)
+                        ->required($to === TaskStatusEnum::ON_HOLD),
                 ])
                 ->requiresConfirmation()
                 ->action(function (array $data) use ($ticket, $to) {
