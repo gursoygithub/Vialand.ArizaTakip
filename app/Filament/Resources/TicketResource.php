@@ -534,6 +534,7 @@ class TicketResource extends Resource
                 // Audit columns: super_admin only, hidden by default.
                 Tables\Columns\TextColumn::make('updatedBy.name')
                     ->label('Güncelleyen')
+                    ->icon('heroicon-o-user-circle')
                     ->toggleable(isToggledHiddenByDefault: true)
                     ->visible(fn (): bool => (bool) auth()->user()?->hasRole('super_admin')),
 
@@ -544,6 +545,7 @@ class TicketResource extends Resource
                 // doesn't imply a real edit.
                 Tables\Columns\TextColumn::make('updated_at')
                     ->label('Güncelleme Tarihi')
+                    ->icon('heroicon-o-calendar-days')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true)
