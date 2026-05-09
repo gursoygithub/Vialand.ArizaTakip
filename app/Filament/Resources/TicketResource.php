@@ -204,6 +204,15 @@ class TicketResource extends Resource
                                 $set('group_id', null);
                                 $set('employee_id', null);
                             })
+                            // Read-only on edit: structural fields must be changed via
+                            // the dedicated reassign/transition flows so SLA, status
+                            // history, and notifications stay consistent.
+                            // ->dehydrated(false) is required in addition to ->disabled()
+                            // because Filament 3.x still includes disabled field state in
+                            // getState() — a forged Livewire call could write a new value
+                            // unless we explicitly exclude these fields from dehydration.
+                            ->disabled(fn ($livewire) => $livewire instanceof \App\Filament\Resources\TicketResource\Pages\EditTicket)
+                            ->dehydrated(fn ($livewire) => !($livewire instanceof \App\Filament\Resources\TicketResource\Pages\EditTicket))
                             ->validationMessages(['required' => __('ui.required')]),
 
                         Forms\Components\Select::make('sub_area_id')
@@ -211,7 +220,9 @@ class TicketResource extends Resource
                             ->placeholder('Alt bölge seçiniz (opsiyonel)')
                             ->prefixIcon('heroicon-o-map-pin')
                             ->options(fn (Forms\Get $get) => SubArea::where('area_id', $get('area_id'))->pluck('name', 'id'))
-                            ->searchable(),
+                            ->searchable()
+                            ->disabled(fn ($livewire) => $livewire instanceof \App\Filament\Resources\TicketResource\Pages\EditTicket)
+                            ->dehydrated(fn ($livewire) => !($livewire instanceof \App\Filament\Resources\TicketResource\Pages\EditTicket)),
 
                         Forms\Components\Select::make('unit_id')
                             ->label(__('ui.unit'))
@@ -249,6 +260,8 @@ class TicketResource extends Resource
                                 $set('group_id', null);
                                 $set('employee_id', null);
                             })
+                            ->disabled(fn ($livewire) => $livewire instanceof \App\Filament\Resources\TicketResource\Pages\EditTicket)
+                            ->dehydrated(fn ($livewire) => !($livewire instanceof \App\Filament\Resources\TicketResource\Pages\EditTicket))
                             ->validationMessages(['required' => __('ui.required')]),
 
                         \Filament\Forms\Components\Placeholder::make('sla_preview')
@@ -266,7 +279,7 @@ class TicketResource extends Resource
                                     (int) $areaId,
                                     $get('sub_area_id') ? (int) $get('sub_area_id') : null,
                                     $unitId ? (int) $unitId : null,
-                                    $priority
+                                    $priority instanceof \BackedEnum ? $priority->value : $priority
                                 );
                                 if (!$policy) {
                                     return new \Illuminate\Support\HtmlString(
@@ -328,7 +341,9 @@ class TicketResource extends Resource
                                 $get('area_id') ? null : 'Önce bölge seçiniz.')
                             ->searchable()
                             ->live()
-                            ->afterStateUpdated(fn (Forms\Set $set) => $set('employee_id', null)),
+                            ->afterStateUpdated(fn (Forms\Set $set) => $set('employee_id', null))
+                            ->disabled(fn ($livewire) => $livewire instanceof \App\Filament\Resources\TicketResource\Pages\EditTicket)
+                            ->dehydrated(fn ($livewire) => !($livewire instanceof \App\Filament\Resources\TicketResource\Pages\EditTicket)),
 
                         Forms\Components\Select::make('employee_id')
                             ->label(__('ui.assigned_employee'))
@@ -357,7 +372,9 @@ class TicketResource extends Resource
                             ->getOptionLabelUsing(fn ($value): string => Employee::find($value)?->name ?? (string) $value)
                             ->helperText(fn (Forms\Get $get): ?string =>
                                 $get('group_id') ? null : 'Önce grup seçiniz.')
-                            ->searchable(),
+                            ->searchable()
+                            ->disabled(fn ($livewire) => $livewire instanceof \App\Filament\Resources\TicketResource\Pages\EditTicket)
+                            ->dehydrated(fn ($livewire) => !($livewire instanceof \App\Filament\Resources\TicketResource\Pages\EditTicket)),
                     ]),
 
                 \Filament\Forms\Components\Section::make('Açıklama & Ekler')
