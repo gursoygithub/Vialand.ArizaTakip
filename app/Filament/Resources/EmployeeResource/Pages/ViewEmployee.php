@@ -138,7 +138,8 @@ class ViewEmployee extends ViewRecord
                     ->columns(6)
                     ->schema([
                         TextEntry::make('compliance_rate')
-                            ->label(__('ui.employee_sla_success_rate'))
+                            ->label(__('ui.employee_general_success_rate'))
+                            ->helperText('Tüm zamanlar — kapalı ve aktif ihlaller dahil')
                             ->state($complianceRate === null ? '—' : '%' . number_format($complianceRate, 1, ',', '.'))
                             ->weight('bold')
                             ->color(fn () => match ($isCompliant) {
@@ -149,6 +150,7 @@ class ViewEmployee extends ViewRecord
 
                         TextEntry::make('last30_rate')
                             ->label(__('ui.employee_last30_rate'))
+                            ->helperText('Sadece son 30 günde çözülen talepler')
                             ->state($last30Rate === null ? '—' : '%' . number_format($last30Rate, 1, ',', '.'))
                             ->color(function () use ($last30Rate, $threshold) {
                                 if ($last30Rate === null) return 'gray';
@@ -159,31 +161,17 @@ class ViewEmployee extends ViewRecord
 
                         TextEntry::make('last30_tickets')
                             ->label(__('ui.employee_last30_tickets'))
-                            ->state($last30Total . ' çözülen talep')
+                            ->state((string) $last30Total)
                             ->color('gray'),
 
                         TextEntry::make('current_threshold')
-                            ->label(__('ui.employee_sla_target_rate'))
+                            ->label(__('ui.employee_sla_target'))
                             ->state($threshold === null ? '—' : '%' . number_format($threshold, 1, ',', '.')),
 
                         TextEntry::make('cohort_size')
-                            ->label(__('ui.employee_workload'))
+                            ->label(__('ui.employee_calc_base'))
                             ->state($totalCohortCount . ' Talep')
                             ->color('info'),
-
-                        TextEntry::make('compliance_status')
-                            ->label(__('ui.employee_overall_competency'))
-                            ->state(match ($isCompliant) {
-                                true  => __('ui.employee_sla_compliant'),
-                                false => __('ui.employee_needs_improvement'),
-                                null  => __('ui.employee_no_data'),
-                            })
-                            ->badge()
-                            ->color(fn () => match ($isCompliant) {
-                                true  => 'success',
-                                false => 'danger',
-                                null  => 'gray',
-                            }),
                     ]),
 
                 // 4. Birim Bazlı SLA Dağılımı — backed by sla_breached.

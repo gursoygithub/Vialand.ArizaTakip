@@ -92,14 +92,6 @@ class EmployeeResource extends Resource
                     ->searchable()
                     ->sortable(),
 
-                // Lifetime ticket volume (any status). Uses the modern
-                // `tickets` relation; `tasks` is a legacy alias.
-                Tables\Columns\TextColumn::make('tickets_count')
-                    ->label(__('ui.employee_total_tickets'))
-                    ->counts('tickets')
-                    ->badge()
-                    ->sortable(),
-
                 // Active workload — currently on this person's plate.
                 Tables\Columns\TextColumn::make('active_tickets_count')
                     ->label(__('ui.employee_active_tickets'))
@@ -152,29 +144,7 @@ class EmployeeResource extends Resource
                 Tables\Columns\TextColumn::make('current_threshold')
                     ->label(__('ui.sla_target_threshold'))
                     ->formatStateUsing(fn ($state) => is_null($state) ? '—' : '%' . number_format($state, 1, ',', '.'))
-                    ->description(__('ui.employee_manager_target'))
                     ->sortable(),
-
-                // Three-state: success (above threshold), danger (below),
-                // neutral gray when there's no performance data yet.
-                Tables\Columns\IconColumn::make('is_competent')
-                    ->label(__('ui.employee_competency'))
-                    ->state(function ($record) {
-                        if (is_null($record->performance_score)) {
-                            return null;
-                        }
-                        return $record->performance_score >= ($record->current_threshold ?? 0);
-                    })
-                    ->icon(fn ($state) => match (true) {
-                        $state === null => 'heroicon-o-minus-circle',
-                        $state === true => 'heroicon-o-check-badge',
-                        default         => 'heroicon-o-exclamation-triangle',
-                    })
-                    ->color(fn ($state) => match (true) {
-                        $state === null => 'gray',
-                        $state === true => 'success',
-                        default         => 'danger',
-                    }),
             ])
             ->filters([
                 //
