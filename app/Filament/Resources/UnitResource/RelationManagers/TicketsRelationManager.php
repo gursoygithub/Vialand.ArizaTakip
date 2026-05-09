@@ -202,9 +202,15 @@ class TicketsRelationManager extends RelationManager
                 Tables\Filters\SelectFilter::make('status')
                     ->label(__('ui.status'))
                     ->multiple()
-                    ->options(collect(TaskStatusEnum::cases())
-                        ->mapWithKeys(fn ($c) => [$c->value => $c->getLabel()])
-                        ->toArray()),
+                    ->options(collect([
+                        TaskStatusEnum::OPEN,
+                        TaskStatusEnum::ASSIGNED,
+                        TaskStatusEnum::IN_PROGRESS,
+                        TaskStatusEnum::ON_HOLD,
+                        TaskStatusEnum::RESOLVED,
+                        TaskStatusEnum::CLOSED,
+                        TaskStatusEnum::CANCELLED,
+                    ])->mapWithKeys(fn ($c) => [$c->value => $c->getLabel()])->toArray()),
 
                 Tables\Filters\SelectFilter::make('priority')
                     ->label(__('ui.priority'))

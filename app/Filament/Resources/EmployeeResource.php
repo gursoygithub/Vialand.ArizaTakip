@@ -95,14 +95,14 @@ class EmployeeResource extends Resource
                 // Lifetime ticket volume (any status). Uses the modern
                 // `tickets` relation; `tasks` is a legacy alias.
                 Tables\Columns\TextColumn::make('tickets_count')
-                    ->label('Toplam Talep')
+                    ->label(__('ui.employee_total_tickets'))
                     ->counts('tickets')
                     ->badge()
                     ->sortable(),
 
                 // Active workload — currently on this person's plate.
                 Tables\Columns\TextColumn::make('active_tickets_count')
-                    ->label('Aktif')
+                    ->label(__('ui.employee_active_tickets'))
                     ->counts([
                         'tickets as active_tickets_count' => fn (Builder $q) =>
                             $q->whereIn('status', [
@@ -119,7 +119,7 @@ class EmployeeResource extends Resource
                 // SLA breaches still on the assignee — terminal-statuses
                 // excluded so this is "active breach surface", not history.
                 Tables\Columns\TextColumn::make('breached_tickets_count')
-                    ->label('İhlal')
+                    ->label(__('ui.employee_breached_tickets'))
                     ->counts([
                         'tickets as breached_tickets_count' => fn (Builder $q) =>
                             $q->where('sla_breached', true)
@@ -136,7 +136,7 @@ class EmployeeResource extends Resource
                 // SLA score. Null = no sealed data yet → render "—" rather
                 // than a misleading "0%".
                 Tables\Columns\TextColumn::make('performance_score')
-                    ->label('SLA Başarısı')
+                    ->label(__('ui.employee_sla_success'))
                     ->formatStateUsing(fn ($state) => is_null($state) ? '—' : '%' . number_format($state, 1, ',', '.'))
                     ->badge()
                     ->sortable()
@@ -152,13 +152,13 @@ class EmployeeResource extends Resource
                 Tables\Columns\TextColumn::make('current_threshold')
                     ->label(__('ui.sla_target_threshold'))
                     ->formatStateUsing(fn ($state) => is_null($state) ? '—' : '%' . number_format($state, 1, ',', '.'))
-                    ->description('Yönetici Hedefi')
+                    ->description(__('ui.employee_manager_target'))
                     ->sortable(),
 
                 // Three-state: success (above threshold), danger (below),
                 // neutral gray when there's no performance data yet.
                 Tables\Columns\IconColumn::make('is_competent')
-                    ->label('Yeterlilik')
+                    ->label(__('ui.employee_competency'))
                     ->state(function ($record) {
                         if (is_null($record->performance_score)) {
                             return null;

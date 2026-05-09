@@ -819,4 +819,33 @@ return [
     'page_performance_csv_compliance'  => 'Uyum %',
     'page_performance_csv_resolution'  => 'Ort. Çözüm (dk)',
     'page_performance_csv_response'    => 'Ort. Yanıt (dk)',
+
+    // Employee Resource — list table column labels
+    'employee_total_tickets'    => 'Toplam Talep',
+    'employee_active_tickets'   => 'Aktif',
+    'employee_breached_tickets' => 'İhlal',
+    'employee_sla_success'      => 'SLA Başarısı',
+    'employee_manager_target'   => 'Yönetici Hedefi',
+    'employee_competency'       => 'Yeterlilik',
+
+    // ViewEmployee — section headings, labels, and state strings
+    'employee_active_workload'     => 'Aktif İş Yükü',
+    'employee_sla_analysis'        => 'SLA Performans Analizi',
+    'employee_unit_sla'            => 'Birim Bazlı SLA Dağılımı',
+    'employee_priority_sla'        => 'Öncelik Bazlı SLA Dağılımı',
+    'employee_in_progress'         => 'Devam Eden',
+    'employee_sla_breach'          => 'SLA İhlali',
+    'employee_reopened'            => 'Yeniden Açılan',
+    'employee_sla_success_rate'    => 'SLA Başarı Oranı',
+    'employee_sla_target_rate'     => 'SLA Hedef Oranı',
+    'employee_workload'            => 'İş Hacmi',
+    'employee_overall_competency'  => 'Genel Yeterlilik',
+    'employee_sla_compliant'       => 'SLA UYUMLU',
+    'employee_needs_improvement'   => 'GELİŞTİRİLMELİ',
+    'employee_no_data'             => 'VERİ YOK',
+    'employee_on_time_sealed'      => 'Zamanında / Sealed',
+    'employee_col_unit'            => 'Birim',
+    'employee_col_rate'            => 'Oran',
+    'employee_col_success_rate'    => 'Başarı Oranı',
+    'employee_col_priority'        => 'Görev Önceliği',
 ];

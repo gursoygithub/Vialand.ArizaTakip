@@ -88,24 +88,24 @@ class ViewEmployee extends ViewRecord
                     ]),
 
                 // 2. Aktif iş yükü — what's on the tech's plate right now.
-                Section::make('Aktif İş Yükü')
+                Section::make(__('ui.employee_active_workload'))
                     ->icon('heroicon-o-clipboard-document-list')
                     ->schema([
                         Grid::make(3)->schema([
                             TextEntry::make('active_tickets')
-                                ->label('Devam Eden')
+                                ->label(__('ui.employee_in_progress'))
                                 ->badge()
                                 ->color($activeCount > 0 ? 'warning' : 'gray')
                                 ->state($activeCount),
 
                             TextEntry::make('breached_active')
-                                ->label('SLA İhlali')
+                                ->label(__('ui.employee_sla_breach'))
                                 ->badge()
                                 ->color($breachedCount > 0 ? 'danger' : 'gray')
                                 ->state($breachedCount),
 
                             TextEntry::make('reopened_count')
-                                ->label('Yeniden Açılan')
+                                ->label(__('ui.employee_reopened'))
                                 ->badge()
                                 ->color($reopenedCount > 0 ? 'warning' : 'gray')
                                 ->state($reopenedCount),
@@ -114,12 +114,12 @@ class ViewEmployee extends ViewRecord
 
                 // 3. SLA Performans Analizi — sla_breached based, matches
                 //    PerformanceService's compliance computation.
-                Section::make('SLA Performans Analizi')
+                Section::make(__('ui.employee_sla_analysis'))
                     ->icon('heroicon-o-presentation-chart-line')
                     ->columns(4)
                     ->schema([
                         TextEntry::make('compliance_rate')
-                            ->label('SLA Başarı Oranı')
+                            ->label(__('ui.employee_sla_success_rate'))
                             ->state($complianceRate === null ? '—' : '%' . number_format($complianceRate, 1, ',', '.'))
                             ->weight('bold')
                             ->color(fn () => match ($isCompliant) {
@@ -129,20 +129,20 @@ class ViewEmployee extends ViewRecord
                             }),
 
                         TextEntry::make('current_threshold')
-                            ->label('SLA Hedef Oranı')
+                            ->label(__('ui.employee_sla_target_rate'))
                             ->state($threshold === null ? '—' : '%' . number_format($threshold, 1, ',', '.')),
 
                         TextEntry::make('cohort_size')
-                            ->label('İş Hacmi')
+                            ->label(__('ui.employee_workload'))
                             ->state($totalCohortCount . ' Talep')
                             ->color('info'),
 
                         TextEntry::make('compliance_status')
-                            ->label('Genel Yeterlilik')
+                            ->label(__('ui.employee_overall_competency'))
                             ->state(match ($isCompliant) {
-                                true  => 'SLA UYUMLU',
-                                false => 'GELİŞTİRİLMELİ',
-                                null  => 'VERİ YOK',
+                                true  => __('ui.employee_sla_compliant'),
+                                false => __('ui.employee_needs_improvement'),
+                                null  => __('ui.employee_no_data'),
                             })
                             ->badge()
                             ->color(fn () => match ($isCompliant) {
@@ -156,7 +156,7 @@ class ViewEmployee extends ViewRecord
                 //    "Sealed" cohort = closed_on_time + breached, matching
                 //    section 3's denominator. Cancelled tickets excluded;
                 //    units with no sealed tickets are dropped via HAVING.
-                Section::make('Birim Bazlı SLA Dağılımı')
+                Section::make(__('ui.employee_unit_sla'))
                     ->description('Personelin hangi birimde ne kadar başarılı olduğunun dökümü.')
                     ->icon('heroicon-o-rectangle-group')
                     ->schema([
@@ -192,15 +192,15 @@ class ViewEmployee extends ViewRecord
                             ->grid(2)
                             ->schema([
                                 TextEntry::make('unit_name')
-                                    ->label('Birim')
+                                    ->label(__('ui.employee_col_unit'))
                                     ->weight('bold'),
 
                                 TextEntry::make('stats')
-                                    ->label('Zamanında / Sealed')
+                                    ->label(__('ui.employee_on_time_sealed'))
                                     ->color('gray'),
 
                                 TextEntry::make('percentage')
-                                    ->label('Oran')
+                                    ->label(__('ui.employee_col_rate'))
                                     ->badge()
                                     ->color(function ($state, $record) use ($threshold) {
                                         $rate = $record['raw_percentage'] ?? 0;
@@ -213,7 +213,7 @@ class ViewEmployee extends ViewRecord
 
                 // 5. Öncelik Bazlı SLA Dağılımı — same sla_breached basis
                 //    as section 4, grouped by priority.
-                Section::make('Öncelik Bazlı SLA Dağılımı')
+                Section::make(__('ui.employee_priority_sla'))
                     ->description('Personelin görev önceliklerine göre performans dökümü.')
                     ->icon('heroicon-o-funnel')
                     ->schema([
@@ -253,18 +253,18 @@ class ViewEmployee extends ViewRecord
                             ->grid(2)
                             ->schema([
                                 TextEntry::make('priority_label')
-                                    ->label('Görev Önceliği')
+                                    ->label(__('ui.employee_col_priority'))
                                     ->weight('bold')
                                     ->badge()
                                     ->color(fn ($record) => $record['priority_color']),
 
                                 TextEntry::make('stats')
-                                    ->label('Zamanında / Sealed')
+                                    ->label(__('ui.employee_on_time_sealed'))
                                     ->icon('heroicon-m-clipboard-document-check')
                                     ->color('gray'),
 
                                 TextEntry::make('percentage')
-                                    ->label('Başarı Oranı')
+                                    ->label(__('ui.employee_col_success_rate'))
                                     ->badge()
                                     ->color(function ($state, $record) use ($threshold) {
                                         $rate = $record['raw_percentage'] ?? 0;
