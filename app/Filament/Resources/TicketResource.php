@@ -780,8 +780,6 @@ class TicketResource extends Resource
             // pre-flight feedback for mixed selections. Removing the block
             // also removes the auto-rendered selection checkbox column.
             ->defaultSort('created_at', 'desc')
-            ->defaultPaginationPageOption(25)
-            ->paginationPageOptions([10, 25, 50, 100])
             ->emptyStateHeading(__('ui.no_tickets_yet'))
             ->emptyStateDescription(__('ui.no_tickets_yet_description'))
             ->emptyStateIcon('heroicon-o-ticket')
