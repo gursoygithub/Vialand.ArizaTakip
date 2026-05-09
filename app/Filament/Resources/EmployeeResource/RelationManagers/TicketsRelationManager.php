@@ -199,31 +199,12 @@ class TicketsRelationManager extends RelationManager
                     ->label(__('ui.area'))
                     ->multiple()
                     ->searchable()
-                    ->options(function (): array {
-                        $user       = auth()->user();
-                        $companyIds = $user?->scopedCompanyIds() ?? [];
-                        $employeeId = $user?->employee?->id;
-
-                        $groupAreaIds = $employeeId
-                            ? Group::whereHas('members', fn ($q) => $q->where('employee_id', $employeeId))
-                                ->pluck('area_id')
-                                ->toArray()
-                            : [];
-
-                        return Area::query()
-                            ->where(function ($q) use ($companyIds, $groupAreaIds) {
-                                if (!empty($companyIds)) {
-                                    $q->whereIn('company_id', $companyIds);
-                                }
-                                if (!empty($groupAreaIds)) {
-                                    $q->orWhereIn('id', $groupAreaIds);
-                                }
-                            })
-                            ->where('status', ActiveStatusEnum::ACTIVE)
-                            ->orderBy('name')
-                            ->pluck('name', 'id')
-                            ->toArray();
-                    }),
+                    ->options(fn () => Area::query()
+                        ->whereHas('tickets', fn ($q) =>
+                            $q->visibleBy(auth()->user()))
+                        ->orderBy('name')
+                        ->pluck('name', 'id')
+                        ->toArray()),
 
                 Tables\Filters\SelectFilter::make('status')
                     ->label(__('ui.status'))
@@ -242,7 +223,12 @@ class TicketsRelationManager extends RelationManager
                 Tables\Filters\SelectFilter::make('unit_id')
                     ->label(__('ui.unit'))
                     ->multiple()
-                    ->relationship('unit', 'name'),
+                    ->options(fn () => \App\Models\Unit::query()
+                        ->whereHas('tickets', fn ($q) =>
+                            $q->visibleBy(auth()->user()))
+                        ->orderBy('name')
+                        ->pluck('name', 'id')
+                        ->toArray()),
 
                 Tables\Filters\SelectFilter::make('type_id')
                     ->label(__('ui.type'))
