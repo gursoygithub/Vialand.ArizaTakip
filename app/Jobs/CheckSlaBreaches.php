@@ -113,7 +113,14 @@ class CheckSlaBreaches implements ShouldQueue
     }
 
     /**
-     * SLA recipients: assignee + ticket creator.
+     * SLA recipients: assignee + ticket creator + group supervisor.
+     *
+     * When the ticket has no assignee (employee_id = null) but belongs to a
+     * group, the group supervisor (groups.employee_id → Employee → User) is
+     * added so the person responsible for the group is alerted even before
+     * individual assignment happens. If the supervisor is also the creator,
+     * unique('id') collapses them to a single notification.
+     *
      * No admin fallback by design — the dashboard SLA widget surfaces
      * breaches for admins through the panel UI.
      */
@@ -122,7 +129,12 @@ class CheckSlaBreaches implements ShouldQueue
         $assigneeUser = $ticket->employee?->user;
         $creator      = $ticket->created_by ? User::find($ticket->created_by) : null;
 
-        return collect([$assigneeUser, $creator])
+        $supervisor = null;
+        if (is_null($ticket->employee_id) && $ticket->group_id) {
+            $supervisor = \App\Models\Group::find($ticket->group_id)?->manager?->user;
+        }
+
+        return collect([$assigneeUser, $creator, $supervisor])
             ->filter()
             ->unique('id')
             ->values();
