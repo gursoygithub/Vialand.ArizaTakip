@@ -144,6 +144,10 @@ class TicketObserver
         // Notify assignee if created already-assigned (no `updated` event in this flow)
         if ($ticket->employee_id) {
             $this->notifyAssignedUser($ticket);
+        } elseif ($ticket->group_id) {
+            // Ticket routed to a group but not yet assigned to an individual —
+            // notify the group supervisor so they can action or delegate it.
+            $this->notifyGroupSupervisor($ticket);
         }
     }
 
@@ -157,6 +161,41 @@ class TicketObserver
             && !$ticket->wasChanged('status')
             && !static::$skipReassignNotification) {
             $this->notifyAssignedUser($ticket);
+        }
+    }
+
+    private function notifyGroupSupervisor(Ticket $ticket): void
+    {
+        $supervisor = \App\Models\Group::find($ticket->group_id)?->manager?->user;
+
+        if (!$supervisor) {
+            return;
+        }
+
+        // Skip self-notification when the creator is also the group supervisor
+        if ($supervisor->id === auth()->id()) {
+            return;
+        }
+
+        if ($ticket->isMutedBy($supervisor)) {
+            return;
+        }
+
+        $supervisor->notify(new TicketAssignedNotification($ticket));
+
+        if ($supervisor->wantsNotification('ticket_assigned', 'database')) {
+            $actorName = auth()->user()?->employee?->name
+                      ?? auth()->user()?->name
+                      ?? 'Sistem';
+            $area     = $ticket->area?->name ?? '';
+            $priority = $ticket->priority?->getLabel() ?? '';
+
+            app(\App\Services\FcmService::class)->sendToUser(
+                $supervisor,
+                $ticket->ticket_no . ' • Grubunuza Atandı',
+                $actorName . ' tarafından oluşturuldu — ' . $area . ' / ' . $priority,
+                url('/tickets/' . $ticket->id),
+            );
         }
     }
 
