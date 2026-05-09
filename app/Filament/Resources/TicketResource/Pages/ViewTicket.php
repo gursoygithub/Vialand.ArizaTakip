@@ -131,7 +131,11 @@ class ViewTicket extends ViewRecord
                     ->extraAttributes(['class' => 'rounded-xl'])
                     ->collapsible()
                     ->schema([
-                        Grid::make(3)->schema([
+                        Grid::make(4)->schema([
+                            TextEntry::make('area.company.name')
+                                ->label(__('ui.company'))
+                                ->icon('heroicon-o-building-office-2'),
+
                             TextEntry::make('area.name')
                                 ->label('Bölge')
                                 ->icon('heroicon-o-map-pin'),

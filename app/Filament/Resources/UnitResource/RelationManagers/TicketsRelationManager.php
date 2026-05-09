@@ -92,6 +92,12 @@ class TicketsRelationManager extends RelationManager
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
 
+                Tables\Columns\TextColumn::make('area.company.name')
+                    ->label(__('ui.company'))
+                    ->searchable()
+                    ->sortable()
+                    ->toggleable(),
+
                 Tables\Columns\TextColumn::make('area.name')
                     ->label(__('ui.area'))
                     ->icon('heroicon-o-map')
@@ -105,6 +111,12 @@ class TicketsRelationManager extends RelationManager
                     ->searchable()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
+
+                Tables\Columns\TextColumn::make('unit.name')
+                    ->label(__('ui.unit'))
+                    ->searchable()
+                    ->sortable()
+                    ->toggleable(),
 
                 // The assignee — relevant in unit context: who owns this
                 // unit's tickets right now.

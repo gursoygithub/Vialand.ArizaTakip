@@ -94,6 +94,12 @@ class TicketsRelationManager extends RelationManager
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
 
+                Tables\Columns\TextColumn::make('area.company.name')
+                    ->label(__('ui.company'))
+                    ->searchable()
+                    ->sortable()
+                    ->toggleable(),
+
                 Tables\Columns\TextColumn::make('area.name')
                     ->label(__('ui.area'))
                     ->icon('heroicon-o-map')

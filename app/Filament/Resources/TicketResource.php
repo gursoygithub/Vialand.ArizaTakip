@@ -451,6 +451,12 @@ class TicketResource extends Resource
                     ->icon(fn (TaskStatusEnum $state) => $state->getIcon())
                     ->sortable(),
 
+                Tables\Columns\TextColumn::make('area.company.name')
+                    ->label(__('ui.company'))
+                    ->sortable()
+                    ->toggleable()
+                    ->searchable(),
+
                 Tables\Columns\TextColumn::make('area.name')
                     ->label(__('ui.area'))
                     ->sortable()
@@ -460,6 +466,12 @@ class TicketResource extends Resource
                     ->label(__('ui.sub_area'))
                     ->sortable()
                     ->toggleable(),
+
+                Tables\Columns\TextColumn::make('unit.name')
+                    ->label(__('ui.unit'))
+                    ->sortable()
+                    ->toggleable()
+                    ->searchable(),
 
                 Tables\Columns\TextColumn::make('employee.name')
                     ->label(__('ui.assigned_employee'))
