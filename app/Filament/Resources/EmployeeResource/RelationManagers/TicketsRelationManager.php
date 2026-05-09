@@ -198,12 +198,9 @@ class TicketsRelationManager extends RelationManager
                 Tables\Filters\SelectFilter::make('area_id')
                     ->label(__('ui.area'))
                     ->multiple()
-                    ->options(fn () => Area::query()
-                        ->whereHas('tickets', fn ($q) =>
-                            $q->visibleBy(filament()->auth()->user()))
-                        ->orderBy('name')
-                        ->pluck('name', 'id')
-                        ->toArray()),
+                    ->searchable()
+                    ->relationship('area', 'name')
+                    ->preload(),
 
                 Tables\Filters\SelectFilter::make('status')
                     ->label(__('ui.status'))
@@ -222,15 +219,9 @@ class TicketsRelationManager extends RelationManager
                 Tables\Filters\SelectFilter::make('unit_id')
                     ->label(__('ui.unit'))
                     ->multiple()
-                    ->options(fn () => \App\Models\Unit::query()
-                        ->whereIn('id', \App\Models\Ticket::query()
-                            ->visibleBy(filament()->auth()->user())
-                            ->whereNotNull('unit_id')
-                            ->distinct()
-                            ->pluck('unit_id'))
-                        ->orderBy('name')
-                        ->pluck('name', 'id')
-                        ->toArray()),
+                    ->searchable()
+                    ->relationship('unit', 'name')
+                    ->preload(),
 
                 Tables\Filters\SelectFilter::make('type_id')
                     ->label(__('ui.type'))

@@ -564,10 +564,7 @@ class TicketResource extends Resource
                     ->multiple()
                     ->visible(fn () => auth()->user()?->hasRole('super_admin')
                         || auth()->user()?->can('ticket.view.all'))
-                    ->options(fn () => Company::query()
-                        ->whereHas('areas.tickets', fn ($q) =>
-                            $q->visibleBy(filament()->auth()->user()))
-                        ->orderBy('name')
+                    ->options(fn () => Company::orderBy('name')
                         ->pluck('name', 'id')
                         ->toArray())
                     ->query(function (Builder $query, array $data): Builder {
@@ -582,36 +579,23 @@ class TicketResource extends Resource
                 Tables\Filters\SelectFilter::make('area_id')
                     ->label(__('ui.area'))
                     ->multiple()
-                    ->options(fn () => Area::query()
-                        ->whereHas('tickets', fn ($q) =>
-                            $q->visibleBy(filament()->auth()->user()))
-                        ->orderBy('name')
-                        ->pluck('name', 'id')
-                        ->toArray()),
+                    ->searchable()
+                    ->relationship('area', 'name')
+                    ->preload(),
 
                 Tables\Filters\SelectFilter::make('sub_area_id')
                     ->label(__('ui.sub_area'))
                     ->multiple()
-                    ->options(fn () => \App\Models\SubArea::query()
-                        ->whereIn('id', Ticket::visibleBy(filament()->auth()->user())
-                            ->whereNotNull('sub_area_id')
-                            ->distinct()
-                            ->pluck('sub_area_id'))
-                        ->orderBy('name')
-                        ->pluck('name', 'id')
-                        ->toArray()),
+                    ->searchable()
+                    ->relationship('subArea', 'name')
+                    ->preload(),
 
                 Tables\Filters\SelectFilter::make('unit_id')
                     ->label(__('ui.unit'))
                     ->multiple()
-                    ->options(fn () => Unit::query()
-                        ->whereIn('id', Ticket::visibleBy(filament()->auth()->user())
-                            ->whereNotNull('unit_id')
-                            ->distinct()
-                            ->pluck('unit_id'))
-                        ->orderBy('name')
-                        ->pluck('name', 'id')
-                        ->toArray()),
+                    ->searchable()
+                    ->relationship('unit', 'name')
+                    ->preload(),
 
                 Tables\Filters\SelectFilter::make('status')
                     ->label(__('ui.status'))
@@ -632,17 +616,12 @@ class TicketResource extends Resource
                 Tables\Filters\SelectFilter::make('employee_id')
                     ->label(__('ui.assigned_employee'))
                     ->multiple()
+                    ->searchable()
                     ->hidden(fn () => !auth()->user()?->can('ticket.view.group')
                         && !auth()->user()?->hasRole('super_admin')
                         && !auth()->user()?->can('ticket.view.all'))
-                    ->options(fn () => Employee::query()
-                        ->whereIn('id', Ticket::visibleBy(filament()->auth()->user())
-                            ->whereNotNull('employee_id')
-                            ->distinct()
-                            ->pluck('employee_id'))
-                        ->orderBy('name')
-                        ->pluck('name', 'id')
-                        ->toArray()),
+                    ->relationship('employee', 'name')
+                    ->preload(),
 
                 Tables\Filters\Filter::make('created_at')
                     ->label('Oluşturma Tarihi')
