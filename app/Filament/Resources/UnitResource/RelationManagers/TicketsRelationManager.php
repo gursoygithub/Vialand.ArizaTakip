@@ -65,6 +65,7 @@ class TicketsRelationManager extends RelationManager
                     ->badge()
                     ->formatStateUsing(fn ($state) => $state instanceof TaskPriorityEnum ? $state->getLabel() : $state)
                     ->color(fn ($state) => $state instanceof TaskPriorityEnum ? $state->getColor() : 'gray')
+                    ->icon(fn ($state) => $state instanceof TaskPriorityEnum ? $state->getIcon() : null)
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('status')
@@ -72,6 +73,7 @@ class TicketsRelationManager extends RelationManager
                     ->badge()
                     ->formatStateUsing(fn ($state) => $state instanceof TaskStatusEnum ? $state->getLabel() : $state)
                     ->color(fn ($state) => $state instanceof TaskStatusEnum ? $state->getColor() : 'gray')
+                    ->icon(fn ($state) => $state instanceof TaskStatusEnum ? $state->getIcon() : null)
                     ->sortable(),
 
                 // Live SLA label (handles paused / breached / on-time / etc.)
@@ -94,6 +96,7 @@ class TicketsRelationManager extends RelationManager
 
                 Tables\Columns\TextColumn::make('area.company.name')
                     ->label(__('ui.company'))
+                    ->icon('heroicon-o-building-office-2')
                     ->searchable()
                     ->sortable()
                     ->toggleable(),
@@ -114,6 +117,7 @@ class TicketsRelationManager extends RelationManager
 
                 Tables\Columns\TextColumn::make('unit.name')
                     ->label(__('ui.unit'))
+                    ->icon('heroicon-o-wrench-screwdriver')
                     ->searchable()
                     ->sortable()
                     ->toggleable(),
@@ -128,7 +132,8 @@ class TicketsRelationManager extends RelationManager
                     ->badge()
                     ->color('primary')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 Tables\Columns\TextColumn::make('task_date')
                     ->label(__('ui.fault_date'))
@@ -179,9 +184,9 @@ class TicketsRelationManager extends RelationManager
                     ->toggleable(isToggledHiddenByDefault: true),
 
                 Tables\Columns\TextColumn::make('createdBy.name')
-                    ->visible(fn () => auth()->user()?->hasRole('super_admin') || auth()->user()?->can('view_all_tasks'))
+                    ->visible(fn () => auth()->user()?->hasRole('super_admin') || auth()->user()?->can('ticket.view.all'))
                     ->label(__('ui.created_by'))
-                    ->icon('heroicon-o-user')
+                    ->icon('heroicon-o-user-circle')
                     ->searchable()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
@@ -262,7 +267,6 @@ class TicketsRelationManager extends RelationManager
 
         $hasPermission =
             $user->hasRole('super_admin') ||
-            $user->can('view_all_tasks') ||
             $user->can('ticket.view.all');
 
         if (!$hasPermission) {

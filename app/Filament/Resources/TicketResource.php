@@ -453,28 +453,33 @@ class TicketResource extends Resource
 
                 Tables\Columns\TextColumn::make('area.company.name')
                     ->label(__('ui.company'))
+                    ->icon('heroicon-o-building-office-2')
                     ->sortable()
                     ->toggleable()
                     ->searchable(),
 
                 Tables\Columns\TextColumn::make('area.name')
                     ->label(__('ui.area'))
+                    ->icon('heroicon-o-map')
                     ->sortable()
                     ->toggleable(),
 
                 Tables\Columns\TextColumn::make('subArea.name')
                     ->label(__('ui.sub_area'))
+                    ->icon('heroicon-o-map-pin')
                     ->sortable()
                     ->toggleable(),
 
                 Tables\Columns\TextColumn::make('unit.name')
                     ->label(__('ui.unit'))
+                    ->icon('heroicon-o-wrench-screwdriver')
                     ->sortable()
                     ->toggleable()
                     ->searchable(),
 
                 Tables\Columns\TextColumn::make('employee.name')
                     ->label(__('ui.assigned_employee'))
+                    ->icon('heroicon-o-user')
                     ->sortable()
                     ->toggleable(),
 
@@ -497,19 +502,22 @@ class TicketResource extends Resource
                         return $label;
                     })
                     ->color(fn (Ticket $record): string => self::slaColor($record))
+                    ->icon('heroicon-o-clock')
                     ->sortable()
-                    ->badge(),
+                    ->badge()
+                    ->toggleable(),
 
                 Tables\Columns\TextColumn::make('task_date')
                     ->label(__('ui.task_date'))
+                    ->icon('heroicon-o-calendar-days')
                     ->date()
-                    ->sortable()
-                    ->toggleable(),
+                    ->sortable(),
 
                 // Oluşturan — visible to group/all/super_admin (a creator-only
                 // user already knows who opened their own tickets).
                 Tables\Columns\TextColumn::make('createdBy.name')
                     ->label('Oluşturan')
+                    ->icon('heroicon-o-user-circle')
                     ->searchable()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: false)
@@ -519,9 +527,9 @@ class TicketResource extends Resource
 
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('Oluşturma Tarihi')
+                    ->icon('heroicon-o-calendar-days')
                     ->dateTime()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: false),
+                    ->sortable(),
 
                 // Audit columns: super_admin only, hidden by default.
                 Tables\Columns\TextColumn::make('updatedBy.name')
@@ -616,16 +624,24 @@ class TicketResource extends Resource
                 // filter is for the persisted breach/no-policy axis only.
                 Tables\Filters\SelectFilter::make('sla_status')
                     ->label(__('ui.sla_indicator'))
+                    ->multiple()
                     ->options([
                         'breached' => __('ui.sla_breached'),
                         'no_sla'   => 'SLA yok',
                     ])
                     ->query(function (Builder $q, array $data) {
-                        return match ($data['value'] ?? null) {
-                            'breached' => $q->slaBreached(),
-                            'no_sla'   => $q->whereNull('sla_deadline'),
-                            default    => $q,
-                        };
+                        $values = $data['values'] ?? [];
+                        if (empty($values)) {
+                            return $q;
+                        }
+                        return $q->where(function (Builder $inner) use ($values) {
+                            if (in_array('breached', $values)) {
+                                $inner->orWhere('sla_breached', true);
+                            }
+                            if (in_array('no_sla', $values)) {
+                                $inner->orWhereNull('sla_deadline');
+                            }
+                        });
                     }),
             ])
             ->actions([

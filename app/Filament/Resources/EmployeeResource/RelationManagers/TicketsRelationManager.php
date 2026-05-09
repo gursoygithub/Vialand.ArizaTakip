@@ -2,10 +2,13 @@
 
 namespace App\Filament\Resources\EmployeeResource\RelationManagers;
 
+use App\Enums\ActiveStatusEnum;
 use App\Enums\TaskPriorityEnum;
 use App\Enums\TaskStatusEnum;
 use App\Enums\TaskTypeEnum;
 use App\Filament\Resources\TicketResource;
+use App\Models\Area;
+use App\Models\Group;
 use App\Models\Unit;
 use Filament\Forms\Form;
 use Filament\Resources\RelationManagers\RelationManager;
@@ -66,6 +69,7 @@ class TicketsRelationManager extends RelationManager
                     ->badge()
                     ->formatStateUsing(fn ($state) => $state instanceof TaskPriorityEnum ? $state->getLabel() : $state)
                     ->color(fn ($state) => $state instanceof TaskPriorityEnum ? $state->getColor() : 'gray')
+                    ->icon(fn ($state) => $state instanceof TaskPriorityEnum ? $state->getIcon() : null)
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('status')
@@ -73,6 +77,7 @@ class TicketsRelationManager extends RelationManager
                     ->badge()
                     ->formatStateUsing(fn ($state) => $state instanceof TaskStatusEnum ? $state->getLabel() : $state)
                     ->color(fn ($state) => $state instanceof TaskStatusEnum ? $state->getColor() : 'gray')
+                    ->icon(fn ($state) => $state instanceof TaskStatusEnum ? $state->getIcon() : null)
                     ->sortable(),
 
                 // Live SLA label — handles all lifecycle states (active,
@@ -98,6 +103,7 @@ class TicketsRelationManager extends RelationManager
 
                 Tables\Columns\TextColumn::make('area.company.name')
                     ->label(__('ui.company'))
+                    ->icon('heroicon-o-building-office-2')
                     ->searchable()
                     ->sortable()
                     ->toggleable(),
@@ -118,11 +124,12 @@ class TicketsRelationManager extends RelationManager
 
                 Tables\Columns\TextColumn::make('unit.name')
                     ->label(__('ui.unit'))
-                    ->icon('heroicon-o-building-office')
+                    ->icon('heroicon-o-wrench-screwdriver')
                     ->badge()
                     ->color('primary')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(),
 
                 Tables\Columns\TextColumn::make('task_date')
                     ->label(__('ui.fault_date'))
@@ -175,7 +182,7 @@ class TicketsRelationManager extends RelationManager
                 Tables\Columns\TextColumn::make('createdBy.name')
                     ->visible(fn () => auth()->user()?->hasRole('super_admin'))
                     ->label(__('ui.created_by'))
-                    ->icon('heroicon-o-user')
+                    ->icon('heroicon-o-user-circle')
                     ->searchable()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
@@ -188,6 +195,36 @@ class TicketsRelationManager extends RelationManager
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
+                Tables\Filters\SelectFilter::make('area_id')
+                    ->label(__('ui.area'))
+                    ->multiple()
+                    ->searchable()
+                    ->options(function (): array {
+                        $user       = auth()->user();
+                        $companyIds = $user?->scopedCompanyIds() ?? [];
+                        $employeeId = $user?->employee?->id;
+
+                        $groupAreaIds = $employeeId
+                            ? Group::whereHas('members', fn ($q) => $q->where('employee_id', $employeeId))
+                                ->pluck('area_id')
+                                ->toArray()
+                            : [];
+
+                        return Area::query()
+                            ->where(function ($q) use ($companyIds, $groupAreaIds) {
+                                if (!empty($companyIds)) {
+                                    $q->whereIn('company_id', $companyIds);
+                                }
+                                if (!empty($groupAreaIds)) {
+                                    $q->orWhereIn('id', $groupAreaIds);
+                                }
+                            })
+                            ->where('status', ActiveStatusEnum::ACTIVE)
+                            ->orderBy('name')
+                            ->pluck('name', 'id')
+                            ->toArray();
+                    }),
+
                 Tables\Filters\SelectFilter::make('status')
                     ->label(__('ui.status'))
                     ->multiple()
