@@ -202,11 +202,11 @@ class ViewEmployee extends ViewRecord
                                 TextEntry::make('percentage')
                                     ->label('Oran')
                                     ->badge()
-                                    ->color(function ($state) {
-                                        // $record in RepeatableEntry closures is the parent Eloquent model,
-                                        // not the current array item — parse the float from the formatted string.
-                                        $rate = (float) str_replace(',', '.', ltrim((string) $state, '%'));
-                                        return $rate >= 80 ? 'success' : ($rate >= 50 ? 'warning' : 'danger');
+                                    ->color(function ($state, $record) use ($threshold) {
+                                        $rate = $record['raw_percentage'] ?? 0;
+                                        $hi   = $threshold ?? 80;
+                                        $lo   = $threshold !== null ? $threshold * 0.75 : 50;
+                                        return $rate >= $hi ? 'success' : ($rate >= $lo ? 'warning' : 'danger');
                                     }),
                             ]),
                     ]),
@@ -266,11 +266,11 @@ class ViewEmployee extends ViewRecord
                                 TextEntry::make('percentage')
                                     ->label('Başarı Oranı')
                                     ->badge()
-                                    ->color(function ($state) {
-                                        // $record in RepeatableEntry closures is the parent Eloquent model,
-                                        // not the current array item — parse the float from the formatted string.
-                                        $rate = (float) str_replace(',', '.', ltrim((string) $state, '%'));
-                                        return $rate >= 80 ? 'success' : ($rate >= 50 ? 'warning' : 'danger');
+                                    ->color(function ($state, $record) use ($threshold) {
+                                        $rate = $record['raw_percentage'] ?? 0;
+                                        $hi   = $threshold ?? 80;
+                                        $lo   = $threshold !== null ? $threshold * 0.75 : 50;
+                                        return $rate >= $hi ? 'success' : ($rate >= $lo ? 'warning' : 'danger');
                                     }),
                             ]),
                     ]),

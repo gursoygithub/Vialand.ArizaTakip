@@ -82,10 +82,12 @@ class TicketsRelationManager extends RelationManager
                     ->label('SLA')
                     ->badge()
                     ->getStateUsing(fn ($record) => $record->getSlaStatusLabel())
-                    ->color(fn ($record) =>
-                        $record->sla_breached ? 'danger'
-                        : ($record->status === TaskStatusEnum::ON_HOLD ? 'warning' : 'success')
-                    ),
+                    ->color(function ($record) {
+                        if ($record->sla_breached) return 'danger';
+                        if ($record->status === TaskStatusEnum::ON_HOLD) return 'warning';
+                        if (is_null($record->sla_deadline)) return 'gray';
+                        return 'success';
+                    }),
 
                 Tables\Columns\TextColumn::make('type_id')
                     ->label(__('ui.type'))
