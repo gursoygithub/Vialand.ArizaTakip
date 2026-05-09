@@ -150,6 +150,7 @@ class ViewEmployee extends ViewRecord
                             Section::make('Şu Anki Durum')
                                 ->description('Personelin şu an üzerinde olan iş yükü')
                                 ->compact()
+                                ->columnSpan(1)
                                 ->schema([
                                     TextEntry::make('active_tickets')
                                         ->label(__('ui.employee_in_progress'))
@@ -168,6 +169,7 @@ class ViewEmployee extends ViewRecord
                             Section::make('Son 30 Gün Performansı')
                                 ->description('Yakın dönem performans göstergesi')
                                 ->compact()
+                                ->columnSpan(1)
                                 ->schema([
                                     TextEntry::make('last30_rate')
                                         ->label(__('ui.employee_last30_rate'))
@@ -192,6 +194,7 @@ class ViewEmployee extends ViewRecord
                             Section::make('Tüm Zamanlar')
                                 ->description('Geçmiş tüm dönemleri kapsar')
                                 ->compact()
+                                ->columnSpan(1)
                                 ->schema([
                                     TextEntry::make('compliance_rate')
                                         ->label(__('ui.employee_general_success_rate'))
