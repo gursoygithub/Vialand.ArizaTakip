@@ -15,7 +15,7 @@ class TicketStatsOverview extends BaseWidget
 
     public function getHeading(): ?string
     {
-        return 'Talep Genel Bakış';
+        return __('ui.widget_ticket_stats_heading');
     }
 
     protected function getStats(): array
@@ -48,7 +48,8 @@ class TicketStatsOverview extends BaseWidget
 
         $resolvedToday = Ticket::query()
             ->visibleBy(auth()->user())
-            ->whereDate('closed_at', '>=', now()->startOfDay())
+            ->where('status', TaskStatusEnum::RESOLVED->value)
+            ->whereDate('resolved_at', today())
             ->count();
 
         $thirtyDaysAgo = now()->subDays(30);
@@ -80,30 +81,33 @@ class TicketStatsOverview extends BaseWidget
             : '%' . number_format($compliance, 1, ',', '.');
 
         $complianceDesc = $compliance === null
-            ? 'Henüz kapatılan talep yok'
-            : number_format($onTimeRecent) . ' / ' . number_format($totalClosedRecent) . ' zamanında çözüldü';
+            ? __('ui.widget_ticket_stats_sla_compliance_no_data')
+            : __('ui.widget_ticket_stats_sla_compliance_desc', [
+                'onTime' => number_format($onTimeRecent),
+                'total'  => number_format($totalClosedRecent),
+            ]);
 
         return [
-            Stat::make('Açık Talepler', number_format($openCount))
-                ->description('Bekleyen iş yükü')
+            Stat::make(__('ui.widget_ticket_stats_open_tickets'), number_format($openCount))
+                ->description(__('ui.widget_ticket_stats_open_tickets_desc'))
                 ->descriptionIcon('heroicon-o-ticket')
                 ->color('primary')
                 ->icon('heroicon-o-ticket'),
 
-            Stat::make('SLA İhlali', number_format($breachedCount))
-                ->description($breachedCount > 0 ? 'Acil müdahale gerekli' : 'Tüm talepler süresinde')
+            Stat::make(__('ui.widget_ticket_stats_sla_breached'), number_format($breachedCount))
+                ->description($breachedCount > 0 ? __('ui.widget_ticket_stats_sla_breached_desc_active') : __('ui.widget_ticket_stats_sla_breached_desc_clear'))
                 ->descriptionIcon('heroicon-o-exclamation-triangle')
                 ->color($breachedCount > 0 ? 'danger' : 'success')
                 ->icon('heroicon-o-exclamation-triangle'),
 
-            Stat::make('Bugün Çözülen', number_format($resolvedToday))
-                ->description('Son 24 saat içinde kapatıldı')
+            Stat::make(__('ui.widget_ticket_stats_resolved_today'), number_format($resolvedToday))
+                ->description(__('ui.widget_ticket_stats_resolved_today_desc'))
                 ->descriptionIcon('heroicon-o-check-circle')
                 ->color('success')
                 ->icon('heroicon-o-check-circle'),
 
-            Stat::make('SLA Uyum Oranı', $complianceLabel)
-                ->description($complianceDesc . ' (son 30 gün)')
+            Stat::make(__('ui.widget_ticket_stats_sla_compliance'), $complianceLabel)
+                ->description($complianceDesc)
                 ->descriptionIcon('heroicon-o-chart-bar')
                 ->color($complianceColor)
                 ->icon('heroicon-o-chart-bar'),

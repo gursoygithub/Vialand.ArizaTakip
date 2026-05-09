@@ -745,4 +745,17 @@ return [
     'new_ticket' => 'Yeni Talep',
     'sla_no_policy' => 'SLA Yok',
     'sla_paused' => '⏸ Duraklatıldı',
+
+    // Widget: Ticket Stats Overview
+    'widget_ticket_stats_heading'                  => 'Talep Genel Bakış',
+    'widget_ticket_stats_open_tickets'             => 'Açık Talepler',
+    'widget_ticket_stats_open_tickets_desc'        => 'Bekleyen iş yükü',
+    'widget_ticket_stats_sla_breached'             => 'SLA İhlali',
+    'widget_ticket_stats_sla_breached_desc_active' => 'Acil müdahale gerekli',
+    'widget_ticket_stats_sla_breached_desc_clear'  => 'Tüm talepler süresinde',
+    'widget_ticket_stats_resolved_today'           => 'Bugün Çözülen',
+    'widget_ticket_stats_resolved_today_desc'      => 'Bugün çözüme kavuşturulan talepler',
+    'widget_ticket_stats_sla_compliance'           => 'SLA Uyum Oranı',
+    'widget_ticket_stats_sla_compliance_no_data'   => 'Henüz kapatılan talep yok',
+    'widget_ticket_stats_sla_compliance_desc'      => ':onTime / :total zamanında çözüldü (son 30 gün)',
 ];
