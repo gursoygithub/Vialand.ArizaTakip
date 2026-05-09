@@ -59,10 +59,7 @@ class ViewEmployee extends ViewRecord
         $complianceRate    = $denominator > 0
             ? round(($closedOnTime / $denominator) * 100, 1)
             : null;
-        $threshold         = $record->current_threshold;
-        $isCompliant       = $complianceRate !== null && $threshold !== null
-            ? $complianceRate >= $threshold
-            : null;
+        $threshold         = $record->current_threshold ? (float) $record->current_threshold : null;
 
         // Son 30 gün — matches PerformanceService::aggregate() denominator
         // (all resolved, CANCELLED excluded). Anchored on resolved_at so the
@@ -142,16 +139,21 @@ class ViewEmployee extends ViewRecord
                             ->helperText('Tüm zamanlar — kapalı ve aktif ihlaller dahil')
                             ->state($complianceRate === null ? '—' : '%' . number_format($complianceRate, 1, ',', '.'))
                             ->weight('bold')
-                            ->color(fn () => match ($isCompliant) {
-                                true  => 'success',
-                                false => 'danger',
-                                null  => 'gray',
+                            ->badge()
+                            ->color(function () use ($complianceRate, $threshold) {
+                                if ($complianceRate === null) return 'gray';
+                                $hi = $threshold ?? 80;
+                                $lo = $threshold !== null ? $threshold * 0.75 : 50;
+                                return $complianceRate >= $hi
+                                    ? 'success'
+                                    : ($complianceRate >= $lo ? 'warning' : 'danger');
                             }),
 
                         TextEntry::make('last30_rate')
                             ->label(__('ui.employee_last30_rate'))
                             ->helperText('Sadece son 30 günde çözülen talepler')
                             ->state($last30Rate === null ? '—' : '%' . number_format($last30Rate, 1, ',', '.'))
+                            ->badge()
                             ->color(function () use ($last30Rate, $threshold) {
                                 if ($last30Rate === null) return 'gray';
                                 $hi = $threshold ?? 80;
