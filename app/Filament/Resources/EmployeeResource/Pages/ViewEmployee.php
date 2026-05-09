@@ -164,15 +164,19 @@ class ViewEmployee extends ViewRecord
                         TextEntry::make('last30_tickets')
                             ->label(__('ui.employee_last30_tickets'))
                             ->state((string) $last30Total)
+                            ->badge()
                             ->color('gray'),
 
                         TextEntry::make('current_threshold')
                             ->label(__('ui.employee_sla_target'))
-                            ->state($threshold === null ? '—' : '%' . number_format($threshold, 1, ',', '.')),
+                            ->state($threshold === null ? '—' : '%' . number_format($threshold, 1, ',', '.'))
+                            ->badge()
+                            ->color('info'),
 
                         TextEntry::make('cohort_size')
                             ->label(__('ui.employee_calc_base'))
                             ->state($totalCohortCount . ' Talep')
+                            ->badge()
                             ->color('info'),
                     ]),
 
@@ -227,9 +231,9 @@ class ViewEmployee extends ViewRecord
                                     ->label(__('ui.employee_col_rate'))
                                     ->badge()
                                     ->color(function ($state, $record) use ($threshold) {
-                                        $rate = $record['raw_percentage'] ?? 0;
-                                        $hi   = $threshold ?? 80;
-                                        $lo   = $threshold !== null ? $threshold * 0.75 : 50;
+                                        $rate = (float) ($record['raw_percentage'] ?? 0);
+                                        $hi   = (float) ($threshold ?? 80);
+                                        $lo   = $threshold !== null ? (float) $threshold * 0.75 : 50.0;
                                         return $rate >= $hi ? 'success' : ($rate >= $lo ? 'warning' : 'danger');
                                     }),
                             ]),
@@ -291,9 +295,9 @@ class ViewEmployee extends ViewRecord
                                     ->label(__('ui.employee_col_success_rate'))
                                     ->badge()
                                     ->color(function ($state, $record) use ($threshold) {
-                                        $rate = $record['raw_percentage'] ?? 0;
-                                        $hi   = $threshold ?? 80;
-                                        $lo   = $threshold !== null ? $threshold * 0.75 : 50;
+                                        $rate = (float) ($record['raw_percentage'] ?? 0);
+                                        $hi   = (float) ($threshold ?? 80);
+                                        $lo   = $threshold !== null ? (float) $threshold * 0.75 : 50.0;
                                         return $rate >= $hi ? 'success' : ($rate >= $lo ? 'warning' : 'danger');
                                     }),
                             ]),
