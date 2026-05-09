@@ -80,6 +80,10 @@ class ViewEmployee extends ViewRecord
             ? round($last30OnTime / $last30Total * 100, 1)
             : null;
 
+        // Non-nullable threshold for RepeatableEntry color closures.
+        // Captured via use($threshold) — must be float, never null.
+        $threshold = (float) ($record->current_threshold ?? 80);
+
         return $infolist
             ->schema([
                 // 1. Personel kimliği
@@ -232,10 +236,9 @@ class ViewEmployee extends ViewRecord
                                 TextEntry::make('percentage')
                                     ->label(__('ui.employee_col_rate'))
                                     ->badge()
-                                    ->color(function ($state, $record) {
-                                        $rate = (float) ($record['raw_percentage'] ?? 0);
-                                        $t    = (float) ($record['threshold'] ?? 80);
-                                        return $rate >= $t ? 'success' : ($rate >= $t * 0.75 ? 'warning' : 'danger');
+                                    ->color(function ($state) use ($threshold) {
+                                        $rate = (float) str_replace(',', '.', ltrim((string) $state, '%'));
+                                        return $rate >= $threshold ? 'success' : ($rate >= $threshold * 0.75 ? 'warning' : 'danger');
                                     }),
                             ]),
                     ]),
@@ -297,10 +300,9 @@ class ViewEmployee extends ViewRecord
                                 TextEntry::make('percentage')
                                     ->label(__('ui.employee_col_success_rate'))
                                     ->badge()
-                                    ->color(function ($state, $record) {
-                                        $rate = (float) ($record['raw_percentage'] ?? 0);
-                                        $t    = (float) ($record['threshold'] ?? 80);
-                                        return $rate >= $t ? 'success' : ($rate >= $t * 0.75 ? 'warning' : 'danger');
+                                    ->color(function ($state) use ($threshold) {
+                                        $rate = (float) str_replace(',', '.', ltrim((string) $state, '%'));
+                                        return $rate >= $threshold ? 'success' : ($rate >= $threshold * 0.75 ? 'warning' : 'danger');
                                     }),
                             ]),
                     ]),
