@@ -566,7 +566,8 @@ class TicketResource extends Resource
                     ->visible(fn () => auth()->user()?->hasRole('super_admin')
                         || auth()->user()?->can('ticket.view.all'))
                     ->options(fn () => Company::query()
-                        ->where('status', ActiveStatusEnum::ACTIVE)
+                        ->whereHas('areas.tickets', fn ($q) =>
+                            $q->visibleBy(auth()->user()))
                         ->orderBy('name')
                         ->pluck('name', 'id')
                         ->toArray())
@@ -583,45 +584,34 @@ class TicketResource extends Resource
                     ->label(__('ui.area'))
                     ->multiple()
                     ->searchable()
-                    ->options(function (): array {
-                        $user       = auth()->user();
-                        $companyIds = $user?->scopedCompanyIds() ?? [];
-                        $employeeId = $user?->employee?->id;
-
-                        $groupAreaIds = $employeeId
-                            ? Group::whereHas('members', fn ($q) => $q->where('employee_id', $employeeId))
-                                ->pluck('area_id')
-                                ->toArray()
-                            : [];
-
-                        return Area::query()
-                            ->where(function ($q) use ($companyIds, $groupAreaIds) {
-                                if (!empty($companyIds)) {
-                                    $q->whereIn('company_id', $companyIds);
-                                }
-                                if (!empty($groupAreaIds)) {
-                                    $q->orWhereIn('id', $groupAreaIds);
-                                }
-                            })
-                            ->where('status', ActiveStatusEnum::ACTIVE)
-                            ->orderBy('name')
-                            ->pluck('name', 'id')
-                            ->toArray();
-                    }),
+                    ->options(fn () => Area::query()
+                        ->whereHas('tickets', fn ($q) =>
+                            $q->visibleBy(auth()->user()))
+                        ->orderBy('name')
+                        ->pluck('name', 'id')
+                        ->toArray()),
 
                 Tables\Filters\SelectFilter::make('sub_area_id')
                     ->label(__('ui.sub_area'))
                     ->multiple()
                     ->searchable()
-                    ->relationship('subArea', 'name')
-                    ->preload(),
+                    ->options(fn () => \App\Models\SubArea::query()
+                        ->whereHas('tickets', fn ($q) =>
+                            $q->visibleBy(auth()->user()))
+                        ->orderBy('name')
+                        ->pluck('name', 'id')
+                        ->toArray()),
 
                 Tables\Filters\SelectFilter::make('unit_id')
                     ->label(__('ui.unit'))
                     ->multiple()
                     ->searchable()
-                    ->relationship('unit', 'name')
-                    ->preload(),
+                    ->options(fn () => \App\Models\Unit::query()
+                        ->whereHas('tickets', fn ($q) =>
+                            $q->visibleBy(auth()->user()))
+                        ->orderBy('name')
+                        ->pluck('name', 'id')
+                        ->toArray()),
 
                 Tables\Filters\SelectFilter::make('status')
                     ->label(__('ui.status'))
@@ -639,9 +629,6 @@ class TicketResource extends Resource
 
                 // employee_id: hidden for ticket.view.own users (they see
                 // only their own tickets — filtering by assignee is noise).
-                // Options are scoped: super_admin/view.all see all active
-                // employees; view.group users see only employees in their
-                // own member/managed groups.
                 Tables\Filters\SelectFilter::make('employee_id')
                     ->label(__('ui.assigned_employee'))
                     ->multiple()
@@ -649,39 +636,12 @@ class TicketResource extends Resource
                     ->hidden(fn () => !auth()->user()?->can('ticket.view.group')
                         && !auth()->user()?->hasRole('super_admin')
                         && !auth()->user()?->can('ticket.view.all'))
-                    ->options(function (): array {
-                        $user = auth()->user();
-
-                        if ($user->hasRole('super_admin') || $user->can('ticket.view.all')) {
-                            return Employee::query()
-                                ->where('status', ActiveStatusEnum::ACTIVE)
-                                ->orderBy('name')
-                                ->pluck('name', 'id')
-                                ->toArray();
-                        }
-
-                        // ticket.view.group: only employees in viewer's
-                        // member groups + managed (supervisor) groups.
-                        $employeeId = $user->employee?->id;
-                        if (!$employeeId) {
-                            return [];
-                        }
-
-                        $groupIds = \App\Models\GroupMember::where('employee_id', $employeeId)
-                            ->pluck('group_id')
-                            ->merge(
-                                Group::where('employee_id', $employeeId)->pluck('id')
-                            )
-                            ->unique();
-
-                        return Employee::query()
-                            ->where('status', ActiveStatusEnum::ACTIVE)
-                            ->whereHas('groupMemberships', fn ($q) =>
-                                $q->whereIn('group_id', $groupIds))
-                            ->orderBy('name')
-                            ->pluck('name', 'id')
-                            ->toArray();
-                    }),
+                    ->options(fn () => Employee::query()
+                        ->whereHas('tickets', fn ($q) =>
+                            $q->visibleBy(auth()->user()))
+                        ->orderBy('name')
+                        ->pluck('name', 'id')
+                        ->toArray()),
 
                 Tables\Filters\Filter::make('created_at')
                     ->label('Oluşturma Tarihi')

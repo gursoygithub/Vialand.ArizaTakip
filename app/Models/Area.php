@@ -102,6 +102,11 @@ class Area extends Model
         return $this->hasMany(Group::class);
     }
 
+    public function tickets(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(\App\Models\Ticket::class, 'area_id');
+    }
+
     public function slaPolicies()
     {
         return $this->hasMany(SlaPolicy::class, 'area_id');
