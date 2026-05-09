@@ -736,6 +736,8 @@ return [
     'filter_created_to'     => 'Oluşturma Tarihi (Bitiş)',
     'filter_task_date_from' => 'Arıza Tarihi (Başlangıç)',
     'filter_task_date_to'   => 'Arıza Tarihi (Bitiş)',
+    'employee_last30_rate'    => 'Son 30 Gün Başarısı',
+    'employee_last30_tickets' => 'Son 30 Gün Çözülen',
     'tab_active'            => 'Aktif',
     'tab_on_hold'           => 'Beklemede',
     'tab_resolved'          => 'Çözüldü',

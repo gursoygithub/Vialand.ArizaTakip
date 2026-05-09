@@ -64,6 +64,25 @@ class ViewEmployee extends ViewRecord
             ? $complianceRate >= $threshold
             : null;
 
+        // Son 30 gün — matches PerformanceService::aggregate() denominator
+        // (all resolved, CANCELLED excluded). Anchored on resolved_at so the
+        // window is "what was closed in the last 30 days", not "created_at".
+        $thirtyDaysAgo = now()->subDays(30);
+        $last30Total   = $record->tickets()
+            ->whereNotNull('resolved_at')
+            ->where('resolved_at', '>=', $thirtyDaysAgo)
+            ->whereNotIn('status', [TaskStatusEnum::CANCELLED])
+            ->count();
+        $last30OnTime  = $record->tickets()
+            ->whereNotNull('resolved_at')
+            ->where('resolved_at', '>=', $thirtyDaysAgo)
+            ->whereNotIn('status', [TaskStatusEnum::CANCELLED])
+            ->where('sla_breached', false)
+            ->count();
+        $last30Rate    = $last30Total > 0
+            ? round($last30OnTime / $last30Total * 100, 1)
+            : null;
+
         return $infolist
             ->schema([
                 // 1. Personel kimliği
@@ -116,7 +135,7 @@ class ViewEmployee extends ViewRecord
                 //    PerformanceService's compliance computation.
                 Section::make(__('ui.employee_sla_analysis'))
                     ->icon('heroicon-o-presentation-chart-line')
-                    ->columns(4)
+                    ->columns(6)
                     ->schema([
                         TextEntry::make('compliance_rate')
                             ->label(__('ui.employee_sla_success_rate'))
@@ -127,6 +146,21 @@ class ViewEmployee extends ViewRecord
                                 false => 'danger',
                                 null  => 'gray',
                             }),
+
+                        TextEntry::make('last30_rate')
+                            ->label(__('ui.employee_last30_rate'))
+                            ->state($last30Rate === null ? '—' : '%' . number_format($last30Rate, 1, ',', '.'))
+                            ->color(function () use ($last30Rate, $threshold) {
+                                if ($last30Rate === null) return 'gray';
+                                $hi = $threshold ?? 80;
+                                $lo = $threshold !== null ? $threshold * 0.75 : 50;
+                                return $last30Rate >= $hi ? 'success' : ($last30Rate >= $lo ? 'warning' : 'danger');
+                            }),
+
+                        TextEntry::make('last30_tickets')
+                            ->label(__('ui.employee_last30_tickets'))
+                            ->state($last30Total . ' çözülen talep')
+                            ->color('gray'),
 
                         TextEntry::make('current_threshold')
                             ->label(__('ui.employee_sla_target_rate'))
