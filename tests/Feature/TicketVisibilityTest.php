@@ -111,6 +111,101 @@ class TicketVisibilityTest extends TestCase
         $this->assertContains($b->id, $visible);
     }
 
+    public function test_supervisor_via_group_employee_id_sees_managed_area_tickets(): void
+    {
+        // Supervisor is identified by groups.employee_id — NOT via a group_members row.
+        // scopeVisibleBy() must derive area visibility from the managed group, not just
+        // group membership.
+        $area    = Area::factory()->create();
+        $subArea = SubArea::factory()->create(['area_id' => $area->id]);
+        $unit    = Unit::factory()->create();
+
+        $supervisor = User::factory()->create(['email' => 'grpsup@test.com']);
+        $supervisor->assignRole('supervisor');
+        $supEmp = Employee::factory()->create(['email' => 'grpsup@test.com']);
+
+        // Group supervised by $supEmp — no GroupMember row for the supervisor
+        Group::factory()->create(['area_id' => $area->id, 'employee_id' => $supEmp->id]);
+
+        $inArea = Ticket::factory()->create([
+            'area_id' => $area->id, 'sub_area_id' => $subArea->id, 'unit_id' => $unit->id,
+            'created_by' => 1,
+        ]);
+
+        $otherArea = Area::factory()->create();
+        $otherSub  = SubArea::factory()->create(['area_id' => $otherArea->id]);
+        $outArea   = Ticket::factory()->create([
+            'area_id' => $otherArea->id, 'sub_area_id' => $otherSub->id, 'unit_id' => $unit->id,
+            'created_by' => 1,
+        ]);
+
+        $visible = (new Ticket)->newQuery()->visibleBy($supervisor)->pluck('id')->all();
+
+        $this->assertContains($inArea->id, $visible, 'Supervisor must see tickets in managed group area');
+        $this->assertNotContains($outArea->id, $visible, 'Supervisor must not see unrelated area tickets');
+    }
+
+    public function test_supervisor_sees_tickets_by_group_id_even_without_area_match(): void
+    {
+        // A ticket assigned to the managed group (group_id set) but in an area not
+        // directly covered by any membership row must still be visible to the supervisor.
+        $area    = Area::factory()->create();
+        $subArea = SubArea::factory()->create(['area_id' => $area->id]);
+        $unit    = Unit::factory()->create();
+
+        $supervisor = User::factory()->create(['email' => 'grpsup2@test.com']);
+        $supervisor->assignRole('supervisor');
+        $supEmp = Employee::factory()->create(['email' => 'grpsup2@test.com']);
+
+        $managedGroup = Group::factory()->create(['area_id' => $area->id, 'employee_id' => $supEmp->id]);
+
+        // Ticket explicitly points at the managed group — no GroupMember row
+        $byGroup = Ticket::factory()->create([
+            'area_id' => $area->id, 'sub_area_id' => $subArea->id, 'unit_id' => $unit->id,
+            'group_id' => $managedGroup->id, 'created_by' => 1,
+        ]);
+
+        // Ticket in a completely different group / area
+        $otherArea  = Area::factory()->create();
+        $otherSub   = SubArea::factory()->create(['area_id' => $otherArea->id]);
+        $otherGroup = Group::factory()->create(['area_id' => $otherArea->id]);
+        $outGroup   = Ticket::factory()->create([
+            'area_id' => $otherArea->id, 'sub_area_id' => $otherSub->id, 'unit_id' => $unit->id,
+            'group_id' => $otherGroup->id, 'created_by' => 1,
+        ]);
+
+        $visible = (new Ticket)->newQuery()->visibleBy($supervisor)->pluck('id')->all();
+
+        $this->assertContains($byGroup->id, $visible, 'Supervisor must see tickets with matching group_id');
+        $this->assertNotContains($outGroup->id, $visible, 'Supervisor must not see tickets from unmanaged groups');
+    }
+
+    public function test_supervisor_without_managed_group_does_not_see_others_group_tickets(): void
+    {
+        // A user with ticket.view.group but no managed-group record must not gain
+        // visibility via the supervisor path (only member path applies).
+        $area    = Area::factory()->create();
+        $subArea = SubArea::factory()->create(['area_id' => $area->id]);
+        $unit    = Unit::factory()->create();
+
+        $user = User::factory()->create(['email' => 'nomgr@test.com']);
+        $user->assignRole('supervisor');
+        Employee::factory()->create(['email' => 'nomgr@test.com']);
+
+        // A group whose supervisor is someone else
+        $otherEmp   = Employee::factory()->create();
+        $otherGroup = Group::factory()->create(['area_id' => $area->id, 'employee_id' => $otherEmp->id]);
+
+        $ticket = Ticket::factory()->create([
+            'area_id' => $area->id, 'sub_area_id' => $subArea->id, 'unit_id' => $unit->id,
+            'group_id' => $otherGroup->id, 'created_by' => 1,
+        ]);
+
+        $visible = (new Ticket)->newQuery()->visibleBy($user)->pluck('id')->all();
+
+        $this->assertNotContains($ticket->id, $visible, 'User must not see tickets from groups they do not supervise');
+    }
+
     public function test_no_permission_sees_nothing(): void
     {
         $area    = Area::factory()->create();

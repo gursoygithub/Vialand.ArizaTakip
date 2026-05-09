@@ -304,27 +304,37 @@ class Ticket extends Model implements HasMedia
         $employeeId = $user->employee?->id;
 
         // 2. ticket.view.group → tickets in areas of groups the user is a MEMBER
-        //    of (via group_members), OR tickets they created, OR tickets assigned
-        //    to them. Company filter uses OR so that group-membership areas in a
-        //    foreign company are included alongside own-company tickets.
+        //    of (via group_members) OR groups the user SUPERVISES (groups.employee_id),
+        //    OR tickets they created, OR tickets assigned to them. Company filter uses
+        //    OR so that group-membership/supervised areas in a foreign company are
+        //    included alongside own-company tickets.
         if ($user->hasPermissionTo('ticket.view.group')) {
-            $groupIds   = GroupMember::where('employee_id', $employeeId)->pluck('group_id');
-            $areaIds    = Group::whereIn('id', $groupIds)->pluck('area_id');
-            $companyIds = $user->scopedCompanyIds();
+            $groupIds        = GroupMember::where('employee_id', $employeeId)->pluck('group_id');
+            $memberAreaIds   = Group::whereIn('id', $groupIds)->pluck('area_id');
+            $managedGroupIds = Group::where('employee_id', $employeeId)->pluck('id');
+            $managedAreaIds  = Group::where('employee_id', $employeeId)->pluck('area_id');
+            $areaIds         = $memberAreaIds->merge($managedAreaIds)->unique()->values();
+            $companyIds      = $user->scopedCompanyIds();
 
             return $query
-                ->where(function (Builder $q) use ($user, $employeeId, $areaIds) {
+                ->where(function (Builder $q) use ($user, $employeeId, $areaIds, $managedGroupIds) {
                     $q->whereIn('area_id', $areaIds)
                       ->orWhere('created_by', $user->id);
                     if ($employeeId) {
                         $q->orWhere('employee_id', $employeeId);
                     }
+                    if ($managedGroupIds->isNotEmpty()) {
+                        $q->orWhereIn('group_id', $managedGroupIds);
+                    }
                 })
                 ->when(!empty($companyIds), fn (Builder $q) => $q->where(
-                    function (Builder $aq) use ($companyIds, $areaIds) {
+                    function (Builder $aq) use ($companyIds, $areaIds, $managedGroupIds) {
                         $aq->whereHas('area', fn (Builder $cq) => $cq->whereIn('company_id', $companyIds));
                         if ($areaIds->isNotEmpty()) {
                             $aq->orWhereIn('area_id', $areaIds);
+                        }
+                        if ($managedGroupIds->isNotEmpty()) {
+                            $aq->orWhereIn('group_id', $managedGroupIds);
                         }
                     }
                 ));
