@@ -209,17 +209,12 @@ class ViewEmployee extends ViewRecord
                                             ? round($onTime / $sealed * 100, 1)
                                             : 0);
 
-                                        $threshold = (float) ($record->current_threshold ?? 80);
-                                        $hi        = $threshold;
-                                        $lo        = $threshold * 0.75;
-                                        $color     = $rate >= $hi ? 'success' : ($rate >= $lo ? 'warning' : 'danger');
-
                                         return [
                                             'unit_name'      => $stat->unit?->name ?? 'Tanımsız Birim',
                                             'stats'          => "{$onTime} / {$sealed}",
                                             'percentage'     => '%' . number_format($rate, 1, ',', '.'),
                                             'raw_percentage' => $rate,
-                                            'color'          => $color,
+                                            'threshold'      => (float) ($record->current_threshold ?? 80),
                                         ];
                                     });
                             })
@@ -237,7 +232,11 @@ class ViewEmployee extends ViewRecord
                                 TextEntry::make('percentage')
                                     ->label(__('ui.employee_col_rate'))
                                     ->badge()
-                                    ->color(fn ($state, $record) => $record['color'] ?? 'gray'),
+                                    ->color(function ($state, $record) {
+                                        $rate = (float) ($record['raw_percentage'] ?? 0);
+                                        $t    = (float) ($record['threshold'] ?? 80);
+                                        return $rate >= $t ? 'success' : ($rate >= $t * 0.75 ? 'warning' : 'danger');
+                                    }),
                             ]),
                     ]),
 
@@ -260,7 +259,7 @@ class ViewEmployee extends ViewRecord
                                     ->groupBy('priority')
                                     ->havingRaw('(on_time_count + breached_count) > 0')
                                     ->get()
-                                    ->map(function ($stat) {
+                                    ->map(function ($stat) use ($record) {
                                         $priorityEnum = $stat->priority instanceof \App\Enums\TaskPriorityEnum
                                             ? $stat->priority
                                             : \App\Enums\TaskPriorityEnum::tryFrom($stat->priority);
@@ -277,6 +276,7 @@ class ViewEmployee extends ViewRecord
                                             'stats'          => "{$onTime} / {$sealed}",
                                             'percentage'     => '%' . number_format($rate, 1, ',', '.'),
                                             'raw_percentage' => $rate,
+                                            'threshold'      => (float) ($record->current_threshold ?? 80),
                                         ];
                                     });
                             })
@@ -297,11 +297,10 @@ class ViewEmployee extends ViewRecord
                                 TextEntry::make('percentage')
                                     ->label(__('ui.employee_col_success_rate'))
                                     ->badge()
-                                    ->color(function ($state, $record) use ($threshold) {
+                                    ->color(function ($state, $record) {
                                         $rate = (float) ($record['raw_percentage'] ?? 0);
-                                        $hi   = (float) ($threshold ?? 80);
-                                        $lo   = $threshold !== null ? (float) $threshold * 0.75 : 50.0;
-                                        return $rate >= $hi ? 'success' : ($rate >= $lo ? 'warning' : 'danger');
+                                        $t    = (float) ($record['threshold'] ?? 80);
+                                        return $rate >= $t ? 'success' : ($rate >= $t * 0.75 ? 'warning' : 'danger');
                                     }),
                             ]),
                     ]),
