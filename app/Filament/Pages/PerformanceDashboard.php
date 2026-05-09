@@ -129,11 +129,13 @@ class PerformanceDashboard extends Page implements HasForms, HasTable
         $from    = Carbon::parse($this->dateFrom)->startOfDay();
         $to      = Carbon::parse($this->dateTo)->endOfDay();
 
-        $this->overview        = $service->getOverview($from, $to);
-        $this->regionBreakdown = $service->getRegionBreakdown($from, $to);
+        $selectedArea = $this->areaId ?: null;
 
-        if ($this->areaId && auth()->user()?->can('ticket.view.all')) {
-            $this->teamStats = $service->getTeamStats($this->areaId, $from, $to);
+        $this->overview        = $service->getOverview($from, $to, null, $selectedArea);
+        $this->regionBreakdown = $service->getRegionBreakdown($from, $to, null, $selectedArea);
+
+        if ($selectedArea && auth()->user()?->can('ticket.view.all')) {
+            $this->teamStats = $service->getTeamStats($selectedArea, $from, $to);
         } elseif (auth()->user()?->can('ticket.view.all')) {
             // Admin: iterate all visible areas (= all areas for ticket.view.all users).
             $allStats = collect();
@@ -142,13 +144,16 @@ class PerformanceDashboard extends Page implements HasForms, HasTable
             });
             $this->teamStats = $allStats->unique(fn ($s) => $s['user']->id)->sortByDesc('compliance_rate')->values();
         } else {
-            // Supervisor: resolve areas from BOTH group membership (group_members rows)
-            // and groups where the user is the named manager (groups.employee_id).
-            // Uses the same resolveVisibleAreaIds() helper so dropdown and iteration stay in sync.
+            // Non-admin: resolve visible areas. If the user has selected a specific area
+            // and it falls within their visible set, scope to that area only.
+            // Otherwise iterate the full visibility set.
             $areaIds = $this->resolveVisibleAreaIds();
             if ($areaIds->isNotEmpty()) {
+                $iterateIds = ($selectedArea && $areaIds->contains($selectedArea))
+                    ? collect([$selectedArea])
+                    : $areaIds;
                 $allStats = collect();
-                $areaIds->each(function ($id) use ($service, $from, $to, &$allStats) {
+                $iterateIds->each(function ($id) use ($service, $from, $to, &$allStats) {
                     $allStats = $allStats->merge($service->getTeamStats($id, $from, $to));
                 });
                 $this->teamStats = $allStats->unique(fn ($s) => $s['user']->id)->values();

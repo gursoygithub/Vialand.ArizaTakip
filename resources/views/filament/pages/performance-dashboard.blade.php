@@ -244,8 +244,10 @@
                                 $name        = $row['user']->name ?? '?';
                                 $initial     = mb_strtoupper(mb_substr($name, 0, 1));
                                 $r           = $row['sla_compliance_rate'];
-                                $compPill    = $r >= 80 ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
-                                    : ($r >= 50 ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300'
+                                $hi          = $row['employee_threshold'] ?? 80.0;
+                                $lo          = $hi * 0.75;
+                                $compPill    = $r >= $hi ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
+                                    : ($r >= $lo ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300'
                                         : 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300');
                                 $breachCount = $row['closed_breached'];
                             @endphp

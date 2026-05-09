@@ -40,7 +40,9 @@ class PerformanceService
             ->whereBetween('created_at', [$from, $to])
             ->get();
 
-        return $this->aggregate($user, $tickets);
+        $stats = $this->aggregate($user, $tickets);
+        $stats['employee_threshold'] = (float) ($employee->current_threshold ?? 80);
+        return $stats;
     }
 
     /**
@@ -68,13 +70,14 @@ class PerformanceService
      * tickets, plus dashboard-only extras: priority breakdown, reopen
      * count/rate, total breach surface, and at-risk count.
      */
-    public function getOverview(Carbon $from, Carbon $to, ?User $viewer = null): array
+    public function getOverview(Carbon $from, Carbon $to, ?User $viewer = null, ?int $areaId = null): array
     {
         $viewer ??= auth()->user();
 
         $tickets = Ticket::query()
             ->visibleBy($viewer)
             ->whereBetween('created_at', [$from, $to])
+            ->when($areaId, fn ($q) => $q->where('area_id', $areaId))
             ->get();
 
         $base = $this->aggregate(null, $tickets);
@@ -122,7 +125,10 @@ class PerformanceService
             ])
             ->where('to_status', TaskStatusEnum::ASSIGNED->value)
             ->whereBetween('created_at', [$from, $to])
-            ->whereIn('ticket_id', Ticket::query()->visibleBy($viewer)->select('id'))
+            ->whereIn('ticket_id', Ticket::query()
+                ->visibleBy($viewer)
+                ->when($areaId, fn ($q) => $q->where('area_id', $areaId))
+                ->select('id'))
             ->count();
 
         $reopenRate = $base['total_assigned'] > 0
@@ -142,7 +148,7 @@ class PerformanceService
      * up front); without this filter regional totals would diverge from
      * per-person totals.
      */
-    public function getRegionBreakdown(Carbon $from, Carbon $to, ?User $viewer = null): Collection
+    public function getRegionBreakdown(Carbon $from, Carbon $to, ?User $viewer = null, ?int $areaId = null): Collection
     {
         $viewer ??= auth()->user();
 
@@ -150,6 +156,7 @@ class PerformanceService
             ->visibleBy($viewer)
             ->whereBetween('created_at', [$from, $to])
             ->whereNotIn('status', [TaskStatusEnum::CANCELLED])
+            ->when($areaId, fn ($q) => $q->where('area_id', $areaId))
             ->with('area:id,name')
             ->get()
             ->groupBy('area_id')
@@ -263,6 +270,7 @@ class PerformanceService
             'avg_resolution_minutes'    => 0,
             'sla_compliance_rate'       => 0,
             'avg_response_time_minutes' => 0,
+            'employee_threshold'        => 80.0,
             // Backward compat
             'total'                     => 0,
             'closed'                    => 0,
