@@ -93,15 +93,26 @@ class PerformanceDashboard extends Page implements HasForms, HasTable
             });
             $this->teamStats = $allStats->unique(fn ($s) => $s['user']->id)->sortByDesc('compliance_rate')->values();
         } else {
-            // Supervisor: show own area
-            $supervisorAreaId = \App\Models\Group::whereHas('members', fn ($q) =>
-                $q->whereHas('employee', fn ($eq) =>
-                    $eq->where('email', auth()->user()->email)
-                )
-            )->value('area_id');
+            // Supervisor: resolve areas from BOTH group membership (group_members rows)
+            // and groups where the user is the named manager (groups.employee_id).
+            // Mirrors the dual-path added to Ticket::scopeVisibleBy() in d5c1a30.
+            $supervisorEmployee = \App\Models\Employee::where('email', auth()->user()->email)->first();
+            $employeeId         = $supervisorEmployee?->id;
 
-            if ($supervisorAreaId) {
-                $this->teamStats = $service->getTeamStats($supervisorAreaId, $from, $to);
+            if ($employeeId) {
+                $memberAreaIds  = \App\Models\Group::whereHas('members',
+                    fn ($q) => $q->where('employee_id', $employeeId)
+                )->pluck('area_id');
+                $managedAreaIds = \App\Models\Group::where('employee_id', $employeeId)->pluck('area_id');
+                $areaIds        = $memberAreaIds->merge($managedAreaIds)->unique()->values();
+
+                if ($areaIds->isNotEmpty()) {
+                    $allStats = collect();
+                    $areaIds->each(function ($id) use ($service, $from, $to, &$allStats) {
+                        $allStats = $allStats->merge($service->getTeamStats($id, $from, $to));
+                    });
+                    $this->teamStats = $allStats->unique(fn ($s) => $s['user']->id)->values();
+                }
             }
         }
     }

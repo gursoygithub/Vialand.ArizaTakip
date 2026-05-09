@@ -74,10 +74,6 @@ class RecentTicketsTable extends BaseWidget
                 Tables\Columns\TextColumn::make('sla_deadline')
                     ->label('SLA')
                     ->formatStateUsing(function (Ticket $record): string {
-                        $statusValue = is_object($record->status) ? $record->status->value : (int) $record->status;
-                        if ($statusValue === TaskStatusEnum::ON_HOLD->value) {
-                            return '⏸ Duraklatıldı';
-                        }
                         if (!$record->sla_deadline) {
                             return 'SLA Yok';
                         }
@@ -91,22 +87,19 @@ class RecentTicketsTable extends BaseWidget
                     })
                     ->badge()
                     ->color(function (Ticket $record): string {
-                        $statusValue = is_object($record->status) ? $record->status->value : (int) $record->status;
-                        if ($statusValue === TaskStatusEnum::ON_HOLD->value) {
-                            return 'gray';
-                        }
                         if (!$record->sla_deadline) {
                             return 'gray';
                         }
                         if (now()->isAfter($record->sla_deadline)) {
                             return 'danger';
                         }
-                        $remaining = now()->diffInMinutes($record->sla_deadline, false);
-                        $total = $record->created_at->diffInMinutes($record->sla_deadline);
-                        if ($total > 0 && $remaining / $total < 0.5) {
-                            return 'warning';
+                        // Use SlaService so on_hold pause credits baked into
+                        // sla_deadline are accounted for correctly.
+                        $elapsed = app(\App\Services\SlaService::class)->getElapsedPercentage($record);
+                        if ($elapsed === null) {
+                            return 'gray';
                         }
-                        return 'success';
+                        return $elapsed >= 0.5 ? 'warning' : 'success';
                     }),
 
                 Tables\Columns\TextColumn::make('created_at')

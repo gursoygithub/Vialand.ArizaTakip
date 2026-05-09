@@ -261,4 +261,57 @@ class SlaEngineTest extends TestCase
 
         Carbon::setTestNow();
     }
+
+    public function test_get_elapsed_percentage_is_zero_at_creation(): void
+    {
+        Carbon::setTestNow('2026-05-01 09:00:00');
+
+        $area = Area::factory()->create();
+        $sub  = SubArea::factory()->create(['area_id' => $area->id]);
+        $unit = Unit::factory()->create();
+
+        // Ticket created now with a 2-hour window — no time has elapsed yet.
+        $ticket = Ticket::factory()->create([
+            'area_id'      => $area->id,
+            'sub_area_id'  => $sub->id,
+            'unit_id'      => $unit->id,
+            'created_at'   => Carbon::parse('2026-05-01 09:00:00'),
+            'sla_deadline' => Carbon::parse('2026-05-01 11:00:00'),
+            'status'       => TaskStatusEnum::IN_PROGRESS,
+        ]);
+
+        $pct = $this->sla->getElapsedPercentage($ticket);
+
+        $this->assertNotNull($pct);
+        $this->assertEqualsWithDelta(0.0, $pct, 0.01);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_get_elapsed_percentage_is_near_one_at_deadline(): void
+    {
+        // Set now to just before the deadline (119 of 120 minutes elapsed → ~0.99).
+        Carbon::setTestNow('2026-05-01 10:59:00');
+
+        $area = Area::factory()->create();
+        $sub  = SubArea::factory()->create(['area_id' => $area->id]);
+        $unit = Unit::factory()->create();
+
+        $ticket = Ticket::factory()->create([
+            'area_id'      => $area->id,
+            'sub_area_id'  => $sub->id,
+            'unit_id'      => $unit->id,
+            'created_at'   => Carbon::parse('2026-05-01 09:00:00'),
+            'sla_deadline' => Carbon::parse('2026-05-01 11:00:00'), // 2-hour window
+            'status'       => TaskStatusEnum::IN_PROGRESS,
+        ]);
+
+        $pct = $this->sla->getElapsedPercentage($ticket);
+
+        $this->assertNotNull($pct);
+        $this->assertLessThan(1.0, $pct);
+        $this->assertGreaterThan(0.9, $pct);
+
+        Carbon::setTestNow();
+    }
 }
