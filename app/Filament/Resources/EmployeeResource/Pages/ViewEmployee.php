@@ -203,14 +203,15 @@ class ViewEmployee extends ViewRecord
                                     ->with('unit')
                                     ->get()
                                     ->map(function ($stat) {
-                                        $sealed = (int) $stat->on_time_count + (int) $stat->breached_count;
-                                        $rate   = $sealed > 0
-                                            ? round(((int) $stat->on_time_count / $sealed) * 100, 1)
-                                            : 0;
+                                        $onTime = (int) $stat->on_time_count;
+                                        $sealed = $onTime + (int) $stat->breached_count;
+                                        $rate   = (float) ($sealed > 0
+                                            ? round($onTime / $sealed * 100, 1)
+                                            : 0);
 
                                         return [
                                             'unit_name'      => $stat->unit?->name ?? 'Tanımsız Birim',
-                                            'stats'          => "{$stat->on_time_count} / {$sealed}",
+                                            'stats'          => "{$onTime} / {$sealed}",
                                             'percentage'     => '%' . number_format($rate, 1, ',', '.'),
                                             'raw_percentage' => $rate,
                                         ];
@@ -263,15 +264,16 @@ class ViewEmployee extends ViewRecord
                                             ? $stat->priority
                                             : \App\Enums\TaskPriorityEnum::tryFrom($stat->priority);
 
-                                        $sealed = (int) $stat->on_time_count + (int) $stat->breached_count;
-                                        $rate   = $sealed > 0
-                                            ? round(((int) $stat->on_time_count / $sealed) * 100, 1)
-                                            : 0;
+                                        $onTime = (int) $stat->on_time_count;
+                                        $sealed = $onTime + (int) $stat->breached_count;
+                                        $rate   = (float) ($sealed > 0
+                                            ? round($onTime / $sealed * 100, 1)
+                                            : 0);
 
                                         return [
                                             'priority_label' => $priorityEnum?->getLabel() ?? 'Bilinmiyor',
                                             'priority_color' => $priorityEnum?->getColor() ?? 'gray',
-                                            'stats'          => "{$stat->on_time_count} / {$sealed}",
+                                            'stats'          => "{$onTime} / {$sealed}",
                                             'percentage'     => '%' . number_format($rate, 1, ',', '.'),
                                             'raw_percentage' => $rate,
                                         ];
