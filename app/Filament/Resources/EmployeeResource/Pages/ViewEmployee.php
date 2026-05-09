@@ -59,7 +59,10 @@ class ViewEmployee extends ViewRecord
         $complianceRate    = $denominator > 0
             ? round(($closedOnTime / $denominator) * 100, 1)
             : null;
-        $threshold         = $record->current_threshold ? (float) $record->current_threshold : null;
+
+        // Non-nullable threshold for RepeatableEntry color closures.
+        // Captured via use($threshold) — must be float, never null.
+        $threshold = (float) ($record->current_threshold ?? 80);
 
         // Son 30 gün — matches PerformanceService::aggregate() denominator
         // (all resolved, CANCELLED excluded). Anchored on resolved_at so the
@@ -80,9 +83,22 @@ class ViewEmployee extends ViewRecord
             ? round($last30OnTime / $last30Total * 100, 1)
             : null;
 
-        // Non-nullable threshold for RepeatableEntry color closures.
-        // Captured via use($threshold) — must be float, never null.
-        $threshold = (float) ($record->current_threshold ?? 80);
+        // Automated summary sentence — gives the manager an at-a-glance read
+        // without requiring them to interpret all five raw numbers.
+        $breached_active = $breachedCount;
+        if ($breached_active > 0) {
+            $summarySentence = "Aktif {$breached_active} SLA ihlali var — acil müdahale gerekiyor.";
+        } elseif ($last30Total === 0) {
+            $summarySentence = "Son 30 günde değerlendirilen talep yok. Genel oran %" . number_format($complianceRate ?? 0, 1, ',', '.') . ".";
+        } elseif ($last30Rate !== null && $complianceRate !== null && $last30Rate >= $threshold && $complianceRate < $threshold) {
+            $summarySentence = "Son 30 günde hedefi tutturdu (%" . number_format($last30Rate, 1, ',', '.') . "). Genel oran %" . number_format($complianceRate, 1, ',', '.') . " — eski ihlaller etkili.";
+        } elseif ($last30Rate !== null && $last30Rate >= $threshold) {
+            $summarySentence = "Performans hedef üzerinde. Son 30 gün: %" . number_format($last30Rate, 1, ',', '.') . ".";
+        } elseif ($last30Rate !== null && $complianceRate !== null && $last30Rate < $complianceRate) {
+            $summarySentence = "Son 30 günde performans düşüyor (%" . number_format($last30Rate, 1, ',', '.') . "). Geçmiş ortalama: %" . number_format($complianceRate, 1, ',', '.') . ".";
+        } else {
+            $summarySentence = "Son 30 gün: %" . number_format($last30Rate ?? 0, 1, ',', '.') . " · Tüm zamanlar: %" . number_format($complianceRate ?? 0, 1, ',', '.') . ".";
+        }
 
         return $infolist
             ->schema([
@@ -107,81 +123,104 @@ class ViewEmployee extends ViewRecord
                             ->icon('heroicon-o-phone'),
                     ]),
 
-                // 2. Aktif iş yükü — what's on the tech's plate right now.
-                Section::make(__('ui.employee_active_workload'))
-                    ->icon('heroicon-o-clipboard-document-list')
-                    ->schema([
-                        Grid::make(3)->schema([
-                            TextEntry::make('active_tickets')
-                                ->label(__('ui.employee_in_progress'))
-                                ->badge()
-                                ->color($activeCount > 0 ? 'warning' : 'gray')
-                                ->state($activeCount),
-
-                            TextEntry::make('breached_active')
-                                ->label(__('ui.employee_sla_breach'))
-                                ->badge()
-                                ->color($breachedCount > 0 ? 'danger' : 'gray')
-                                ->state($breachedCount),
-
-                            TextEntry::make('reopened_count')
-                                ->label(__('ui.employee_reopened'))
-                                ->badge()
-                                ->color($reopenedCount > 0 ? 'warning' : 'gray')
-                                ->state($reopenedCount),
-                        ]),
-                    ]),
-
                 // 3. SLA Performans Analizi — sla_breached based, matches
                 //    PerformanceService's compliance computation.
+                //    §2 Aktif İş Yükü merged into Group A below.
                 Section::make(__('ui.employee_sla_analysis'))
                     ->icon('heroicon-o-presentation-chart-line')
-                    ->columns(6)
                     ->schema([
-                        TextEntry::make('compliance_rate')
-                            ->label(__('ui.employee_general_success_rate'))
-                            ->helperText('Tüm zamanlar — kapalı ve aktif ihlaller dahil')
-                            ->state($complianceRate === null ? '—' : '%' . number_format($complianceRate, 1, ',', '.'))
-                            ->weight('bold')
-                            ->badge()
-                            ->color(function () use ($complianceRate, $threshold) {
-                                if ($complianceRate === null) return 'gray';
-                                $hi = $threshold ?? 80;
-                                $lo = $threshold !== null ? $threshold * 0.75 : 50;
-                                return $complianceRate >= $hi
-                                    ? 'success'
-                                    : ($complianceRate >= $lo ? 'warning' : 'danger');
-                            }),
+                        // Reopened warning banner — only shown when count > 0.
+                        TextEntry::make('reopened_warning')
+                            ->label('')
+                            ->state("⚠ Bu personelin {$reopenedCount} ticket'ı yeniden açılmış")
+                            ->columnSpanFull()
+                            ->extraAttributes(['class' => 'text-amber-700 dark:text-amber-400 font-medium'])
+                            ->visible(fn () => $reopenedCount > 0),
 
-                        TextEntry::make('last30_rate')
-                            ->label(__('ui.employee_last30_rate'))
-                            ->helperText('Sadece son 30 günde çözülen talepler')
-                            ->state($last30Rate === null ? '—' : '%' . number_format($last30Rate, 1, ',', '.'))
-                            ->badge()
-                            ->color(function () use ($last30Rate, $threshold) {
-                                if ($last30Rate === null) return 'gray';
-                                $hi = $threshold ?? 80;
-                                $lo = $threshold !== null ? $threshold * 0.75 : 50;
-                                return $last30Rate >= $hi ? 'success' : ($last30Rate >= $lo ? 'warning' : 'danger');
-                            }),
+                        // Automated assessment sentence at top of §3.
+                        TextEntry::make('summary_sentence')
+                            ->label('')
+                            ->state($summarySentence)
+                            ->columnSpanFull()
+                            ->extraAttributes(['class' => 'text-base font-medium italic text-gray-700 dark:text-gray-200']),
 
-                        TextEntry::make('last30_tickets')
-                            ->label(__('ui.employee_last30_tickets'))
-                            ->state((string) $last30Total)
-                            ->badge()
-                            ->color('gray'),
+                        // Three thematic groups replacing the previous 5-flat-entry grid.
+                        Grid::make(3)->schema([
+                            // GROUP A — Şu Anki Durum (workload absorbed from deleted §2)
+                            Section::make('Şu Anki Durum')
+                                ->description('Personelin şu an üzerinde olan iş yükü')
+                                ->compact()
+                                ->schema([
+                                    TextEntry::make('active_tickets')
+                                        ->label(__('ui.employee_in_progress'))
+                                        ->badge()
+                                        ->color($activeCount > 0 ? 'warning' : 'gray')
+                                        ->state($activeCount),
 
-                        TextEntry::make('current_threshold')
-                            ->label(__('ui.employee_sla_target'))
-                            ->state($threshold === null ? '—' : '%' . number_format($threshold, 1, ',', '.'))
-                            ->badge()
-                            ->color('info'),
+                                    TextEntry::make('breached_active')
+                                        ->label(__('ui.employee_sla_breach'))
+                                        ->badge()
+                                        ->color($breachedCount > 0 ? 'danger' : 'gray')
+                                        ->state($breachedCount),
+                                ]),
 
-                        TextEntry::make('cohort_size')
-                            ->label(__('ui.employee_calc_base'))
-                            ->state($totalCohortCount . ' Talep')
-                            ->badge()
-                            ->color('info'),
+                            // GROUP B — Son 30 Gün Performansı
+                            Section::make('Son 30 Gün Performansı')
+                                ->description('Yakın dönem performans göstergesi')
+                                ->compact()
+                                ->schema([
+                                    TextEntry::make('last30_rate')
+                                        ->label(__('ui.employee_last30_rate'))
+                                        ->helperText('Sadece son 30 günde çözülen talepler')
+                                        ->state($last30Rate === null ? '—' : '%' . number_format($last30Rate, 1, ',', '.'))
+                                        ->badge()
+                                        ->color(function () use ($last30Rate, $threshold) {
+                                            if ($last30Rate === null) return 'gray';
+                                            $hi = $threshold ?? 80;
+                                            $lo = $threshold !== null ? $threshold * 0.75 : 50;
+                                            return $last30Rate >= $hi ? 'success' : ($last30Rate >= $lo ? 'warning' : 'danger');
+                                        }),
+
+                                    TextEntry::make('last30_tickets')
+                                        ->label(__('ui.employee_last30_tickets'))
+                                        ->state((string) $last30Total)
+                                        ->badge()
+                                        ->color('gray'),
+                                ]),
+
+                            // GROUP C — Tüm Zamanlar
+                            Section::make('Tüm Zamanlar')
+                                ->description('Geçmiş tüm dönemleri kapsar')
+                                ->compact()
+                                ->schema([
+                                    TextEntry::make('compliance_rate')
+                                        ->label(__('ui.employee_general_success_rate'))
+                                        ->helperText('Tüm zamanlar — kapalı ve aktif ihlaller dahil')
+                                        ->state($complianceRate === null ? '—' : '%' . number_format($complianceRate, 1, ',', '.'))
+                                        ->weight('bold')
+                                        ->badge()
+                                        ->color(function () use ($complianceRate, $threshold) {
+                                            if ($complianceRate === null) return 'gray';
+                                            $hi = $threshold ?? 80;
+                                            $lo = $threshold !== null ? $threshold * 0.75 : 50;
+                                            return $complianceRate >= $hi
+                                                ? 'success'
+                                                : ($complianceRate >= $lo ? 'warning' : 'danger');
+                                        }),
+
+                                    TextEntry::make('current_threshold')
+                                        ->label(__('ui.employee_sla_target'))
+                                        ->state('%' . number_format($threshold, 1, ',', '.'))
+                                        ->badge()
+                                        ->color('info'),
+
+                                    TextEntry::make('cohort_size')
+                                        ->label(__('ui.employee_calc_base'))
+                                        ->state($totalCohortCount . ' Talep')
+                                        ->badge()
+                                        ->color('info'),
+                                ]),
+                        ]),
                     ]),
 
                 // 4. Birim Bazlı SLA Dağılımı — backed by sla_breached.
