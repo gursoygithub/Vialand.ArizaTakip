@@ -596,8 +596,10 @@ class TicketResource extends Resource
                     ->multiple()
                     ->searchable()
                     ->options(fn () => \App\Models\SubArea::query()
-                        ->whereHas('tickets', fn ($q) =>
-                            $q->visibleBy(auth()->user()))
+                        ->whereIn('id', Ticket::visibleBy(auth()->user())
+                            ->whereNotNull('sub_area_id')
+                            ->distinct()
+                            ->pluck('sub_area_id'))
                         ->orderBy('name')
                         ->pluck('name', 'id')
                         ->toArray()),
@@ -606,9 +608,11 @@ class TicketResource extends Resource
                     ->label(__('ui.unit'))
                     ->multiple()
                     ->searchable()
-                    ->options(fn () => \App\Models\Unit::query()
-                        ->whereHas('tickets', fn ($q) =>
-                            $q->visibleBy(auth()->user()))
+                    ->options(fn () => Unit::query()
+                        ->whereIn('id', Ticket::visibleBy(auth()->user())
+                            ->whereNotNull('unit_id')
+                            ->distinct()
+                            ->pluck('unit_id'))
                         ->orderBy('name')
                         ->pluck('name', 'id')
                         ->toArray()),
@@ -637,8 +641,10 @@ class TicketResource extends Resource
                         && !auth()->user()?->hasRole('super_admin')
                         && !auth()->user()?->can('ticket.view.all'))
                     ->options(fn () => Employee::query()
-                        ->whereHas('tickets', fn ($q) =>
-                            $q->visibleBy(auth()->user()))
+                        ->whereIn('id', Ticket::visibleBy(auth()->user())
+                            ->whereNotNull('employee_id')
+                            ->distinct()
+                            ->pluck('employee_id'))
                         ->orderBy('name')
                         ->pluck('name', 'id')
                         ->toArray()),

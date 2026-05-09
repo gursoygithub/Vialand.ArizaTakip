@@ -224,8 +224,11 @@ class TicketsRelationManager extends RelationManager
                     ->label(__('ui.unit'))
                     ->multiple()
                     ->options(fn () => \App\Models\Unit::query()
-                        ->whereHas('tickets', fn ($q) =>
-                            $q->visibleBy(auth()->user()))
+                        ->whereIn('id', \App\Models\Ticket::query()
+                            ->visibleBy(auth()->user())
+                            ->whereNotNull('unit_id')
+                            ->distinct()
+                            ->pluck('unit_id'))
                         ->orderBy('name')
                         ->pluck('name', 'id')
                         ->toArray()),
