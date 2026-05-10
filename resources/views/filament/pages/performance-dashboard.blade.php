@@ -27,27 +27,27 @@
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-4">
             <div class="flex flex-wrap gap-2 mb-5">
                 <button type="button" wire:click="setDateRange('this_week')"
-                        class="px-3 py-1.5 text-xs font-medium rounded-md bg-primary-50 text-primary-700 hover:bg-primary-100 dark:bg-primary-950 dark:text-primary-300 dark:hover:bg-primary-900 transition">
+                        class="px-3 py-1.5 text-xs font-medium rounded-md bg-sky-100 text-sky-800 hover:bg-sky-200 dark:bg-sky-900/40 dark:text-sky-200 dark:hover:bg-sky-900/60 transition border border-sky-200 dark:border-sky-800">
                     Bu Hafta
                 </button>
                 <button type="button" wire:click="setDateRange('this_month')"
-                        class="px-3 py-1.5 text-xs font-medium rounded-md bg-primary-50 text-primary-700 hover:bg-primary-100 dark:bg-primary-950 dark:text-primary-300 dark:hover:bg-primary-900 transition">
+                        class="px-3 py-1.5 text-xs font-medium rounded-md bg-sky-100 text-sky-800 hover:bg-sky-200 dark:bg-sky-900/40 dark:text-sky-200 dark:hover:bg-sky-900/60 transition border border-sky-200 dark:border-sky-800">
                     Bu Ay
                 </button>
                 <button type="button" wire:click="setDateRange('last_month')"
-                        class="px-3 py-1.5 text-xs font-medium rounded-md bg-primary-50 text-primary-700 hover:bg-primary-100 dark:bg-primary-950 dark:text-primary-300 dark:hover:bg-primary-900 transition">
+                        class="px-3 py-1.5 text-xs font-medium rounded-md bg-sky-100 text-sky-800 hover:bg-sky-200 dark:bg-sky-900/40 dark:text-sky-200 dark:hover:bg-sky-900/60 transition border border-sky-200 dark:border-sky-800">
                     Geçen Ay
                 </button>
                 <button type="button" wire:click="setDateRange('last_30_days')"
-                        class="px-3 py-1.5 text-xs font-medium rounded-md bg-primary-50 text-primary-700 hover:bg-primary-100 dark:bg-primary-950 dark:text-primary-300 dark:hover:bg-primary-900 transition">
+                        class="px-3 py-1.5 text-xs font-medium rounded-md bg-sky-100 text-sky-800 hover:bg-sky-200 dark:bg-sky-900/40 dark:text-sky-200 dark:hover:bg-sky-900/60 transition border border-sky-200 dark:border-sky-800">
                     Son 30 Gün
                 </button>
                 <button type="button" wire:click="setDateRange('this_quarter')"
-                        class="px-3 py-1.5 text-xs font-medium rounded-md bg-primary-50 text-primary-700 hover:bg-primary-100 dark:bg-primary-950 dark:text-primary-300 dark:hover:bg-primary-900 transition">
+                        class="px-3 py-1.5 text-xs font-medium rounded-md bg-sky-100 text-sky-800 hover:bg-sky-200 dark:bg-sky-900/40 dark:text-sky-200 dark:hover:bg-sky-900/60 transition border border-sky-200 dark:border-sky-800">
                     Bu Çeyrek
                 </button>
                 <button type="button" wire:click="setDateRange('this_year')"
-                        class="px-3 py-1.5 text-xs font-medium rounded-md bg-primary-50 text-primary-700 hover:bg-primary-100 dark:bg-primary-950 dark:text-primary-300 dark:hover:bg-primary-900 transition">
+                        class="px-3 py-1.5 text-xs font-medium rounded-md bg-sky-100 text-sky-800 hover:bg-sky-200 dark:bg-sky-900/40 dark:text-sky-200 dark:hover:bg-sky-900/60 transition border border-sky-200 dark:border-sky-800">
                     Bu Yıl
                 </button>
             </div>
