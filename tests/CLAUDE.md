@@ -139,6 +139,14 @@ label in test context):
 - **`test_employee_label_resolver_returns_name_for_known_id`** — known ID → employee name
 - **`test_employee_label_resolver_falls_back_to_id_string_for_unknown_id`** — unknown ID → ID cast to string
 
+## Creator/Assignee Bypass in `Ticket::scopeVisibleBy`
+
+Within the `ticket.view.group` branch, the scope always ORs in tickets where `created_by = $user->id` OR `employee_id = $employee->id`. This ensures creators and current assignees never lose visibility to their own tickets when the company/group gate would otherwise exclude them.
+
+**Tests are covered by `TicketGroupMembershipScopingTest`** (positive and negative cases), which exercises the `ticket.view.own` branch end-to-end through `TicketResource::getEloquentQuery()`. No separate creator/assignee bypass test class exists — the bypass is validated indirectly via the group-membership tests.
+
+**If you add a test:** create a ticket owned by user A, assign it to user B, then verify both users see it even when neither belongs to the ticket's area/company. Use `ticket.view.group` permission (not `view.all`) to keep the scope branch active.
+
 ## Group-Membership Area Scoping Coverage (`tests/Feature/TicketGroupMembershipScopingTest.php`)
 
 Users whose employee belongs to a group in a foreign company's area must see that
