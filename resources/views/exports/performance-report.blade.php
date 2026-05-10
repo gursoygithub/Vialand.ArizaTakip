@@ -5,20 +5,7 @@
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
     <title>Performans Raporu</title>
     <style>
-        @font-face {
-            font-family: 'dejavu';
-            src: url('{{ base_path('vendor/dompdf/dompdf/lib/fonts/DejaVuSans.ttf') }}') format('truetype');
-            font-weight: normal;
-            font-style: normal;
-        }
-        @font-face {
-            font-family: 'dejavu';
-            src: url('{{ base_path('vendor/dompdf/dompdf/lib/fonts/DejaVuSans-Bold.ttf') }}') format('truetype');
-            font-weight: bold;
-            font-style: normal;
-        }
-
-        body { font-family: 'dejavu', sans-serif; font-size: 11px; color: #1f2937; margin: 0; padding: 20px 30px; }
+        body { font-family: DejaVu Sans, sans-serif; font-size: 11px; color: #1f2937; margin: 0; padding: 20px 30px; }
         .section { margin-top: 18px; page-break-inside: avoid; }
         .section h2 { font-size: 13px; border-bottom: 1px solid #e5e7eb; padding-bottom: 4px; margin-bottom: 0; }
         table { width: 100%; border-collapse: collapse; margin-top: 6px; }

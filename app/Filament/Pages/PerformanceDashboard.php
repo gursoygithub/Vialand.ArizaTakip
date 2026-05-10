@@ -221,7 +221,11 @@ class PerformanceDashboard extends Page implements HasForms, HasTable
         ];
 
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('exports.performance-report', $context)
-            ->setPaper('a4', 'portrait');
+            ->setPaper('a4', 'portrait')
+            ->setOption([
+                'defaultFont'             => 'DejaVu Sans',
+                'isFontSubsettingEnabled' => true,
+            ]);
 
         return response()->streamDownload(
             fn () => print($pdf->output()),
