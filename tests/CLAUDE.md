@@ -59,6 +59,27 @@ Carbon::setTestNow(); // reset
 - `test_sla_deadline_calculated_on_ticket_create`
 - `test_sla_breach_detected_when_deadline_passed`
 
+## Per-Test Permission Grants (post-reform rule)
+
+`PermissionSeeder` is existence-only — it no longer assigns permissions to roles
+(admin, supervisor, technician, etc.). Tests must grant all required permissions
+explicitly per test using `givePermissionTo()`:
+
+```php
+// DO THIS — explicit per-test grant
+$user->assignRole('supervisor');
+$user->givePermissionTo('ticket.view.group');
+
+// NOT THIS — relies on seeder role grants that no longer exist
+$user->assignRole('supervisor'); // has zero permissions after reform
+```
+
+`seed(\Database\Seeders\PermissionSeeder::class)` in `setUp()` ensures
+permission rows exist so `givePermissionTo()` doesn't throw. Always seed
+before granting. `super_admin` still receives all permissions via
+`syncPermissions(Permission::pluck('name'))` in the seeder — tests using
+`assignRole('super_admin')` need no explicit grants.
+
 ## HTTP Authorization Quirk (Filament 3.x)
 Filament returns **404, not 403**, on model-bound routes (view/edit) when
 the model's `query()` scope filters the record out for the user. Tests

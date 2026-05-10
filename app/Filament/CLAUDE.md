@@ -12,6 +12,20 @@
 - One Resource per model; one Widget per chart/metric
 - Business logic stays in `app/Services/` — never inline in Resources
 
+## Resource Scope (non-Ticket)
+All non-Ticket Resources use the `ScopedByVisibility` trait
+(`app/Filament/Concerns/ScopedByVisibility`). Provides:
+- Default `getEloquentQuery()` scoped to `created_by = auth()->id()`
+- Override with `protected static string $viewAllPermission = 'view_all_X'` to
+  allow users with that permission to see all records
+- `super_admin` bypasses unconditionally via Spatie's Gate::before
+- To add extra WHERE clauses on top of the scope, override `getEloquentQuery()`,
+  call `static::applyVisibilityScope(parent::getEloquentQuery())`, then chain
+  (see `UserResource` for example)
+
+**Ticket is NOT covered by this trait** — it uses `Ticket::scopeVisibleBy()`
+with its own 4-branch logic. See root CLAUDE.md § "Ticket Visibility".
+
 ## TicketResource Specifics
 - List page (`Pages/ListTickets`) polls every 60 s for live SLA countdown; tabs include OPEN / ASSIGNED / IN_PROGRESS / ON_HOLD / RESOLVED / CLOSED / **breached** (column-backed via `Ticket::scopeSlaBreached`)
 - Row actions: wrapped in `Tables\Actions\ActionGroup::make([...])` (the
@@ -59,10 +73,10 @@
 ## PerformanceDashboard (`Pages/PerformanceDashboard`)
 
 - `canAccess()` checks `page_PerformanceDashboard` (Shield layer 2). Any role granted this permission via the Shield UI panel can access the page.
-- **Export** — the "Çıktı Al" button is wrapped in `@can('report.view')` so it is hidden from users without that permission. `submitExport()` enforces `abort_unless(...can('report.view'), 403)` as a server-side guard. The Livewire properties `$exportFormat` (string, default `'pdf'`) and `$exportSections` (array, default `['kpi','priority','region','team']`) back the modal form. `submitExport()` returns a `StreamedResponse` directly (Livewire 3 picks up returned download responses from actions).
+- **Export** — the "Çıktı Al" button is wrapped in `@can('ticket.export')` so it is hidden from users without that permission. `submitExport()` enforces `abort_unless(...can('ticket.export'), 403)` as a server-side guard. The Livewire properties `$exportFormat` (string, default `'pdf'`) and `$exportSections` (array, default `['kpi','priority','region','team']`) back the modal form. `submitExport()` returns a `StreamedResponse` directly (Livewire 3 picks up returned download responses from actions).
 - **Active preset highlighting** — `$activePreset` (nullable string Livewire property) stores the last clicked preset key (`'this_week'`, `'this_month'`, etc.). `setDateRange(string $preset)` sets it; `updatedDateFrom()` / `updatedDateTo()` clear it to `null` when the user manually changes a date input. Preset buttons use inline `style=` hex colors to avoid Tailwind purge issues in the custom Blade view.
 - **PDF export** — uses `barryvdh/laravel-dompdf`. Key decisions: (a) logo is base64-encoded at render time via `file_get_contents(public_path('img/gursoygrup-logo.png'))` and passed as a data URI — DomPDF's chroot blocks `public_path()` file system access from the template; (b) `->setOption(['defaultFont' => 'DejaVu Sans', 'isFontSubsettingEnabled' => true])` activates the bundled DejaVu font which has full Unicode/Turkish coverage; (c) `<th>` content is written as literal uppercase strings — CSS `text-transform:uppercase` breaks the dotted İ glyph in DomPDF's font shaping pass; (d) dates use `Carbon::parse()->translatedFormat('d M Y')` for Turkish month names.
-- **Widgets** — `TicketStatsOverview`, `RecentTicketsTable`, `SlaComplianceTrendChart`, `TicketsByPriorityChart`, `TicketsByStatusChart` are registered in `DashboardPanelProvider`. Only `TicketStatsOverview` has a `canView()` override (checks `ticket.view.all` OR `ticket.view.group`). `RecentTicketsTable` renders for any authenticated user regardless of `widget_RecentTicketsTable`. `widget_DailyTaskPerformance` is a Spatie permission orphan — no corresponding widget class exists; it can be safely deleted from the DB.
+- **Widgets** — `TicketStatsOverview`, `RecentTicketsTable`, `SlaComplianceTrendChart`, `TicketsByPriorityChart`, `TicketsByStatusChart` are registered in `DashboardPanelProvider`. All widgets use `canView()` checking their `widget_X` permission — consistent post-reform. `TicketStatsOverview` additionally checks `ticket.view.all` OR `ticket.view.group` (data-relevance gate on top of surface access). `RecentTicketsTable` checks `widget_RecentTicketsTable`; its data query uses `Ticket::scopeVisibleBy()` for row-level scoping. `widget_DailyTaskPerformance` was a Spatie permission orphan (no corresponding widget class) — deleted by the May 2026 reform migration.
 
 ## CompanySetupWizard
 - Hard-blocks each step until prerequisites pass — see Setup Chain Rules in `app/Services/CLAUDE.md`
