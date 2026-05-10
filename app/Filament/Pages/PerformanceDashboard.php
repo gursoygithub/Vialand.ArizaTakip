@@ -205,8 +205,8 @@ class PerformanceDashboard extends Page implements HasForms, HasTable
             'regionBreakdown' => in_array('region', $sections) ? $this->regionBreakdown : null,
             'teamStats'       => in_array('team', $sections) ? $this->teamStats : null,
             'showPriority'    => in_array('priority', $sections),
-            'dateFrom'        => $this->dateFrom,
-            'dateTo'          => $this->dateTo,
+            'dateFrom'        => Carbon::parse($this->dateFrom)->translatedFormat('d M Y'),
+            'dateTo'          => Carbon::parse($this->dateTo)->translatedFormat('d M Y'),
             'areaName'        => $this->areaId
                 ? Area::find($this->areaId)?->name
                 : 'Tümü',

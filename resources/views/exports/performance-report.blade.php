@@ -34,7 +34,7 @@
 {{-- Header --}}
 <div class="header">
     <div class="header-logo">
-        <img src="{{ public_path('vialand-logo.png') }}" alt="Logo">
+        <img src="{{ public_path('img/gursoy-grup-logo.png') }}" alt="Gürsoy Grup">
     </div>
     <div class="header-text">
         <h1>Performans Raporu</h1>
