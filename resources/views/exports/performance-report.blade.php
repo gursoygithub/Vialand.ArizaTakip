@@ -18,7 +18,7 @@
 
         .header { margin-bottom: 24px; padding-bottom: 16px; border-bottom: 2px solid #1f2937; }
         .header-logo { margin-bottom: 12px; }
-        .header-logo img { height: 48px; width: auto; display: block; }
+        .header-logo img { height: 60px; width: auto; display: block; }
         .header h1 { font-size: 22px; font-weight: 700; margin: 0 0 6px 0; color: #111827; }
         .header .meta { font-size: 10px; color: #6b7280; margin: 0; line-height: 1.5; }
 
@@ -33,7 +33,7 @@
 <div class="header">
     @if($logoData ?? false)
         <div class="header-logo">
-            <img src="{{ $logoData }}" alt="">
+            <img src="{{ $logoData }}" alt="" height="60" style="height: 60px; width: auto;">
         </div>
     @endif
     <h1>Performans Raporu</h1>
