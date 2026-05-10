@@ -167,21 +167,29 @@ class TicketResource extends Resource
                                 $companyIds = $user?->scopedCompanyIds() ?? [];
                                 $employeeId = $user?->employee?->id;
 
-                                $groupAreaIds = $employeeId
+                                $groupAreaIds   = $employeeId
                                     ? \App\Models\Group::whereHas('members',
                                         fn ($q) => $q->where('employee_id', $employeeId))
                                         ->pluck('area_id')
                                         ->toArray()
                                     : [];
+                                // Also include areas of groups the user supervises
+                                // (groups.employee_id = amir path), mirroring scopeVisibleBy().
+                                $managedAreaIds = $employeeId
+                                    ? \App\Models\Group::where('employee_id', $employeeId)
+                                        ->pluck('area_id')
+                                        ->toArray()
+                                    : [];
+                                $supplementaryAreaIds = array_unique(array_merge($groupAreaIds, $managedAreaIds));
 
                                 return Area::query()
                                     ->with('company')
-                                    ->where(function ($q) use ($companyIds, $groupAreaIds) {
+                                    ->where(function ($q) use ($companyIds, $supplementaryAreaIds) {
                                         if (!empty($companyIds)) {
                                             $q->whereIn('company_id', $companyIds);
                                         }
-                                        if (!empty($groupAreaIds)) {
-                                            $q->orWhereIn('id', $groupAreaIds);
+                                        if (!empty($supplementaryAreaIds)) {
+                                            $q->orWhereIn('id', $supplementaryAreaIds);
                                         }
                                     })
                                     ->where('status', ActiveStatusEnum::ACTIVE)
@@ -322,15 +330,23 @@ class TicketResource extends Resource
                                         ->pluck('id')
                                         ->toArray()
                                     : [];
+                                // Also include groups the user supervises (groups.employee_id = amir path),
+                                // mirroring scopeVisibleBy().
+                                $managedGroupIds = $employeeId
+                                    ? Group::where('employee_id', $employeeId)
+                                        ->pluck('id')
+                                        ->toArray()
+                                    : [];
+                                $supplementaryGroupIds = array_unique(array_merge($memberGroupIds, $managedGroupIds));
 
                                 return Group::query()
                                     ->where('area_id', $areaId)
-                                    ->where(function ($q) use ($companyIds, $memberGroupIds) {
+                                    ->where(function ($q) use ($companyIds, $supplementaryGroupIds) {
                                         if (!empty($companyIds)) {
                                             $q->whereIn('company_id', $companyIds);
                                         }
-                                        if (!empty($memberGroupIds)) {
-                                            $q->orWhereIn('id', $memberGroupIds);
+                                        if (!empty($supplementaryGroupIds)) {
+                                            $q->orWhereIn('id', $supplementaryGroupIds);
                                         }
                                     })
                                     ->where('status', ActiveStatusEnum::ACTIVE)
