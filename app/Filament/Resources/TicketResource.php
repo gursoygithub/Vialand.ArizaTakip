@@ -204,9 +204,13 @@ class TicketResource extends Resource
                                 return Area::query()
                                     ->with('company')
                                     ->where(function ($q) use ($companyIds, $supplementaryAreaIds) {
-                                        if (!empty($companyIds)) {
-                                            $q->whereIn('company_id', $companyIds);
+                                        // Empty scopedCompanyIds() means "no scope" (super_admin
+                                        // or unfiltered user) — show all active areas.
+                                        if (empty($companyIds)) {
+                                            return; // no WHERE constraint → match all
                                         }
+                                        // Otherwise: areas in user's companies OR supplementary.
+                                        $q->whereIn('company_id', $companyIds);
                                         if (!empty($supplementaryAreaIds)) {
                                             $q->orWhereIn('id', $supplementaryAreaIds);
                                         }
@@ -382,9 +386,13 @@ class TicketResource extends Resource
                                 return Group::query()
                                     ->where('area_id', $areaId)
                                     ->where(function ($q) use ($companyIds, $supplementaryGroupIds) {
-                                        if (!empty($companyIds)) {
-                                            $q->whereIn('company_id', $companyIds);
+                                        // Empty scopedCompanyIds() means "no scope" (super_admin
+                                        // or unfiltered user) — show all groups in this area.
+                                        if (empty($companyIds)) {
+                                            return; // no WHERE constraint → match all
                                         }
+                                        // Otherwise: groups in user's companies OR supplementary.
+                                        $q->whereIn('company_id', $companyIds);
                                         if (!empty($supplementaryGroupIds)) {
                                             $q->orWhereIn('id', $supplementaryGroupIds);
                                         }
