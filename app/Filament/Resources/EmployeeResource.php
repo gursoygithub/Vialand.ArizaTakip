@@ -3,6 +3,7 @@
 namespace App\Filament\Resources;
 
 use App\Enums\TaskStatusEnum;
+use App\Filament\Concerns\ScopedByVisibility;
 use App\Filament\Resources\EmployeeResource\Pages;
 use App\Filament\Resources\EmployeeResource\RelationManagers;
 use App\Models\Employee;
@@ -18,6 +19,10 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class EmployeeResource extends Resource
 {
+    use ScopedByVisibility;
+
+    protected static string $viewAllPermission = 'view_all_employees';
+
     protected static ?string $model = Employee::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-users';
@@ -39,31 +44,7 @@ class EmployeeResource extends Resource
 
     public static function getNavigationBadge(): ?string
     {
-        return static::getEloquentQuery()->count();
-    }
-
-    // EmployeeResource.php
-    public static function getEloquentQuery(): Builder
-    {
-        $user = auth()->user();
-
-        if ($user?->hasRole('super_admin') || $user?->can('view_all_employees')) {
-            return parent::getEloquentQuery();
-        }
-
-        $employeeId = $user?->employee?->id;
-
-        $memberEmployeeIds = \App\Models\GroupMember::query()
-            ->join('groups', 'groups.id', '=', 'group_members.group_id')
-            ->where('groups.employee_id', $employeeId)
-            ->whereNull('group_members.deleted_at')
-            ->whereNull('groups.deleted_at')
-            ->pluck('group_members.employee_id')
-            ->push($employeeId)
-            ->filter()
-            ->unique();
-
-        return parent::getEloquentQuery()->whereIn('id', $memberEmployeeIds);
+        return (string) static::getEloquentQuery()->count();
     }
 
     public static function form(Form $form): Form

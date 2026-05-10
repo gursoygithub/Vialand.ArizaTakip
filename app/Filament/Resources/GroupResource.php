@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Enums\ActiveStatusEnum;
 use App\Enums\TaskStatusEnum;
+use App\Filament\Concerns\ScopedByVisibility;
 use App\Filament\Resources\GroupResource\Pages;
 use App\Filament\Resources\GroupResource\RelationManagers;
 use App\Models\Group;
@@ -20,6 +21,10 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class GroupResource extends Resource
 {
+    use ScopedByVisibility;
+
+    protected static string $viewAllPermission = 'view_all_groups';
+
     protected static ?string $model = Group::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-user-group';
@@ -39,23 +44,9 @@ class GroupResource extends Resource
         return __('ui.user_management');
     }
 
-    public static function getEloquentQuery(): Builder
-    {
-        $user = auth()->user();
-
-        if ($user->hasRole('super_admin') || $user->can('view_all_groups')) {
-            return parent::getEloquentQuery();
-        }
-
-        $employeeId = $user->employee?->id;
-
-        return parent::getEloquentQuery()
-            ->where('employee_id', $employeeId);
-    }
-
     public static function getNavigationBadge(): ?string
     {
-        return static::getEloquentQuery()->count();
+        return (string) static::getEloquentQuery()->count();
     }
 
     public static function form(Form $form): Form
@@ -268,6 +259,7 @@ class GroupResource extends Resource
             return false;
         }
 
-        return auth()->user()->hasRole('super_admin') || auth()->id() === $record->created_by;
+        return auth()->user()->hasRole('super_admin')
+            || $record->created_by === auth()->user()->id;
     }
 }

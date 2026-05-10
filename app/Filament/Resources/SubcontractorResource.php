@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Concerns\ScopedByVisibility;
 use App\Filament\Resources\SubcontractorResource\Pages;
 use App\Filament\Resources\SubcontractorResource\RelationManagers;
 use App\Models\Subcontractor;
@@ -16,6 +17,12 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class SubcontractorResource extends Resource
 {
+    use ScopedByVisibility;
+
+    // Note: Subcontractor model already overrides query() with the same created_by
+    // scoping logic. The trait's filter is additive but idempotent (same WHERE clause).
+    protected static string $viewAllPermission = 'view_all_subcontractors';
+
     protected static bool $shouldRegisterNavigation = false;
     protected static ?string $model = Subcontractor::class;
 

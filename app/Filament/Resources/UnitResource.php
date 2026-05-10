@@ -3,6 +3,7 @@
 namespace App\Filament\Resources;
 
 use App\Enums\TaskStatusEnum;
+use App\Filament\Concerns\ScopedByVisibility;
 use App\Filament\Resources\UnitResource\Pages;
 use App\Filament\Resources\UnitResource\RelationManagers;
 use App\Models\Unit;
@@ -19,6 +20,10 @@ use Illuminate\Support\Facades\Auth;
 
 class UnitResource extends Resource
 {
+    use ScopedByVisibility;
+
+    protected static string $viewAllPermission = 'view_all_units';
+
     protected static ?string $model = Unit::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-building-office';
@@ -40,29 +45,9 @@ class UnitResource extends Resource
         return __('ui.panel_management');
     }
 
-    public static function getEloquentQuery(): Builder
-    {
-        $user = auth()->user();
-
-        if ($user->hasRole('super_admin') || $user->can('view_all_units')) {
-            return parent::getEloquentQuery();
-        }
-
-        $employeeId = $user->employee?->id;
-
-        $unitIds = \App\Models\Group::query()
-            ->where('employee_id', $employeeId)
-            ->whereNull('deleted_at')
-            ->pluck('unit_id')
-            ->filter()
-            ->unique();
-
-        return parent::getEloquentQuery()->whereIn('id', $unitIds);
-    }
-
     public static function getNavigationBadge(): ?string
     {
-        return static::getEloquentQuery()->count();
+        return (string) static::getEloquentQuery()->count();
     }
 
     public static function form(Form $form): Form
@@ -213,6 +198,8 @@ class UnitResource extends Resource
 
     public static function canDelete(Model $record): bool
     {
-        return $record->tickets()->count() === 0 && (auth()->user()?->hasRole('super_admin') || $record->created_by === auth()->id());
+        return $record->tickets()->count() === 0
+            && (auth()->user()->hasRole('super_admin')
+                || $record->created_by === auth()->user()->id);
     }
 }

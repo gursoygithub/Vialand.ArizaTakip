@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Concerns\ScopedByVisibility;
 use App\Filament\Resources\CompanyResource\Pages;
 use App\Filament\Resources\CompanyResource\RelationManagers;
 use App\Models\Company;
@@ -17,6 +18,10 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class CompanyResource extends Resource
 {
+    use ScopedByVisibility;
+
+    protected static string $viewAllPermission = 'view_all_companies';
+
     protected static ?string $model = Company::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-building-library';
@@ -142,6 +147,8 @@ class CompanyResource extends Resource
 
     public static function canDelete(Model $record): bool
     {
-        return $record->areas()->count() === 0 && (auth()->user()?->hasRole('super_admin') || $record->created_by === auth()->id());
+        return $record->areas()->count() === 0
+            && (auth()->user()->hasRole('super_admin')
+                || $record->created_by === auth()->user()->id);
     }
 }
