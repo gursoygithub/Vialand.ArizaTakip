@@ -164,6 +164,8 @@ class PerformanceDashboard extends Page implements HasForms, HasTable
     public function setDateRange(string $preset): void
     {
         match ($preset) {
+            'this_week'    => [$this->dateFrom = now()->startOfWeek()->toDateString(),
+                               $this->dateTo   = now()->endOfWeek()->toDateString()],
             'this_month'   => [$this->dateFrom = now()->startOfMonth()->toDateString(),
                                $this->dateTo   = now()->endOfMonth()->toDateString()],
             'last_month'   => [$this->dateFrom = now()->subMonth()->startOfMonth()->toDateString(),

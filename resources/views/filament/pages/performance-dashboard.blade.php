@@ -25,25 +25,29 @@
 
         {{-- Filters --}}
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-4">
-            <div class="flex flex-wrap gap-2 mb-3">
+            <div class="flex flex-wrap gap-2 mb-5">
+                <button type="button" wire:click="setDateRange('this_week')"
+                        class="px-3 py-1.5 text-xs font-medium rounded-md bg-primary-50 text-primary-700 hover:bg-primary-100 dark:bg-primary-950 dark:text-primary-300 dark:hover:bg-primary-900 transition">
+                    Bu Hafta
+                </button>
                 <button type="button" wire:click="setDateRange('this_month')"
-                        class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 transition">
+                        class="px-3 py-1.5 text-xs font-medium rounded-md bg-primary-50 text-primary-700 hover:bg-primary-100 dark:bg-primary-950 dark:text-primary-300 dark:hover:bg-primary-900 transition">
                     Bu Ay
                 </button>
                 <button type="button" wire:click="setDateRange('last_month')"
-                        class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 transition">
+                        class="px-3 py-1.5 text-xs font-medium rounded-md bg-primary-50 text-primary-700 hover:bg-primary-100 dark:bg-primary-950 dark:text-primary-300 dark:hover:bg-primary-900 transition">
                     Geçen Ay
                 </button>
                 <button type="button" wire:click="setDateRange('last_30_days')"
-                        class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 transition">
+                        class="px-3 py-1.5 text-xs font-medium rounded-md bg-primary-50 text-primary-700 hover:bg-primary-100 dark:bg-primary-950 dark:text-primary-300 dark:hover:bg-primary-900 transition">
                     Son 30 Gün
                 </button>
                 <button type="button" wire:click="setDateRange('this_quarter')"
-                        class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 transition">
+                        class="px-3 py-1.5 text-xs font-medium rounded-md bg-primary-50 text-primary-700 hover:bg-primary-100 dark:bg-primary-950 dark:text-primary-300 dark:hover:bg-primary-900 transition">
                     Bu Çeyrek
                 </button>
                 <button type="button" wire:click="setDateRange('this_year')"
-                        class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 transition">
+                        class="px-3 py-1.5 text-xs font-medium rounded-md bg-primary-50 text-primary-700 hover:bg-primary-100 dark:bg-primary-950 dark:text-primary-300 dark:hover:bg-primary-900 transition">
                     Bu Yıl
                 </button>
             </div>
