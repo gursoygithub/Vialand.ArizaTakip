@@ -206,6 +206,11 @@ class PerformanceDashboard extends Page implements HasForms, HasTable
     {
         $this->loadStats();
 
+        $logoPath = public_path('img/gursoygrup-logo.png');
+        $logoData = file_exists($logoPath)
+            ? 'data:image/png;base64,' . base64_encode(file_get_contents($logoPath))
+            : null;
+
         $context = [
             'overview'        => in_array('kpi', $sections) ? $this->overview : null,
             'regionBreakdown' => in_array('region', $sections) ? $this->regionBreakdown : null,
@@ -218,6 +223,7 @@ class PerformanceDashboard extends Page implements HasForms, HasTable
                 : 'Tümü',
             'generatedAt'     => now()->format('d.m.Y H:i'),
             'generatedBy'     => auth()->user()->name,
+            'logoData'        => $logoData,
         ];
 
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('exports.performance-report', $context)

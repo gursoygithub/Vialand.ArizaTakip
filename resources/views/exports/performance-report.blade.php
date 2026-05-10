@@ -31,9 +31,11 @@
 
 {{-- Header --}}
 <div class="header">
-    <div class="header-logo">
-        <img src="{{ public_path('img/gursoy-grup-logo.png') }}" alt="">
-    </div>
+    @if($logoData ?? false)
+        <div class="header-logo">
+            <img src="{{ $logoData }}" alt="">
+        </div>
+    @endif
     <h1>Performans Raporu</h1>
     <p class="meta">
         {{ $dateFrom }} — {{ $dateTo }} &nbsp;|&nbsp; Bölge: {{ $areaName }}<br>
