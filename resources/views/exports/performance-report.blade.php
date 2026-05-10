@@ -12,15 +12,15 @@
         .section h2 { font-size: 13px; border-bottom: 1px solid #e5e7eb; padding-bottom: 4px; margin-bottom: 0; }
         table { width: 100%; border-collapse: collapse; margin-top: 6px; }
         th, td { padding: 6px 8px; text-align: left; border-bottom: 1px solid #f3f4f6; }
-        th { background: #f9fafb; font-weight: 600; font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; }
+        th { background: #f9fafb; font-weight: 600; font-size: 10px; }
         td.center, th.center { text-align: center; }
         .pill-success { color: #047857; font-weight: 600; }
         .pill-warning { color: #b45309; font-weight: 600; }
         .pill-danger  { color: #b91c1c; font-weight: 600; }
 
-        .header { display: flex; align-items: center; border-bottom: 2px solid #e5e7eb; padding-bottom: 12px; margin-bottom: 4px; }
-        .header-logo { margin-right: 14px; }
-        .header-logo img { height: 48px; width: auto; }
+        .header { display: flex; align-items: center; border-bottom: 2px solid #e5e7eb; padding-bottom: 16px; margin-bottom: 8px; }
+        .header-logo { margin-right: 18px; }
+        .header-logo img { height: 60px; width: auto; }
         .header-text { flex: 1; }
 
         .kpi-grid { display: flex; flex-wrap: wrap; gap: 0; margin-top: 6px; }
@@ -98,11 +98,11 @@
     <table>
         <thead>
             <tr>
-                <th>Öncelik</th>
-                <th class="center">Toplam</th>
-                <th class="center">Zamanında</th>
-                <th class="center">İhlal</th>
-                <th class="center">Uyum %</th>
+                <th>ÖNCELİK</th>
+                <th class="center">TOPLAM</th>
+                <th class="center">ZAMANINDA</th>
+                <th class="center">İHLAL</th>
+                <th class="center">UYUM %</th>
             </tr>
         </thead>
         <tbody>
@@ -130,12 +130,12 @@
     <table>
         <thead>
             <tr>
-                <th>Bölge</th>
-                <th class="center">Toplam</th>
-                <th class="center">Çözülen</th>
-                <th class="center">Zamanında</th>
-                <th class="center">İhlal</th>
-                <th class="center">Uyum %</th>
+                <th>BÖLGE</th>
+                <th class="center">TOPLAM</th>
+                <th class="center">ÇÖZÜLEN</th>
+                <th class="center">ZAMANINDA</th>
+                <th class="center">İHLAL</th>
+                <th class="center">UYUM %</th>
             </tr>
         </thead>
         <tbody>
@@ -164,13 +164,13 @@
     <table>
         <thead>
             <tr>
-                <th>Teknisyen</th>
-                <th class="center">Toplam</th>
-                <th class="center">Zamanında</th>
-                <th class="center">İhlal</th>
-                <th class="center">Uyum %</th>
-                <th class="center">Yanıt Süresi</th>
-                <th class="center">Çözüm (Net)</th>
+                <th>TEKNİSYEN</th>
+                <th class="center">TOPLAM</th>
+                <th class="center">ZAMANINDA</th>
+                <th class="center">İHLAL</th>
+                <th class="center">UYUM %</th>
+                <th class="center">YANIT SÜRESİ</th>
+                <th class="center">ÇÖZÜM (NET)</th>
             </tr>
         </thead>
         <tbody>
