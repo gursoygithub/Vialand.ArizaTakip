@@ -42,6 +42,7 @@ class PerformanceService
 
         $stats = $this->aggregate($user, $tickets);
         $stats['employee_threshold'] = (float) ($employee->current_threshold ?? 80);
+        $stats['employee_id']        = $employee->id;
         return $stats;
     }
 
@@ -281,6 +282,7 @@ class PerformanceService
             'sla_compliance_rate'           => 0,
             'avg_response_time_minutes' => 0,
             'employee_threshold'        => 80.0,
+            'employee_id'              => null,
             // Backward compat
             'total'                     => 0,
             'closed'                    => 0,

@@ -161,6 +161,24 @@ class PerformanceDashboard extends Page implements HasForms, HasTable
         }
     }
 
+    public function setDateRange(string $preset): void
+    {
+        match ($preset) {
+            'this_month'   => [$this->dateFrom = now()->startOfMonth()->toDateString(),
+                               $this->dateTo   = now()->endOfMonth()->toDateString()],
+            'last_month'   => [$this->dateFrom = now()->subMonth()->startOfMonth()->toDateString(),
+                               $this->dateTo   = now()->subMonth()->endOfMonth()->toDateString()],
+            'last_30_days' => [$this->dateFrom = now()->subDays(30)->toDateString(),
+                               $this->dateTo   = now()->toDateString()],
+            'this_quarter' => [$this->dateFrom = now()->firstOfQuarter()->toDateString(),
+                               $this->dateTo   = now()->lastOfQuarter()->toDateString()],
+            'this_year'    => [$this->dateFrom = now()->startOfYear()->toDateString(),
+                               $this->dateTo   = now()->endOfYear()->toDateString()],
+            default        => null,
+        };
+        $this->loadStats();
+    }
+
     public function table(Table $table): Table
     {
         return $table

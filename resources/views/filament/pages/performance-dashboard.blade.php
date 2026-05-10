@@ -25,6 +25,28 @@
 
         {{-- Filters --}}
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-4">
+            <div class="flex flex-wrap gap-2 mb-3">
+                <button type="button" wire:click="setDateRange('this_month')"
+                        class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 transition">
+                    Bu Ay
+                </button>
+                <button type="button" wire:click="setDateRange('last_month')"
+                        class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 transition">
+                    Geçen Ay
+                </button>
+                <button type="button" wire:click="setDateRange('last_30_days')"
+                        class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 transition">
+                    Son 30 Gün
+                </button>
+                <button type="button" wire:click="setDateRange('this_quarter')"
+                        class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 transition">
+                    Bu Çeyrek
+                </button>
+                <button type="button" wire:click="setDateRange('this_year')"
+                        class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 transition">
+                    Bu Yıl
+                </button>
+            </div>
             <form wire:submit.prevent="loadStats" class="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('ui.date_from') }}</label>
@@ -258,7 +280,14 @@
                                         <div class="w-8 h-8 rounded-full bg-primary-100 text-primary-700 dark:bg-primary-900/40 dark:text-primary-300 flex items-center justify-center text-sm font-semibold flex-shrink-0">
                                             {{ $initial }}
                                         </div>
-                                        <span class="truncate">{{ $name }}</span>
+                                        @if (!empty($row['employee_id']))
+                                            <a href="{{ route('filament.dashboard.resources.employees.view', ['record' => $row['employee_id']]) }}"
+                                               class="truncate text-primary-600 hover:underline dark:text-primary-400">
+                                                {{ $name }}
+                                            </a>
+                                        @else
+                                            <span class="truncate">{{ $name }}</span>
+                                        @endif
                                     </div>
                                 </td>
                                 <td class="px-4 py-3 text-center text-gray-600 dark:text-gray-300">{{ $row['total_assigned'] }}</td>
