@@ -128,10 +128,13 @@ class TicketGroupMembershipScopingTest extends TestCase
 
         $this->actingAs($user);
 
-        // Area in company B with no group membership for this user
+        // Area in company B with no group membership for this user.
         $foreignArea = Area::factory()->create(['company_id' => $companyB->id, 'status' => ActiveStatusEnum::ACTIVE]);
 
-        $ticket = $this->makeTicketInArea($foreignArea, $user->id);
+        // Ticket created by a different user — the test user is neither creator
+        // nor assignee, so the identity bypass does not apply.
+        $otherUser = User::factory()->create();
+        $ticket    = $this->makeTicketInArea($foreignArea, $otherUser->id);
 
         $ids = TicketResource::getEloquentQuery()->pluck('id')->all();
 

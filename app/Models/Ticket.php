@@ -317,27 +317,24 @@ class Ticket extends Model implements HasMedia
             $companyIds      = $user->scopedCompanyIds();
 
             return $query
-                ->where(function (Builder $q) use ($user, $employeeId, $areaIds, $managedGroupIds) {
-                    $q->whereIn('area_id', $areaIds)
-                      ->orWhere('created_by', $user->id);
-                    if ($employeeId) {
-                        $q->orWhere('employee_id', $employeeId);
+                ->where(function (Builder $q) use ($user, $employeeId, $areaIds, $managedGroupIds, $companyIds) {
+                    // Group/area membership — company-agnostic (member + amir paths).
+                    if ($areaIds->isNotEmpty()) {
+                        $q->whereIn('area_id', $areaIds);
                     }
                     if ($managedGroupIds->isNotEmpty()) {
                         $q->orWhereIn('group_id', $managedGroupIds);
                     }
-                })
-                ->when(!empty($companyIds), fn (Builder $q) => $q->where(
-                    function (Builder $aq) use ($companyIds, $areaIds, $managedGroupIds) {
-                        $aq->whereHas('area', fn (Builder $cq) => $cq->whereIn('company_id', $companyIds));
-                        if ($areaIds->isNotEmpty()) {
-                            $aq->orWhereIn('area_id', $areaIds);
-                        }
-                        if ($managedGroupIds->isNotEmpty()) {
-                            $aq->orWhereIn('group_id', $managedGroupIds);
-                        }
+                    // Identity: creator and assignee always retain access regardless of company.
+                    $q->orWhere('created_by', $user->id);
+                    if ($employeeId) {
+                        $q->orWhere('employee_id', $employeeId);
                     }
-                ));
+                    // Own-company tickets not already covered by area/group membership.
+                    if (!empty($companyIds)) {
+                        $q->orWhereHas('area', fn (Builder $cq) => $cq->whereIn('company_id', $companyIds));
+                    }
+                });
         }
 
         // 3. ticket.view.own → own + assigned tickets, restricted to accessible
@@ -354,22 +351,25 @@ class Ticket extends Model implements HasMedia
             : [];
 
         return $query
-            ->where(function (Builder $q) use ($user, $employeeId) {
+            ->where(function (Builder $q) use ($user, $employeeId, $companyIds, $groupAreaIds) {
+                // Identity: creator and assignee always retain access regardless of company.
                 $q->where('created_by', $user->id);
                 if ($employeeId) {
                     $q->orWhere('employee_id', $employeeId);
                 }
-            })
-            ->when(!empty($companyIds) || !empty($groupAreaIds), fn (Builder $q) =>
-                $q->where(function (Builder $aq) use ($companyIds, $groupAreaIds) {
-                    if (!empty($companyIds)) {
-                        $aq->whereHas('area', fn (Builder $cq) => $cq->whereIn('company_id', $companyIds));
-                    }
-                    if (!empty($groupAreaIds)) {
-                        $aq->orWhereIn('area_id', $groupAreaIds);
-                    }
-                })
-            );
+                // Company/group-area scoped tickets beyond own/assigned.
+                // Only added when there is a meaningful filter to avoid an unbounded result.
+                if (!empty($companyIds) || !empty($groupAreaIds)) {
+                    $q->orWhere(function (Builder $scoped) use ($companyIds, $groupAreaIds) {
+                        if (!empty($companyIds)) {
+                            $scoped->whereHas('area', fn (Builder $a) => $a->whereIn('company_id', $companyIds));
+                        }
+                        if (!empty($groupAreaIds)) {
+                            $scoped->orWhereIn('area_id', $groupAreaIds);
+                        }
+                    });
+                }
+            });
     }
 
     // --- Boot ---

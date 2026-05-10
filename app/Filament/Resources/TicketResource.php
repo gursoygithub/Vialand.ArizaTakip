@@ -180,7 +180,26 @@ class TicketResource extends Resource
                                         ->pluck('area_id')
                                         ->toArray()
                                     : [];
-                                $supplementaryAreaIds = array_unique(array_merge($groupAreaIds, $managedAreaIds));
+                                // Also include areas of tickets the user created or was assigned —
+                                // mirrors the identity bypass in scopeVisibleBy().
+                                $createdAreaIds  = \App\Models\Ticket::where('created_by', $user->id)
+                                    ->whereNotNull('area_id')
+                                    ->pluck('area_id')
+                                    ->unique()
+                                    ->toArray();
+                                $assignedAreaIds = $employeeId
+                                    ? \App\Models\Ticket::where('employee_id', $employeeId)
+                                        ->whereNotNull('area_id')
+                                        ->pluck('area_id')
+                                        ->unique()
+                                        ->toArray()
+                                    : [];
+                                $supplementaryAreaIds = array_unique(array_merge(
+                                    $groupAreaIds,
+                                    $managedAreaIds,
+                                    $createdAreaIds,
+                                    $assignedAreaIds
+                                ));
 
                                 return Area::query()
                                     ->with('company')
@@ -337,7 +356,28 @@ class TicketResource extends Resource
                                         ->pluck('id')
                                         ->toArray()
                                     : [];
-                                $supplementaryGroupIds = array_unique(array_merge($memberGroupIds, $managedGroupIds));
+                                // Also include groups of tickets the user created or was assigned —
+                                // mirrors the identity bypass in scopeVisibleBy(), scoped to $areaId.
+                                $createdGroupIds  = \App\Models\Ticket::where('created_by', $user->id)
+                                    ->where('area_id', $areaId)
+                                    ->whereNotNull('group_id')
+                                    ->pluck('group_id')
+                                    ->unique()
+                                    ->toArray();
+                                $assignedGroupIds = $employeeId
+                                    ? \App\Models\Ticket::where('employee_id', $employeeId)
+                                        ->where('area_id', $areaId)
+                                        ->whereNotNull('group_id')
+                                        ->pluck('group_id')
+                                        ->unique()
+                                        ->toArray()
+                                    : [];
+                                $supplementaryGroupIds = array_unique(array_merge(
+                                    $memberGroupIds,
+                                    $managedGroupIds,
+                                    $createdGroupIds,
+                                    $assignedGroupIds
+                                ));
 
                                 return Group::query()
                                     ->where('area_id', $areaId)
