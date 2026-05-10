@@ -192,40 +192,38 @@ class PerformanceDashboard extends Page implements HasForms, HasTable
         $this->loadStats();
     }
 
-    protected function getHeaderActions(): array
+    public function exportAction(): Action
     {
-        return [
-            Action::make('export')
-                ->label('Çıktı Al')
-                ->icon('heroicon-o-arrow-down-tray')
-                ->color('primary')
-                ->form([
-                    Radio::make('format')
-                        ->label('Dosya Formatı')
-                        ->options([
-                            'pdf'  => 'PDF (Yazdırılabilir Rapor)',
-                            'xlsx' => 'Excel (xlsx)',
-                        ])
-                        ->default('pdf')
-                        ->required(),
-                    CheckboxList::make('sections')
-                        ->label('Dahil Edilecek Bölümler')
-                        ->options([
-                            'kpi'      => 'KPI Özeti',
-                            'priority' => 'Öncelik Dağılımı',
-                            'region'   => 'Bölge Dağılımı',
-                            'team'     => 'Teknisyen Performansı',
-                        ])
-                        ->default(['kpi', 'priority', 'region', 'team'])
-                        ->required()
-                        ->columns(2),
-                ])
-                ->action(function (array $data) {
-                    return $data['format'] === 'pdf'
-                        ? $this->exportPdf($data['sections'])
-                        : $this->exportExcel($data['sections']);
-                }),
-        ];
+        return Action::make('export')
+            ->label('Çıktı Al')
+            ->icon('heroicon-o-arrow-down-tray')
+            ->color('primary')
+            ->form([
+                Radio::make('format')
+                    ->label('Dosya Formatı')
+                    ->options([
+                        'pdf'  => 'PDF (Yazdırılabilir Rapor)',
+                        'xlsx' => 'Excel (xlsx)',
+                    ])
+                    ->default('pdf')
+                    ->required(),
+                CheckboxList::make('sections')
+                    ->label('Dahil Edilecek Bölümler')
+                    ->options([
+                        'kpi'      => 'KPI Özeti',
+                        'priority' => 'Öncelik Dağılımı',
+                        'region'   => 'Bölge Dağılımı',
+                        'team'     => 'Teknisyen Performansı',
+                    ])
+                    ->default(['kpi', 'priority', 'region', 'team'])
+                    ->required()
+                    ->columns(2),
+            ])
+            ->action(function (array $data) {
+                return $data['format'] === 'pdf'
+                    ? $this->exportPdf($data['sections'])
+                    : $this->exportExcel($data['sections']);
+            });
     }
 
     protected function exportPdf(array $sections): \Symfony\Component\HttpFoundation\StreamedResponse
