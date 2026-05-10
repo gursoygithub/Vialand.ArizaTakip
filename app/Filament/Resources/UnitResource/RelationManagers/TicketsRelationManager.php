@@ -288,8 +288,8 @@ class TicketsRelationManager extends RelationManager
 
     /**
      * Restrict the relation query to tickets the viewer is allowed to see.
-     * super_admin and `view_all_tasks` see everything; everyone else is
-     * scoped to their own creations + tickets assigned to them.
+     * Delegates to Ticket::scopeVisibleBy() which handles all visibility
+     * branches (view.all, view.group, fallback) consistently.
      */
     protected function applyTaskPermissionFilter(Builder|Relation $query): Builder
     {
@@ -297,25 +297,7 @@ class TicketsRelationManager extends RelationManager
             $query = $query->getQuery();
         }
 
-        $user = auth()->user();
-
-        $hasPermission =
-            $user->hasRole('super_admin') ||
-            $user->can('ticket.view.all');
-
-        if (!$hasPermission) {
-            $query->where(function ($query) use ($user) {
-                $query
-                    ->where('created_by', $user->id)
-                    ->orWhere('employee_id', function ($subQuery) use ($user) {
-                        $subQuery->select('id')
-                            ->from('employees')
-                            ->where('email', $user->email);
-                    });
-            });
-        }
-
-        return $query;
+        return $query->visibleBy(auth()->user());
     }
 
     public function getTabs(): array

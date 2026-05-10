@@ -132,7 +132,6 @@ class TicketStatsOverview extends BaseWidget
             return false;
         }
 
-        return $user->hasRole('super_admin')
-            || $user->can('widget_TicketStatsOverview');
+        return (bool) $user->can('widget_TicketStatsOverview');
     }
 }

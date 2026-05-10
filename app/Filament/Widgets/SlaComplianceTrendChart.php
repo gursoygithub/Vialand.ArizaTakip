@@ -115,7 +115,6 @@ class SlaComplianceTrendChart extends ChartWidget
             return false;
         }
 
-        return $user->hasRole('super_admin')
-            || $user->can('widget_SlaComplianceTrendChart');
+        return (bool) $user->can('widget_SlaComplianceTrendChart');
     }
 }

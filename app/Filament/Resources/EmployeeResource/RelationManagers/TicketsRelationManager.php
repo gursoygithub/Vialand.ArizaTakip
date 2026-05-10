@@ -34,6 +34,11 @@ class TicketsRelationManager extends RelationManager
         return __('ui.employee_tasks');
     }
 
+    public function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
+    {
+        return parent::getEloquentQuery()->visibleBy(auth()->user());
+    }
+
     public function form(Form $form): Form
     {
         return $form->schema([]);

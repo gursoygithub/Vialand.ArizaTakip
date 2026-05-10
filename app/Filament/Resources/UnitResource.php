@@ -74,17 +74,8 @@ class UnitResource extends Resource
 
     public static function table(Table $table): Table
     {
-        $user = auth()->user();
-        $hasTaskPermission = $user->hasRole('super_admin') || $user->can('view_all_tasks');
-
-        // Permission-scoping closure shared across the three count subqueries.
-        // When the viewer can't see all tickets, restrict counts to tickets
-        // they own or that are assigned to them.
-        $scope = function ($q) use ($user, $hasTaskPermission) {
-            return $q->when(!$hasTaskPermission, fn ($q) => $q->where(fn ($q) => $q
-                ->where('created_by', $user->id)
-                ->orWhere('employee_id', $user->employee?->id)
-            ));
+        $scope = function ($q) {
+            return $q->visibleBy(auth()->user());
         };
 
         return $table
