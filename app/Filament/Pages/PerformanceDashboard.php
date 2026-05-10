@@ -25,9 +25,10 @@ class PerformanceDashboard extends Page implements HasForms, HasTable
 
     protected static string $view = 'filament.pages.performance-dashboard';
 
-    public ?string $dateFrom = null;
-    public ?string $dateTo   = null;
-    public ?int    $areaId   = null;
+    public ?string $dateFrom     = null;
+    public ?string $dateTo       = null;
+    public ?int    $areaId       = null;
+    public ?string $activePreset = null;
 
     public string $exportFormat   = 'pdf';
     public array  $exportSections = ['kpi', 'priority', 'region', 'team'];
@@ -161,8 +162,12 @@ class PerformanceDashboard extends Page implements HasForms, HasTable
         }
     }
 
+    public function updatedDateFrom(): void { $this->activePreset = null; }
+    public function updatedDateTo(): void   { $this->activePreset = null; }
+
     public function setDateRange(string $preset): void
     {
+        $this->activePreset = $preset;
         match ($preset) {
             'this_week'    => [$this->dateFrom = now()->startOfWeek()->toDateString(),
                                $this->dateTo   = now()->endOfWeek()->toDateString()],
@@ -183,9 +188,10 @@ class PerformanceDashboard extends Page implements HasForms, HasTable
 
     public function resetFilters(): void
     {
-        $this->dateFrom = now()->startOfMonth()->toDateString();
-        $this->dateTo   = now()->endOfMonth()->toDateString();
-        $this->areaId   = null;
+        $this->dateFrom      = now()->startOfMonth()->toDateString();
+        $this->dateTo        = now()->endOfMonth()->toDateString();
+        $this->areaId        = null;
+        $this->activePreset  = null;
         $this->loadStats();
     }
 
