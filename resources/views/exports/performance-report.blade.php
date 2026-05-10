@@ -5,9 +5,20 @@
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
     <title>Performans Raporu</title>
     <style>
-        body { font-family: DejaVu Sans, sans-serif; font-size: 11px; color: #1f2937; margin: 0; padding: 20px 30px; }
-        h1 { font-size: 18px; margin: 0 0 4px; }
-        .meta { color: #6b7280; font-size: 10px; margin-bottom: 16px; }
+        @font-face {
+            font-family: 'dejavu';
+            src: url('{{ base_path('vendor/dompdf/dompdf/lib/fonts/DejaVuSans.ttf') }}') format('truetype');
+            font-weight: normal;
+            font-style: normal;
+        }
+        @font-face {
+            font-family: 'dejavu';
+            src: url('{{ base_path('vendor/dompdf/dompdf/lib/fonts/DejaVuSans-Bold.ttf') }}') format('truetype');
+            font-weight: bold;
+            font-style: normal;
+        }
+
+        body { font-family: 'dejavu', sans-serif; font-size: 11px; color: #1f2937; margin: 0; padding: 20px 30px; }
         .section { margin-top: 18px; page-break-inside: avoid; }
         .section h2 { font-size: 13px; border-bottom: 1px solid #e5e7eb; padding-bottom: 4px; margin-bottom: 0; }
         table { width: 100%; border-collapse: collapse; margin-top: 6px; }
@@ -18,13 +29,13 @@
         .pill-warning { color: #b45309; font-weight: 600; }
         .pill-danger  { color: #b91c1c; font-weight: 600; }
 
-        .header { display: flex; align-items: center; border-bottom: 2px solid #e5e7eb; padding-bottom: 16px; margin-bottom: 8px; }
-        .header-logo { margin-right: 18px; }
-        .header-logo img { height: 60px; width: auto; }
-        .header-text { flex: 1; }
+        .header { margin-bottom: 24px; padding-bottom: 16px; border-bottom: 2px solid #1f2937; }
+        .header-logo { margin-bottom: 12px; }
+        .header-logo img { height: 48px; width: auto; display: block; }
+        .header h1 { font-size: 22px; font-weight: 700; margin: 0 0 6px 0; color: #111827; }
+        .header .meta { font-size: 10px; color: #6b7280; margin: 0; line-height: 1.5; }
 
-        .kpi-grid { display: flex; flex-wrap: wrap; gap: 0; margin-top: 6px; }
-        .kpi-row { display: flex; width: 100%; border-bottom: 1px solid #f3f4f6; }
+        .kpi-row { width: 100%; border-bottom: 1px solid #f3f4f6; }
         .kpi-label { width: 60%; padding: 5px 8px; color: #6b7280; font-size: 10px; }
         .kpi-value { width: 40%; padding: 5px 8px; font-weight: 600; text-align: right; }
     </style>
@@ -34,15 +45,13 @@
 {{-- Header --}}
 <div class="header">
     <div class="header-logo">
-        <img src="{{ public_path('img/gursoy-grup-logo.png') }}" alt="Gürsoy Grup">
+        <img src="{{ public_path('img/gursoy-grup-logo.png') }}" alt="">
     </div>
-    <div class="header-text">
-        <h1>Performans Raporu</h1>
-        <p class="meta">
-            {{ $dateFrom }} — {{ $dateTo }} &nbsp;|&nbsp; Bölge: {{ $areaName }}<br>
-            Oluşturuldu: {{ $generatedAt }} &nbsp;|&nbsp; Hazırlayan: {{ $generatedBy }}
-        </p>
-    </div>
+    <h1>Performans Raporu</h1>
+    <p class="meta">
+        {{ $dateFrom }} — {{ $dateTo }} &nbsp;|&nbsp; Bölge: {{ $areaName }}<br>
+        Oluşturuldu: {{ $generatedAt }} &nbsp;|&nbsp; Hazırlayan: {{ $generatedBy }}
+    </p>
 </div>
 
 {{-- KPI Summary --}}
