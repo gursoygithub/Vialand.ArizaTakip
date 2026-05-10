@@ -209,8 +209,14 @@ class PerformanceService
             ->map(fn ($t) => $t->created_at->diffInMinutes($t->assigned_at))
             ->avg() ?? 0;
 
-        $compliance = $closed->count() > 0
-            ? round(($onTime->count() / $closed->count()) * 100, 1)
+        // Compliance denominator/numerator: only tickets with an active SLA contract.
+        // Tickets with null sla_deadline default to sla_breached=false, which would
+        // inflate the on-time count and make areas without SLA policies appear 100% compliant.
+        $closedWithSla = $closed->filter(fn ($t) => $t->sla_deadline !== null);
+        $onTimeWithSla = $closedWithSla->filter(fn ($t) => !$t->sla_breached);
+
+        $compliance = $closedWithSla->count() > 0
+            ? round(($onTimeWithSla->count() / $closedWithSla->count()) * 100, 1)
             : 0;
 
         // Total breach surface across the cohort: every ticket that has

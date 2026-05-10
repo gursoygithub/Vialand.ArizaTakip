@@ -65,11 +65,13 @@ class TicketStatsOverview extends BaseWidget
         $totalClosedRecent = Ticket::query()
             ->visibleBy(auth()->user())
             ->whereNotNull('resolved_at')
+            ->whereNotNull('sla_deadline')
             ->where('resolved_at', '>=', $thirtyDaysAgo)
             ->count();
         $onTimeRecent = Ticket::query()
             ->visibleBy(auth()->user())
             ->whereNotNull('resolved_at')
+            ->whereNotNull('sla_deadline')
             ->where('resolved_at', '>=', $thirtyDaysAgo)
             ->where('sla_breached', false)
             ->count();
