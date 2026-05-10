@@ -81,18 +81,15 @@ class ViewTicket extends ViewRecord
                                 if (!$record->on_hold_since) {
                                     return '⏸  Bu talep beklemededir — SLA sayacı durduruldu.';
                                 }
-                                $since     = $record->on_hold_since->translatedFormat('d M Y H:i');
-                                $minutes   = (int) $record->on_hold_since->diffInMinutes(now());
-                                $duration  = \App\Support\DurationFormatter::minutes($minutes);
+                                $since    = $record->on_hold_since->translatedFormat('d M Y H:i');
+                                $minutes  = (int) $record->on_hold_since->diffInMinutes(now());
+                                $duration = \App\Support\DurationFormatter::minutes($minutes);
                                 return "⏸  Bu talep beklemededir — SLA sayacı durduruldu. {$since} tarihinden beri ({$duration})";
                             })
-                            ->columnSpanFull()
-                            ->extraAttributes([
-                                'class' => 'text-amber-900 dark:text-amber-50 font-bold text-base',
-                            ]),
-                    ])
-                    ->extraAttributes([
-                        'class' => 'bg-amber-200 dark:bg-amber-900 border-2 border-amber-500 dark:border-amber-600 ring-1 ring-amber-300 dark:ring-amber-700',
+                            ->badge()
+                            ->color('warning')
+                            ->size(\Filament\Infolists\Components\TextEntry\TextEntrySize::Large)
+                            ->columnSpanFull(),
                     ])
                     ->visible(fn ($record) => $record->status === \App\Enums\TaskStatusEnum::ON_HOLD),
 
