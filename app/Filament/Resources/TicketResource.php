@@ -204,9 +204,13 @@ class TicketResource extends Resource
                                 return Area::query()
                                     ->with('company')
                                     ->where(function ($q) use ($companyIds, $supplementaryAreaIds) {
-                                        if (!empty($companyIds)) {
-                                            $q->whereIn('company_id', $companyIds);
+                                        // Empty scopedCompanyIds() means "no scope" (super_admin
+                                        // or unfiltered user) — show all active areas.
+                                        if (empty($companyIds)) {
+                                            return; // no WHERE constraint → match all
                                         }
+                                        // Otherwise: areas in user's companies OR supplementary.
+                                        $q->whereIn('company_id', $companyIds);
                                         if (!empty($supplementaryAreaIds)) {
                                             $q->orWhereIn('id', $supplementaryAreaIds);
                                         }
@@ -382,9 +386,13 @@ class TicketResource extends Resource
                                 return Group::query()
                                     ->where('area_id', $areaId)
                                     ->where(function ($q) use ($companyIds, $supplementaryGroupIds) {
-                                        if (!empty($companyIds)) {
-                                            $q->whereIn('company_id', $companyIds);
+                                        // Empty scopedCompanyIds() means "no scope" (super_admin
+                                        // or unfiltered user) — show all groups in this area.
+                                        if (empty($companyIds)) {
+                                            return; // no WHERE constraint → match all
                                         }
+                                        // Otherwise: groups in user's companies OR supplementary.
+                                        $q->whereIn('company_id', $companyIds);
                                         if (!empty($supplementaryGroupIds)) {
                                             $q->orWhereIn('id', $supplementaryGroupIds);
                                         }
@@ -717,8 +725,8 @@ class TicketResource extends Resource
                     // rules server-side; ->hidden() prevents the visible
                     // button → click → 403 UX gap on terminal tickets.
                     Tables\Actions\EditAction::make()
-                        ->visible(fn (Ticket $record): bool => $record->created_by === auth()->id()
-                            || (bool) auth()->user()?->hasRole('super_admin'))
+                        ->visible(fn (Ticket $record): bool =>
+                            auth()->user()?->can('update', $record) ?? false)
                         ->hidden(fn (Ticket $record) => in_array($record->status, [
                             TaskStatusEnum::RESOLVED,
                             TaskStatusEnum::CLOSED,
@@ -726,8 +734,8 @@ class TicketResource extends Resource
                         ], true)),
 
                     Tables\Actions\DeleteAction::make()
-                        ->visible(fn (Ticket $record): bool => $record->created_by === auth()->id()
-                            || (bool) auth()->user()?->hasRole('super_admin'))
+                        ->visible(fn (Ticket $record): bool =>
+                            auth()->user()?->can('delete', $record) ?? false)
                         ->hidden(fn (Ticket $record) => in_array($record->status, [
                             TaskStatusEnum::RESOLVED,
                             TaskStatusEnum::CLOSED,

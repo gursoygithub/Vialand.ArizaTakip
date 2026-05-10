@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Enums\ActiveStatusEnum;
 use App\Enums\TaskPriorityEnum;
+use App\Filament\Concerns\ScopedByVisibility;
 use App\Filament\Resources\SlaPolicyResource\Pages;
 use App\Filament\Resources\SlaPolicyResource\RelationManagers;
 use App\Models\Area;
@@ -25,6 +26,10 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class SlaPolicyResource extends Resource
 {
+    use ScopedByVisibility;
+
+    protected static string $viewAllPermission = 'view_all_sla_policies';
+
     protected static ?string $model = SlaPolicy::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-document-check';
@@ -372,6 +377,7 @@ class SlaPolicyResource extends Resource
             return false;
         }
 
-        return auth()->user()->hasRole('super_admin') || auth()->id() === $record->created_by;
+        return auth()->user()->hasRole('super_admin')
+            || $record->created_by === auth()->user()->id;
     }
 }

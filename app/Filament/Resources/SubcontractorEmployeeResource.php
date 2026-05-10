@@ -3,6 +3,7 @@
 namespace App\Filament\Resources;
 
 use App\Enums\ActiveStatusEnum;
+use App\Filament\Concerns\ScopedByVisibility;
 use App\Filament\Resources\SubcontractorEmployeeResource\Pages;
 use App\Filament\Resources\SubcontractorEmployeeResource\RelationManagers;
 use App\Models\Subcontractor;
@@ -18,6 +19,12 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class SubcontractorEmployeeResource extends Resource
 {
+    use ScopedByVisibility;
+
+    // Note: SubcontractorEmployee model already overrides query() with the same created_by
+    // scoping logic. The trait's filter is additive but idempotent (same WHERE clause).
+    protected static string $viewAllPermission = 'view_all_subcontractor_employees';
+
     protected static bool $shouldRegisterNavigation = false;
     protected static ?string $model = SubcontractorEmployee::class;
 

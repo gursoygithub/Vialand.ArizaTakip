@@ -79,7 +79,7 @@ class CompanySetupWizard extends Page implements HasForms, HasActions
 
     public static function shouldRegisterNavigation(): bool
     {
-        return (bool) auth()->user()?->can('manage_settings');
+        return auth()->user()?->can('page_CompanySetupWizard') ?? false;
     }
 
     public static function canAccess(): bool

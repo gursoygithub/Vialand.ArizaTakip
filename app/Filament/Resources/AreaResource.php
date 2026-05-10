@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Concerns\ScopedByVisibility;
 use App\Filament\Resources\AreaResource\Pages;
 use App\Filament\Resources\AreaResource\RelationManagers;
 use App\Models\Area;
@@ -18,6 +19,10 @@ use Illuminate\Support\Facades\Auth;
 
 class AreaResource extends Resource
 {
+    use ScopedByVisibility;
+
+    protected static string $viewAllPermission = 'view_all_areas';
+
     protected static ?string $model = Area::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-map';
@@ -166,6 +171,8 @@ class AreaResource extends Resource
 
     public static function canDelete(Model $record): bool
     {
-        return $record->subAreas()->count() === 0 && (auth()->user()?->hasRole('super_admin') || $record->created_by === auth()->id());
+        return $record->subAreas()->count() === 0
+            && (auth()->user()->hasRole('super_admin')
+                || $record->created_by === auth()->user()->id);
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Concerns\ScopedByVisibility;
 use App\Filament\Resources\SubAreaResource\Pages;
 use App\Filament\Resources\SubAreaResource\RelationManagers;
 use App\Models\SubArea;
@@ -17,6 +18,10 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class SubAreaResource extends Resource
 {
+    use ScopedByVisibility;
+
+    protected static string $viewAllPermission = 'view_all_sub_areas';
+
     protected static ?string $model = SubArea::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-map-pin';
@@ -172,6 +177,8 @@ class SubAreaResource extends Resource
 
     public static function canDelete(Model $record): bool
     {
-        return $record->tickets()->count() === 0 && (auth()->user()->hasRole('super_admin') || $record->created_by === auth()->user()->id);
+        return $record->tickets()->count() === 0
+            && (auth()->user()->hasRole('super_admin')
+                || $record->created_by === auth()->user()->id);
     }
 }

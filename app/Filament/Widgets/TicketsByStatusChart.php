@@ -118,7 +118,6 @@ class TicketsByStatusChart extends ChartWidget
             return false;
         }
 
-        return $user->hasRole('super_admin')
-            || $user->can('widget_TicketsByStatusChart');
+        return (bool) $user->can('widget_TicketsByStatusChart');
     }
 }
