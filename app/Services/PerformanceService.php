@@ -196,6 +196,14 @@ class PerformanceService
             ->map(fn ($t) => $t->assigned_at->diffInMinutes($t->resolved_at))
             ->avg() ?? 0;
 
+        $avgResolutionActive = $closed->filter(fn ($t) => $t->assigned_at)
+            ->map(function ($t) {
+                $raw  = (int) $t->assigned_at->diffInMinutes($t->resolved_at);
+                $hold = (int) ($t->total_on_hold_minutes ?? 0);
+                return max(0, $raw - $hold);
+            })
+            ->avg() ?? 0;
+
         $avgResponse = $tickets->filter(fn ($t) => $t->assigned_at)
             ->map(fn ($t) => $t->created_at->diffInMinutes($t->assigned_at))
             ->avg() ?? 0;
@@ -236,8 +244,9 @@ class PerformanceService
             'at_risk'                  => $atRisk,
             'currently_open'           => $currentlyOpen,
             'currently_on_hold'        => $onHold,
-            'avg_resolution_minutes'   => (int) round($avgResolution),
-            'sla_compliance_rate'      => $compliance,
+            'avg_resolution_minutes'        => (int) round($avgResolution),
+            'avg_resolution_active_minutes' => (int) round($avgResolutionActive),
+            'sla_compliance_rate'           => $compliance,
             'avg_response_time_minutes' => (int) round($avgResponse),
             // Backward compat keys used by older blades:
             'total'                    => $tickets->count(),
@@ -267,8 +276,9 @@ class PerformanceService
             'at_risk'                   => 0,
             'currently_open'            => 0,
             'currently_on_hold'         => 0,
-            'avg_resolution_minutes'    => 0,
-            'sla_compliance_rate'       => 0,
+            'avg_resolution_minutes'        => 0,
+            'avg_resolution_active_minutes' => 0,
+            'sla_compliance_rate'           => 0,
             'avg_response_time_minutes' => 0,
             'employee_threshold'        => 80.0,
             // Backward compat

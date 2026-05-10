@@ -68,8 +68,8 @@
                 ['label'=>__('ui.page_performance_kpi_breached'),'value'=>$overview['total_breached'],'icon'=>'exclamation-triangle','color'=>'red'],
                 ['label'=>__('ui.page_performance_kpi_reopen'),'value'=>'%'.number_format($overview['reopen_rate'],1,',','.'),'sub'=>$overview['reopen_count'].' '.__('ui.page_performance_kpi_count_unit'),'icon'=>'arrow-path','color'=>'orange'],
                 ['label'=>__('ui.page_performance_kpi_on_time'),'value'=>$overview['closed_on_time'],'icon'=>'check-circle','color'=>'emerald'],
-                ['label'=>__('ui.page_performance_kpi_avg_resolution'),'value'=>$overview['avg_resolution_minutes'].__('ui.page_performance_minutes_suffix'),'icon'=>'clock','color'=>'violet'],
-                ['label'=>__('ui.page_performance_kpi_avg_response'),'value'=>$overview['avg_response_time_minutes'].__('ui.page_performance_minutes_suffix'),'icon'=>'bolt','color'=>'sky'],
+                ['label'=>__('ui.page_performance_kpi_avg_resolution'),'value'=>\App\Support\DurationFormatter::minutes((int) $overview['avg_resolution_minutes']),'icon'=>'clock','color'=>'violet'],
+                ['label'=>__('ui.page_performance_kpi_avg_response'),'value'=>\App\Support\DurationFormatter::minutes((int) $overview['avg_response_time_minutes']),'icon'=>'bolt','color'=>'sky'],
                 ['label'=>__('ui.total_tickets'),'value'=>$overview['total_assigned'],'icon'=>'inbox','color'=>'blue'],
                 ['label'=>__('ui.page_performance_kpi_at_risk'),'value'=>$overview['at_risk'],'icon'=>'fire','color'=>$overview['at_risk']===0?'emerald':($overview['at_risk']<=5?'orange':'red')],
             ] as $card)
@@ -234,8 +234,9 @@
                             <th class="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-300">{{ __('ui.on_time') }}</th>
                             <th class="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-300">{{ __('ui.page_performance_col_breached') }}</th>
                             <th class="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-300">{{ __('ui.page_performance_col_compliance') }}</th>
-                            <th class="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-300">{{ __('ui.page_performance_col_resolution_min') }}</th>
-                            <th class="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-300">{{ __('ui.page_performance_col_response_min') }}</th>
+                            <th class="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-300 cursor-help" title="Talep oluşturulduktan sonra atanmasına kadar geçen süre.">Yanıt Süresi</th>
+                            <th class="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-300 cursor-help" title="Atanma → çözülme arası geçen toplam süre. Beklemede süresi dahil.">Çözüm (Brüt)</th>
+                            <th class="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-300 cursor-help" title="Atanma → çözülme arası net çalışma süresi. Beklemede süresi düşülmüştür. SLA hesabı bu süreyi kullanır.">Çözüm (Net)</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
@@ -274,8 +275,9 @@
                                 <td class="px-4 py-3 text-center">
                                     <span class="px-2 py-0.5 rounded-full text-xs font-semibold {{ $compPill }}">%{{ number_format($r, 1, ',', '.') }}</span>
                                 </td>
-                                <td class="px-4 py-3 text-center text-gray-600 dark:text-gray-300">{{ $row['avg_resolution_minutes'] }}</td>
-                                <td class="px-4 py-3 text-center text-gray-600 dark:text-gray-300">{{ $row['avg_response_time_minutes'] }}</td>
+                                <td class="px-4 py-3 text-center text-gray-600 dark:text-gray-300">{{ \App\Support\DurationFormatter::minutes((int) $row['avg_response_time_minutes']) }}</td>
+                                <td class="px-4 py-3 text-center text-gray-600 dark:text-gray-300">{{ \App\Support\DurationFormatter::minutes((int) $row['avg_resolution_minutes']) }}</td>
+                                <td class="px-4 py-3 text-center text-gray-600 dark:text-gray-300">{{ \App\Support\DurationFormatter::minutes((int) $row['avg_resolution_active_minutes']) }}</td>
                             </tr>
                         @endforeach
                     </tbody>

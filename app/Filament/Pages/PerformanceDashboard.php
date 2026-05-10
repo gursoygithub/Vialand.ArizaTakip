@@ -199,7 +199,8 @@ class PerformanceDashboard extends Page implements HasForms, HasTable
                 __('ui.on_time'),
                 __('ui.page_performance_col_breached'),
                 __('ui.page_performance_csv_compliance'),
-                __('ui.page_performance_csv_resolution'),
+                'Ortalama Çözüm Süresi - Brüt (dk)',
+                'Ortalama Çözüm Süresi - Net (dk)',
                 __('ui.page_performance_csv_response'),
             ]);
 
@@ -211,6 +212,7 @@ class PerformanceDashboard extends Page implements HasForms, HasTable
                     $row['closed_breached'],
                     '%' . number_format($row['sla_compliance_rate'], 1, ',', '.'),
                     $row['avg_resolution_minutes'],
+                    $row['avg_resolution_active_minutes'],
                     $row['avg_response_time_minutes'],
                 ]);
             }
