@@ -26,12 +26,6 @@ class TicketStatsOverview extends BaseWidget
             TaskStatusEnum::IN_PROGRESS->value,
         ];
 
-        $closedStatuses = [
-            TaskStatusEnum::CLOSED->value,
-            TaskStatusEnum::CANCELLED->value,
-            TaskStatusEnum::COMPLETED->value,
-        ];
-
         $openCount = Ticket::query()
             ->visibleBy(auth()->user())
             ->whereIn('status', $openStatuses)

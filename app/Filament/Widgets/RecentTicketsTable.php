@@ -33,6 +33,7 @@ class RecentTicketsTable extends BaseWidget
             TaskStatusEnum::OPEN->value,
             TaskStatusEnum::ASSIGNED->value,
             TaskStatusEnum::IN_PROGRESS->value,
+            TaskStatusEnum::ON_HOLD->value,
         ];
 
         return $table
