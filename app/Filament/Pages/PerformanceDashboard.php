@@ -5,12 +5,6 @@ namespace App\Filament\Pages;
 use App\Models\Area;
 use App\Services\PerformanceService;
 use Carbon\Carbon;
-use Filament\Actions\Action;
-use Filament\Forms\Components\CheckboxList;
-use Filament\Forms\Components\DatePicker;
-use Filament\Forms\Components\Grid;
-use Filament\Forms\Components\Radio;
-use Filament\Forms\Components\Select;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
 use Filament\Pages\Page;
@@ -34,6 +28,9 @@ class PerformanceDashboard extends Page implements HasForms, HasTable
     public ?string $dateFrom = null;
     public ?string $dateTo   = null;
     public ?int    $areaId   = null;
+
+    public string $exportFormat   = 'pdf';
+    public array  $exportSections = ['kpi', 'priority', 'region', 'team'];
 
     public array $overview   = [];
     public Collection $teamStats;
@@ -192,38 +189,11 @@ class PerformanceDashboard extends Page implements HasForms, HasTable
         $this->loadStats();
     }
 
-    public function exportAction(): Action
+    public function submitExport(): mixed
     {
-        return Action::make('export')
-            ->label('Çıktı Al')
-            ->icon('heroicon-o-arrow-down-tray')
-            ->color('primary')
-            ->form([
-                Radio::make('format')
-                    ->label('Dosya Formatı')
-                    ->options([
-                        'pdf'  => 'PDF (Yazdırılabilir Rapor)',
-                        'xlsx' => 'Excel (xlsx)',
-                    ])
-                    ->default('pdf')
-                    ->required(),
-                CheckboxList::make('sections')
-                    ->label('Dahil Edilecek Bölümler')
-                    ->options([
-                        'kpi'      => 'KPI Özeti',
-                        'priority' => 'Öncelik Dağılımı',
-                        'region'   => 'Bölge Dağılımı',
-                        'team'     => 'Teknisyen Performansı',
-                    ])
-                    ->default(['kpi', 'priority', 'region', 'team'])
-                    ->required()
-                    ->columns(2),
-            ])
-            ->action(function (array $data) {
-                return $data['format'] === 'pdf'
-                    ? $this->exportPdf($data['sections'])
-                    : $this->exportExcel($data['sections']);
-            });
+        return $this->exportFormat === 'pdf'
+            ? $this->exportPdf($this->exportSections)
+            : $this->exportExcel($this->exportSections);
     }
 
     protected function exportPdf(array $sections): \Symfony\Component\HttpFoundation\StreamedResponse

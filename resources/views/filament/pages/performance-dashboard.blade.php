@@ -80,7 +80,17 @@
                             class="px-4 py-2 text-sm font-medium rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-600 transition">
                         Sıfırla
                     </button>
-                    {{ $this->exportAction }}
+                    <button
+                        type="button"
+                        x-data
+                        x-on:click="$dispatch('open-modal', { id: 'export-modal' })"
+                        class="px-4 py-2 text-sm font-medium rounded-md bg-primary-600 text-white hover:bg-primary-500 transition inline-flex items-center gap-2"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                        </svg>
+                        Çıktı Al
+                    </button>
                 </div>
             </form>
         </div>
@@ -322,6 +332,73 @@
         @endif
 
     </div>
+
+    <x-filament::modal id="export-modal" width="md">
+        <x-slot name="heading">
+            Çıktı Al
+        </x-slot>
+
+        <div class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Dosya Formatı
+                </label>
+                <div class="space-y-2">
+                    <label class="flex items-center gap-2">
+                        <input type="radio" wire:model="exportFormat" value="pdf"
+                               class="text-primary-600 focus:ring-primary-500">
+                        <span class="text-sm">PDF (Yazdırılabilir Rapor)</span>
+                    </label>
+                    <label class="flex items-center gap-2">
+                        <input type="radio" wire:model="exportFormat" value="xlsx"
+                               class="text-primary-600 focus:ring-primary-500">
+                        <span class="text-sm">Excel (xlsx)</span>
+                    </label>
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Dahil Edilecek Bölümler
+                </label>
+                <div class="grid grid-cols-2 gap-2">
+                    <label class="flex items-center gap-2">
+                        <input type="checkbox" wire:model="exportSections" value="kpi"
+                               class="rounded text-primary-600 focus:ring-primary-500">
+                        <span class="text-sm">KPI Özeti</span>
+                    </label>
+                    <label class="flex items-center gap-2">
+                        <input type="checkbox" wire:model="exportSections" value="priority"
+                               class="rounded text-primary-600 focus:ring-primary-500">
+                        <span class="text-sm">Öncelik Dağılımı</span>
+                    </label>
+                    <label class="flex items-center gap-2">
+                        <input type="checkbox" wire:model="exportSections" value="region"
+                               class="rounded text-primary-600 focus:ring-primary-500">
+                        <span class="text-sm">Bölge Dağılımı</span>
+                    </label>
+                    <label class="flex items-center gap-2">
+                        <input type="checkbox" wire:model="exportSections" value="team"
+                               class="rounded text-primary-600 focus:ring-primary-500">
+                        <span class="text-sm">Teknisyen Performansı</span>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <x-slot name="footerActions">
+            <x-filament::button
+                wire:click="submitExport"
+                x-on:click="$dispatch('close-modal', { id: 'export-modal' })">
+                İndir
+            </x-filament::button>
+            <x-filament::button
+                color="gray"
+                x-on:click="$dispatch('close-modal', { id: 'export-modal' })">
+                İptal
+            </x-filament::button>
+        </x-slot>
+    </x-filament::modal>
 </x-filament-panels::page>
 
 @push('styles')
