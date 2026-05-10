@@ -49,7 +49,7 @@ class ViewTicket extends ViewRecord
     private const ACTION_LABEL = [
         TaskStatusEnum::ASSIGNED->value    => 'Ata',
         TaskStatusEnum::IN_PROGRESS->value => 'İşleme Al',
-        TaskStatusEnum::ON_HOLD->value     => 'Beklemede',
+        TaskStatusEnum::ON_HOLD->value     => 'Beklet',
         TaskStatusEnum::RESOLVED->value    => 'Çözüldü',
         TaskStatusEnum::CLOSED->value      => 'Kapat',
         TaskStatusEnum::CANCELLED->value   => 'İptal Et',
@@ -72,6 +72,29 @@ class ViewTicket extends ViewRecord
 
         return $infolist
             ->schema([
+                // ── ON_HOLD AMBER BANNER ──
+                Section::make()
+                    ->schema([
+                        \Filament\Infolists\Components\TextEntry::make('on_hold_banner')
+                            ->label('')
+                            ->state(function ($record) {
+                                if (!$record->on_hold_since) {
+                                    return '⏸ Bu talep beklemededir. SLA sayacı durduruldu.';
+                                }
+                                $since = $record->on_hold_since->translatedFormat('d M Y H:i');
+                                $diff  = $record->on_hold_since->diffForHumans(null, true);
+                                return "⏸ Bu talep beklemededir — SLA sayacı durduruldu. {$since} tarihinden beri ({$diff})";
+                            })
+                            ->columnSpanFull()
+                            ->extraAttributes([
+                                'class' => 'text-amber-800 dark:text-amber-200 font-medium text-base',
+                            ]),
+                    ])
+                    ->extraAttributes([
+                        'class' => 'bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800',
+                    ])
+                    ->visible(fn ($record) => $record->status === \App\Enums\TaskStatusEnum::ON_HOLD),
+
                 // ── HEADER ──
                 Section::make()
                     ->extraAttributes(['class' => 'rounded-xl'])
