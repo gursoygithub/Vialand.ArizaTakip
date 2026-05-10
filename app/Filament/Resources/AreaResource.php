@@ -39,11 +39,7 @@ class AreaResource extends Resource
 
     public static function getNavigationBadge(): ?string
     {
-        if (auth()->user()?->hasRole('super_admin') || auth()->user()?->can('view_all_areas')) {
-            return static::getModel()::count();
-        }
-
-        return static::getModel()::where('created_by', auth()->id())->count();
+        return (string) static::getEloquentQuery()->count();
     }
 
     public static function form(Form $form): Form

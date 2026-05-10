@@ -94,6 +94,12 @@ class PermissionSeeder extends Seeder
         'widget_TicketsByPriorityChart',
         'widget_SlaComplianceTrendChart',
         'widget_RecentTicketsTable',
+
+        // Page permissions (Shield layer 2). shield:generate creates these in prod;
+        // we list them here so test DBs (which only run PermissionSeeder) get them.
+        'page_PerformanceDashboard',
+        'page_ManageGeneralSettings',
+        'page_CompanySetupWizard',
     ];
 
     private const ROLES = [
@@ -152,6 +158,9 @@ class PermissionSeeder extends Seeder
             'widget_TicketsByPriorityChart',
             'widget_SlaComplianceTrendChart',
             'widget_RecentTicketsTable',
+            'page_PerformanceDashboard',
+            'page_ManageGeneralSettings',
+            'page_CompanySetupWizard',
         ],
         'supervisor' => [
             'view_any_ticket',
@@ -179,6 +188,7 @@ class PermissionSeeder extends Seeder
             'widget_TicketsByPriorityChart',
             'widget_SlaComplianceTrendChart',
             'widget_RecentTicketsTable',
+            'page_PerformanceDashboard',
         ],
         'manager' => [
             'view_any_ticket',

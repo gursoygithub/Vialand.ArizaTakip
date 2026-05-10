@@ -59,7 +59,7 @@ class PerformanceDashboard extends Page implements HasForms, HasTable
 
     public static function canAccess(): bool
     {
-        return auth()->user()?->can('report.view') ?? false;
+        return auth()->user()?->can('page_PerformanceDashboard') ?? false;
     }
 
     public function mount(): void
@@ -122,9 +122,6 @@ class PerformanceDashboard extends Page implements HasForms, HasTable
 
     public function loadStats(): void
     {
-        if (!auth()->user()?->can('report.view')) {
-            return;
-        }
 
         $service = app(PerformanceService::class);
         $from    = Carbon::parse($this->dateFrom)->startOfDay();
@@ -197,6 +194,7 @@ class PerformanceDashboard extends Page implements HasForms, HasTable
 
     public function submitExport(): mixed
     {
+        abort_unless(auth()->user()->can('report.view'), 403);
         return $this->exportFormat === 'pdf'
             ? $this->exportPdf($this->exportSections)
             : $this->exportExcel($this->exportSections);

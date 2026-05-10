@@ -120,9 +120,6 @@ class RecentTicketsTable extends BaseWidget
         if (!$user) {
             return false;
         }
-        if ($user->hasRole('super_admin')) {
-            return true;
-        }
-        return $user->can('ticket.view.all') || $user->can('ticket.view.group');
+        return $user->hasRole('super_admin') || $user->can('widget_RecentTicketsTable');
     }
 }
