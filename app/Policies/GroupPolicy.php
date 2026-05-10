@@ -21,61 +21,61 @@ class GroupPolicy
 
     public function viewAny(User $user): bool
     {
-        return $user->can('group.manage') || $user->can('view_any_group');
+        return $user->can('view_any_group');
     }
 
     public function view(User $user, Group $group): bool
     {
-        return $user->can('group.manage') || $user->can('view_group');
+        return $user->can('view_group');
     }
 
     public function create(User $user): bool
     {
-        return $user->can('group.manage');
+        return $user->can('create_group');
     }
 
     public function update(User $user, Group $group): bool
     {
-        return $user->can('group.manage');
+        return $user->can('update_group') && $group->created_by === $user->id;
     }
 
     public function delete(User $user, Group $group): bool
     {
-        return $user->can('group.manage');
+        return $user->can('delete_group') && $group->created_by === $user->id;
     }
 
     public function deleteAny(User $user): bool
     {
-        return $user->can('group.manage');
+        return $user->can('delete_any_group');
     }
 
     public function forceDelete(User $user, Group $group): bool
     {
-        return $user->hasRole(['super_admin']);
+        return false;
     }
 
     public function forceDeleteAny(User $user): bool
     {
-        return $user->hasRole(['super_admin']);
+        return false;
     }
 
     public function restore(User $user, Group $group): bool
     {
-        return $user->can('group.manage');
+        return $user->can('delete_group');
     }
 
     public function restoreAny(User $user): bool
     {
-        return $user->can('group.manage');
+        return $user->can('delete_any_group');
     }
 
     public function replicate(User $user, Group $group): bool
     {
-        return $user->can('group.manage');
+        return false;
     }
 
     public function reorder(User $user): bool
     {
-        return $user->can('group.manage');
+        return false;
     }
 }

@@ -194,7 +194,7 @@ class PerformanceDashboard extends Page implements HasForms, HasTable
 
     public function submitExport(): mixed
     {
-        abort_unless(auth()->user()->can('report.view'), 403);
+        abort_unless(auth()->user()->can('ticket.export'), 403);
         return $this->exportFormat === 'pdf'
             ? $this->exportPdf($this->exportSections)
             : $this->exportExcel($this->exportSections);

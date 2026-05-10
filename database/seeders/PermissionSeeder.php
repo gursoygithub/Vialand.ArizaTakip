@@ -58,14 +58,8 @@ class PermissionSeeder extends Seeder
         'ticket.close',
         'ticket.export',
 
-        // Report / export (gates PerformanceDashboard export button and server-side abort)
-        'report.view',
-
         // SLA
         'sla.manage',
-
-        // Group management (GroupPolicy.php checks this for all group CRUD operations)
-        'group.manage',
 
         // User management
         'user.role.assign',
