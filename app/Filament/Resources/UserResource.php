@@ -5,6 +5,7 @@ namespace App\Filament\Resources;
 use App\Enums\ActiveStatusEnum;
 use App\Enums\ManagerStatusEnum;
 use App\Enums\UserStatusEnum;
+use App\Filament\Concerns\ScopedByVisibility;
 use App\Filament\Resources\UserResource\Pages;
 use App\Filament\Resources\UserResource\RelationManagers;
 use App\Models\Employee;
@@ -19,11 +20,16 @@ use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 
 class UserResource extends Resource
 {
+    use ScopedByVisibility;
+
+    protected static string $viewAllPermission = 'view_all_users';
+
     protected static ?string $model = User::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-user';
@@ -52,21 +58,11 @@ class UserResource extends Resource
 //        }
 //    }
 
-    public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
+    public static function getEloquentQuery(): Builder
     {
-        return parent::getEloquentQuery()->where(function ($query) {
-
-            $query
-                ->where('id', '!=', auth()->id())
-                ->where('id', '>', 1); // exclude super admin user with ID 1
-
-            if (auth()->user()?->hasRole('super_admin') || auth()->user()?->can('view_all_users')
-            ) {
-                return $query;
-            }
-
-            return $query->where('created_by', auth()->id());
-        });
+        return static::applyVisibilityScope(parent::getEloquentQuery())
+            ->where('id', '!=', auth()->id())
+            ->where('id', '>', 1);
     }
 
     public static function form(Form $form): Form

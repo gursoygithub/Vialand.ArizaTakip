@@ -4,28 +4,19 @@ namespace App\Filament\Concerns;
 
 use Illuminate\Database\Eloquent\Builder;
 
-/**
- * Resource-level scope filter for non-Ticket resources.
- *
- * Default behavior: filter records to those created by the current user.
- * If user has 'view_all_<plural_lower>' permission, scope is bypassed.
- * super_admin always bypasses (handled by Spatie's role gate).
- *
- * Usage in Resource:
- *   use ScopedByVisibility;
- *   protected static string $viewAllPermission = 'view_all_companies';
- *
- * Note: Ticket has its own scopeVisibleBy() — do NOT use this trait there.
- */
 trait ScopedByVisibility
 {
-    public static function getEloquentQuery(): Builder
+    /**
+     * Apply visibility scope to a query.
+     * Use this when the resource needs to chain additional WHERE clauses
+     * after the visibility scope.
+     */
+    public static function applyVisibilityScope(Builder $query): Builder
     {
-        $query = parent::getEloquentQuery();
         $user = auth()->user();
 
         if (!$user) {
-            return $query->whereRaw('1 = 0'); // unauthenticated → empty
+            return $query->whereRaw('1 = 0');
         }
 
         if ($user->hasRole('super_admin')) {
@@ -38,5 +29,10 @@ trait ScopedByVisibility
         }
 
         return $query->where('created_by', $user->id);
+    }
+
+    public static function getEloquentQuery(): Builder
+    {
+        return static::applyVisibilityScope(parent::getEloquentQuery());
     }
 }

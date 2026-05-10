@@ -30,7 +30,7 @@ class ManageGeneralSettings extends SettingsPage
 
     public static function shouldRegisterNavigation(): bool
     {
-        return (bool) auth()->user()?->can('manage_settings');
+        return auth()->user()?->can('page_ManageGeneralSettings') ?? false;
     }
 
     public function form(Form $form): Form
