@@ -5,8 +5,11 @@ namespace App\Filament\Pages;
 use App\Models\Area;
 use App\Services\PerformanceService;
 use Carbon\Carbon;
+use Filament\Actions\Action;
+use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Grid;
+use Filament\Forms\Components\Radio;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
@@ -179,6 +182,97 @@ class PerformanceDashboard extends Page implements HasForms, HasTable
             default        => null,
         };
         $this->loadStats();
+    }
+
+    public function resetFilters(): void
+    {
+        $this->dateFrom = now()->startOfMonth()->toDateString();
+        $this->dateTo   = now()->endOfMonth()->toDateString();
+        $this->areaId   = null;
+        $this->loadStats();
+    }
+
+    protected function getHeaderActions(): array
+    {
+        return [
+            Action::make('export')
+                ->label('Çıktı Al')
+                ->icon('heroicon-o-arrow-down-tray')
+                ->color('primary')
+                ->form([
+                    Radio::make('format')
+                        ->label('Dosya Formatı')
+                        ->options([
+                            'pdf'  => 'PDF (Yazdırılabilir Rapor)',
+                            'xlsx' => 'Excel (xlsx)',
+                        ])
+                        ->default('pdf')
+                        ->required(),
+                    CheckboxList::make('sections')
+                        ->label('Dahil Edilecek Bölümler')
+                        ->options([
+                            'kpi'      => 'KPI Özeti',
+                            'priority' => 'Öncelik Dağılımı',
+                            'region'   => 'Bölge Dağılımı',
+                            'team'     => 'Teknisyen Performansı',
+                        ])
+                        ->default(['kpi', 'priority', 'region', 'team'])
+                        ->required()
+                        ->columns(2),
+                ])
+                ->action(function (array $data) {
+                    return $data['format'] === 'pdf'
+                        ? $this->exportPdf($data['sections'])
+                        : $this->exportExcel($data['sections']);
+                }),
+        ];
+    }
+
+    protected function exportPdf(array $sections): \Symfony\Component\HttpFoundation\StreamedResponse
+    {
+        $this->loadStats();
+
+        $context = [
+            'overview'        => in_array('kpi', $sections) ? $this->overview : null,
+            'regionBreakdown' => in_array('region', $sections) ? $this->regionBreakdown : null,
+            'teamStats'       => in_array('team', $sections) ? $this->teamStats : null,
+            'showPriority'    => in_array('priority', $sections),
+            'dateFrom'        => $this->dateFrom,
+            'dateTo'          => $this->dateTo,
+            'areaName'        => $this->areaId
+                ? Area::find($this->areaId)?->name
+                : 'Tümü',
+            'generatedAt'     => now()->format('d.m.Y H:i'),
+            'generatedBy'     => auth()->user()->name,
+        ];
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('exports.performance-report', $context)
+            ->setPaper('a4', 'portrait');
+
+        return response()->streamDownload(
+            fn () => print($pdf->output()),
+            'performans-raporu-' . now()->format('Y-m-d-Hi') . '.pdf'
+        );
+    }
+
+    protected function exportExcel(array $sections): \Symfony\Component\HttpFoundation\BinaryFileResponse|\Symfony\Component\HttpFoundation\StreamedResponse
+    {
+        $this->loadStats();
+
+        $export = new \App\Exports\PerformanceReportExport(
+            $sections,
+            $this->overview,
+            $this->regionBreakdown,
+            $this->teamStats,
+            $this->dateFrom,
+            $this->dateTo,
+            $this->areaId ? Area::find($this->areaId)?->name : 'Tümü'
+        );
+
+        return \Maatwebsite\Excel\Facades\Excel::download(
+            $export,
+            'performans-raporu-' . now()->format('Y-m-d-Hi') . '.xlsx'
+        );
     }
 
     public function table(Table $table): Table

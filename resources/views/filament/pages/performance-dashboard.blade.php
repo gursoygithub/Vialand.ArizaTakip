@@ -76,8 +76,9 @@
                     <button type="submit" class="flex-1 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg px-4 py-2 text-sm transition">
                         {{ __('ui.page_performance_filter_submit') }}
                     </button>
-                    <button type="button" wire:click="exportCsv" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg px-4 py-2 text-sm transition">
-                        {{ __('ui.export_csv') }}
+                    <button type="button" wire:click="resetFilters"
+                            class="px-4 py-2 text-sm font-medium rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-600 transition">
+                        Sıfırla
                     </button>
                 </div>
             </form>
