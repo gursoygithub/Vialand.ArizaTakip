@@ -32,8 +32,12 @@
 {{-- Header --}}
 <div class="header">
     @if($logoData ?? false)
-        <div class="header-logo">
-            <img src="{{ $logoData }}" alt="" height="60" style="height: 60px; width: auto;">
+        <div class="header-logo" style="margin-bottom: 14px;">
+            <img src="{{ $logoData }}"
+                 alt=""
+                 width="180"
+                 height="80"
+                 style="width: 180px; height: 80px; display: block;">
         </div>
     @endif
     <h1>Performans Raporu</h1>
