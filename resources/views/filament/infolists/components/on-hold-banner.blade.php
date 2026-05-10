@@ -1,14 +1,9 @@
 @props(['since' => null, 'duration' => null])
 
 <div role="alert"
-     class="flex items-start gap-3 rounded-lg border border-warning-300 bg-warning-50 px-4 py-3 dark:border-warning-700/60 dark:bg-warning-950/40 ring-1 ring-warning-200/60 dark:ring-warning-800/40">
+     class="flex items-start gap-3 rounded-lg border border-warning-400 bg-warning-100 px-4 py-3 dark:border-warning-700 dark:bg-warning-950/50 ring-1 ring-warning-300/50 dark:ring-warning-800/40">
 
-    <svg class="mt-0.5 h-5 w-5 flex-none text-warning-600 dark:text-warning-400"
-         xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-        <path fill-rule="evenodd"
-              d="M6.75 5.25a.75.75 0 0 1 .75.75V18a.75.75 0 0 1-1.5 0V6a.75.75 0 0 1 .75-.75Zm10.5 0a.75.75 0 0 1 .75.75V18a.75.75 0 0 1-1.5 0V6a.75.75 0 0 1 .75-.75Z"
-              clip-rule="evenodd" />
-    </svg>
+    @svg('heroicon-m-pause-circle', 'mt-0.5 h-6 w-6 flex-none text-warning-600 dark:text-warning-400')
 
     <div class="flex-1 min-w-0">
         <p class="text-sm font-semibold text-warning-900 dark:text-warning-100">
