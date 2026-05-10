@@ -70,29 +70,26 @@ class ViewTicket extends ViewRecord
                 ?->created_at
             : null;
 
+        // Precompute banner data at build time — same pattern as $inProgressAt above.
+        // ViewEntry passes data as a static array; closures cannot inject $record.
+        $onHoldSince    = $record->on_hold_since?->translatedFormat('d M Y H:i');
+        $onHoldDuration = $record->on_hold_since
+            ? \App\Support\DurationFormatter::minutes((int) $record->on_hold_since->diffInMinutes(now()))
+            : null;
+
         return $infolist
             ->schema([
                 // ── ON_HOLD AMBER BANNER ──
                 Section::make()
                     ->schema([
-                        \Filament\Infolists\Components\TextEntry::make('on_hold_banner')
-                            ->label('')
-                            ->state(function ($record) {
-                                if (!$record->on_hold_since) {
-                                    return '⏸  Bu talep beklemededir — SLA sayacı durduruldu.';
-                                }
-                                $since    = $record->on_hold_since->translatedFormat('d M Y H:i');
-                                $minutes  = (int) $record->on_hold_since->diffInMinutes(now());
-                                $duration = \App\Support\DurationFormatter::minutes($minutes);
-                                return "⏸  Bu talep beklemededir — SLA sayacı durduruldu. {$since} tarihinden beri ({$duration})";
-                            })
-                            ->badge()
-                            ->color('warning')
-                            ->columnSpanFull()
-                            ->extraAttributes([
-                                'class' => '!text-base !font-bold !py-3 !px-4',
-                            ]),
+                        \Filament\Infolists\Components\ViewEntry::make('on_hold_banner')
+                            ->view('filament.infolists.components.on-hold-banner', [
+                                'since'    => $onHoldSince,
+                                'duration' => $onHoldDuration,
+                            ])
+                            ->columnSpanFull(),
                     ])
+                    ->extraAttributes(['class' => '!p-0 !shadow-none !bg-transparent !border-0'])
                     ->visible(fn ($record) => $record->status === \App\Enums\TaskStatusEnum::ON_HOLD),
 
                 // ── HEADER ──
