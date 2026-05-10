@@ -16,7 +16,7 @@ class TaskExporter extends Exporter
     {
         $isSuperAdmin = auth()->user()->hasRole('super_admin');
         $canViewTcNo = auth()->user()->can('view_tc_no');
-        $canViewAllTasks = auth()->user()->can('view_all_tasks') || auth()->user()->can('ticket.view.all');
+        $canViewAllTasks = auth()->user()->can('ticket.view.all');
 
         $columns = [];
 

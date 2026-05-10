@@ -282,7 +282,6 @@ class Ticket extends Model implements HasMedia
      *                       (employee_id matches the user's Employee record)
      *
      * Priority: view.all > view.group > view.own. The legacy custom permission
-     * `view_all_tasks` is treated as a synonym for `ticket.view.all` (consolidation).
      * Permission checks use Spatie's hasPermissionTo() — no role-name checks.
      */
     public function scopeVisibleBy(Builder $query, ?User $user): Builder
@@ -296,8 +295,8 @@ class Ticket extends Model implements HasMedia
             return $query;
         }
 
-        // 1. ticket.view.all (or legacy view_all_tasks) → no scope.
-        if ($user->hasPermissionTo('ticket.view.all') || $user->hasPermissionTo('view_all_tasks')) {
+        // 1. ticket.view.all → no scope.
+        if ($user->hasPermissionTo('ticket.view.all')) {
             return $query;
         }
 

@@ -341,22 +341,18 @@ The Reform-era replacement is `Ticket::getSlaStatusLabel(): string`, which retur
 human-readable Turkish strings and correctly handles all lifecycle states including
 RESOLVED. Never re-introduce `getSlaStatusAttribute()` or `->sla_status`.
 
-## `ticket.view.all` permission: check both old and new name
+## `ticket.view.all` — canonical permission name
 
-`Ticket::scopeVisibleBy()` explicitly checks both `ticket.view.all` (Reform-era) and
-`view_all_tasks` (legacy) for backward compatibility. Any code that hand-rolls its own
-permission check for "can this user see all tickets?" must also check both:
+`Ticket::scopeVisibleBy()` checks `ticket.view.all` only. The legacy `view_all_tasks`
+permission was removed from `PermissionSeeder` (Phase 7) and dropped from the DB
+(Phase 8). Any code that gates on "can this user see all tickets?" must use:
 
 ```php
-$user->can('view_all_tasks') || $user->can('ticket.view.all')
+$user->can('ticket.view.all')
 ```
 
-**Sites fixed:**
-- `UnitResource/RelationManagers/TicketsRelationManager::applyTaskPermissionFilter()`
-- `TaskExporter` — `$canViewAllTasks` gate for the `createdBy` export column
-
-If you add a new relation manager or custom query that gates on ticket-view-all access,
-always use the dual check above, not just one name.
+Never check `view_all_tasks` — that permission row no longer exists and
+`hasPermissionTo()` throws `PermissionDoesNotExist` for absent rows.
 
 ## Reopen Coverage (`tests/Feature/TicketReopenTest.php`)
 - Two scenarios covered: `RESOLVED → ASSIGNED` and `CLOSED → ASSIGNED`. Both assert the same 7 invariants (status, `assigned_at` re-stamp, deadline rebase, `sla_breached=false`, cleared timestamps, history row, `TicketStatusChangedNotification` to assignee). The CLOSED variant additionally checks `closed_at` and `closed_by` are nulled.

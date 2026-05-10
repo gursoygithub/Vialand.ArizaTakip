@@ -101,6 +101,7 @@ class TicketVisibilityTest extends TestCase
 
         $admin = User::factory()->create();
         $admin->assignRole('admin');
+        $admin->givePermissionTo('ticket.view.all');
 
         $a = Ticket::factory()->create(['area_id' => $area->id, 'sub_area_id' => $subArea->id, 'unit_id' => $unit->id, 'created_by' => 1]);
         $b = Ticket::factory()->create(['area_id' => $area->id, 'sub_area_id' => $subArea->id, 'unit_id' => $unit->id, 'created_by' => 2]);
@@ -122,6 +123,7 @@ class TicketVisibilityTest extends TestCase
 
         $supervisor = User::factory()->create(['email' => 'grpsup@test.com']);
         $supervisor->assignRole('supervisor');
+        $supervisor->givePermissionTo('ticket.view.group');
         $supEmp = Employee::factory()->create(['email' => 'grpsup@test.com']);
 
         // Group supervised by $supEmp — no GroupMember row for the supervisor
@@ -155,6 +157,7 @@ class TicketVisibilityTest extends TestCase
 
         $supervisor = User::factory()->create(['email' => 'grpsup2@test.com']);
         $supervisor->assignRole('supervisor');
+        $supervisor->givePermissionTo('ticket.view.group');
         $supEmp = Employee::factory()->create(['email' => 'grpsup2@test.com']);
 
         $managedGroup = Group::factory()->create(['area_id' => $area->id, 'employee_id' => $supEmp->id]);

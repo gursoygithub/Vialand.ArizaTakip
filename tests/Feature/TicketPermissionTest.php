@@ -74,6 +74,7 @@ class TicketPermissionTest extends TestCase
 
         $supervisor = User::factory()->create(['email' => 'supervisor@test.com']);
         $supervisor->assignRole('supervisor');
+        $supervisor->givePermissionTo('view_ticket');
 
         $employee = Employee::factory()->create(['email' => 'supervisor@test.com']);
 
@@ -113,6 +114,7 @@ class TicketPermissionTest extends TestCase
     {
         $user = User::factory()->create();
         $user->assignRole('technician');
+        $user->givePermissionTo('create_ticket');
 
         $policy = new TicketPolicy();
 
@@ -137,6 +139,7 @@ class TicketPermissionTest extends TestCase
 
         $supervisor = User::factory()->create();
         $supervisor->assignRole('supervisor');
+        $supervisor->givePermissionTo('ticket.close');
 
         $policy = new TicketPolicy();
 

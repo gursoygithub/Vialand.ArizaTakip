@@ -93,6 +93,8 @@ class TicketRouteAuthorizationTest extends TestCase
 
     public function test_admin_can_reach_ticket_index(): void
     {
+        $this->admin->givePermissionTo('view_any_ticket');
+
         $this->actingAs($this->admin)
             ->get(route('filament.dashboard.resources.tickets.index'))
             ->assertOk();
@@ -100,6 +102,8 @@ class TicketRouteAuthorizationTest extends TestCase
 
     public function test_admin_can_reach_performance_dashboard(): void
     {
+        $this->admin->givePermissionTo('page_PerformanceDashboard');
+
         $this->actingAs($this->admin)
             ->get(route('filament.dashboard.pages.performance-dashboard'))
             ->assertOk();
