@@ -88,8 +88,10 @@ class ViewTicket extends ViewRecord
                             })
                             ->badge()
                             ->color('warning')
-                            ->size(\Filament\Infolists\Components\TextEntry\TextEntrySize::Large)
-                            ->columnSpanFull(),
+                            ->columnSpanFull()
+                            ->extraAttributes([
+                                'class' => '!text-base !font-bold !py-3 !px-4',
+                            ]),
                     ])
                     ->visible(fn ($record) => $record->status === \App\Enums\TaskStatusEnum::ON_HOLD),
 
