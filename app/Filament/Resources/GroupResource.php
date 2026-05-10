@@ -66,11 +66,16 @@ class GroupResource extends Resource
                             ]),
                         Forms\Components\Select::make('company_id')
                             ->label(__('ui.company'))
-                            ->options(
-                                \App\Models\Company::query()
-                                    ->where('status', ActiveStatusEnum::ACTIVE)
-                                    ->pluck('name', 'id')
-                            )
+                            ->options(function () {
+                                $user = auth()->user();
+                                $companyIds = $user?->scopedCompanyIds() ?? [];
+                                $query = \App\Models\Company::query()
+                                    ->where('status', ActiveStatusEnum::ACTIVE);
+                                if (!empty($companyIds)) {
+                                    $query->whereIn('id', $companyIds);
+                                }
+                                return $query->pluck('name', 'id')->toArray();
+                            })
                             ->live()
                             ->preload()
                             ->searchable()

@@ -717,8 +717,8 @@ class TicketResource extends Resource
                     // rules server-side; ->hidden() prevents the visible
                     // button → click → 403 UX gap on terminal tickets.
                     Tables\Actions\EditAction::make()
-                        ->visible(fn (Ticket $record): bool => $record->created_by === auth()->id()
-                            || (bool) auth()->user()?->hasRole('super_admin'))
+                        ->visible(fn (Ticket $record): bool =>
+                            auth()->user()?->can('update', $record) ?? false)
                         ->hidden(fn (Ticket $record) => in_array($record->status, [
                             TaskStatusEnum::RESOLVED,
                             TaskStatusEnum::CLOSED,
@@ -726,8 +726,8 @@ class TicketResource extends Resource
                         ], true)),
 
                     Tables\Actions\DeleteAction::make()
-                        ->visible(fn (Ticket $record): bool => $record->created_by === auth()->id()
-                            || (bool) auth()->user()?->hasRole('super_admin'))
+                        ->visible(fn (Ticket $record): bool =>
+                            auth()->user()?->can('delete', $record) ?? false)
                         ->hidden(fn (Ticket $record) => in_array($record->status, [
                             TaskStatusEnum::RESOLVED,
                             TaskStatusEnum::CLOSED,
