@@ -26,45 +26,45 @@
         {{-- Filters --}}
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-4">
             <div class="flex flex-wrap gap-2 mb-5">
-                @php($_isActive = $activePreset === 'this_week')
+                @php $isActive = $activePreset === 'this_week'; @endphp
                 <button type="button" wire:click="setDateRange('this_week')"
-                        class="px-3 py-1.5 text-xs rounded-md transition"
-                        style="background-color: {{ $_isActive ? '#0369A1' : '#E0F2FE' }}; color: {{ $_isActive ? '#FFFFFF' : '#075985' }}; border: 1px solid {{ $_isActive ? '#0369A1' : '#BAE6FD' }}; {{ $_isActive ? 'box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.4);' : '' }} font-weight: {{ $_isActive ? '600' : '500' }};">
+                        class="px-3 py-1.5 text-xs font-medium rounded-md transition"
+                        style="background-color: {{ $isActive ? '#0369A1' : '#E0F2FE' }}; color: {{ $isActive ? '#FFFFFF' : '#075985' }}; border: 1px solid {{ $isActive ? '#0369A1' : '#BAE6FD' }}; {{ $isActive ? 'box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.4);' : '' }} font-weight: {{ $isActive ? '600' : '500' }};">
                     Bu Hafta
                 </button>
 
-                @php($_isActive = $activePreset === 'this_month')
+                @php $isActive = $activePreset === 'this_month'; @endphp
                 <button type="button" wire:click="setDateRange('this_month')"
-                        class="px-3 py-1.5 text-xs rounded-md transition"
-                        style="background-color: {{ $_isActive ? '#0369A1' : '#E0F2FE' }}; color: {{ $_isActive ? '#FFFFFF' : '#075985' }}; border: 1px solid {{ $_isActive ? '#0369A1' : '#BAE6FD' }}; {{ $_isActive ? 'box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.4);' : '' }} font-weight: {{ $_isActive ? '600' : '500' }};">
+                        class="px-3 py-1.5 text-xs font-medium rounded-md transition"
+                        style="background-color: {{ $isActive ? '#0369A1' : '#E0F2FE' }}; color: {{ $isActive ? '#FFFFFF' : '#075985' }}; border: 1px solid {{ $isActive ? '#0369A1' : '#BAE6FD' }}; {{ $isActive ? 'box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.4);' : '' }} font-weight: {{ $isActive ? '600' : '500' }};">
                     Bu Ay
                 </button>
 
-                @php($_isActive = $activePreset === 'last_month')
+                @php $isActive = $activePreset === 'last_month'; @endphp
                 <button type="button" wire:click="setDateRange('last_month')"
-                        class="px-3 py-1.5 text-xs rounded-md transition"
-                        style="background-color: {{ $_isActive ? '#0369A1' : '#E0F2FE' }}; color: {{ $_isActive ? '#FFFFFF' : '#075985' }}; border: 1px solid {{ $_isActive ? '#0369A1' : '#BAE6FD' }}; {{ $_isActive ? 'box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.4);' : '' }} font-weight: {{ $_isActive ? '600' : '500' }};">
+                        class="px-3 py-1.5 text-xs font-medium rounded-md transition"
+                        style="background-color: {{ $isActive ? '#0369A1' : '#E0F2FE' }}; color: {{ $isActive ? '#FFFFFF' : '#075985' }}; border: 1px solid {{ $isActive ? '#0369A1' : '#BAE6FD' }}; {{ $isActive ? 'box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.4);' : '' }} font-weight: {{ $isActive ? '600' : '500' }};">
                     Geçen Ay
                 </button>
 
-                @php($_isActive = $activePreset === 'last_30_days')
+                @php $isActive = $activePreset === 'last_30_days'; @endphp
                 <button type="button" wire:click="setDateRange('last_30_days')"
-                        class="px-3 py-1.5 text-xs rounded-md transition"
-                        style="background-color: {{ $_isActive ? '#0369A1' : '#E0F2FE' }}; color: {{ $_isActive ? '#FFFFFF' : '#075985' }}; border: 1px solid {{ $_isActive ? '#0369A1' : '#BAE6FD' }}; {{ $_isActive ? 'box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.4);' : '' }} font-weight: {{ $_isActive ? '600' : '500' }};">
+                        class="px-3 py-1.5 text-xs font-medium rounded-md transition"
+                        style="background-color: {{ $isActive ? '#0369A1' : '#E0F2FE' }}; color: {{ $isActive ? '#FFFFFF' : '#075985' }}; border: 1px solid {{ $isActive ? '#0369A1' : '#BAE6FD' }}; {{ $isActive ? 'box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.4);' : '' }} font-weight: {{ $isActive ? '600' : '500' }};">
                     Son 30 Gün
                 </button>
 
-                @php($_isActive = $activePreset === 'this_quarter')
+                @php $isActive = $activePreset === 'this_quarter'; @endphp
                 <button type="button" wire:click="setDateRange('this_quarter')"
-                        class="px-3 py-1.5 text-xs rounded-md transition"
-                        style="background-color: {{ $_isActive ? '#0369A1' : '#E0F2FE' }}; color: {{ $_isActive ? '#FFFFFF' : '#075985' }}; border: 1px solid {{ $_isActive ? '#0369A1' : '#BAE6FD' }}; {{ $_isActive ? 'box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.4);' : '' }} font-weight: {{ $_isActive ? '600' : '500' }};">
+                        class="px-3 py-1.5 text-xs font-medium rounded-md transition"
+                        style="background-color: {{ $isActive ? '#0369A1' : '#E0F2FE' }}; color: {{ $isActive ? '#FFFFFF' : '#075985' }}; border: 1px solid {{ $isActive ? '#0369A1' : '#BAE6FD' }}; {{ $isActive ? 'box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.4);' : '' }} font-weight: {{ $isActive ? '600' : '500' }};">
                     Bu Çeyrek
                 </button>
 
-                @php($_isActive = $activePreset === 'this_year')
+                @php $isActive = $activePreset === 'this_year'; @endphp
                 <button type="button" wire:click="setDateRange('this_year')"
-                        class="px-3 py-1.5 text-xs rounded-md transition"
-                        style="background-color: {{ $_isActive ? '#0369A1' : '#E0F2FE' }}; color: {{ $_isActive ? '#FFFFFF' : '#075985' }}; border: 1px solid {{ $_isActive ? '#0369A1' : '#BAE6FD' }}; {{ $_isActive ? 'box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.4);' : '' }} font-weight: {{ $_isActive ? '600' : '500' }};">
+                        class="px-3 py-1.5 text-xs font-medium rounded-md transition"
+                        style="background-color: {{ $isActive ? '#0369A1' : '#E0F2FE' }}; color: {{ $isActive ? '#FFFFFF' : '#075985' }}; border: 1px solid {{ $isActive ? '#0369A1' : '#BAE6FD' }}; {{ $isActive ? 'box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.4);' : '' }} font-weight: {{ $isActive ? '600' : '500' }};">
                     Bu Yıl
                 </button>
             </div>
