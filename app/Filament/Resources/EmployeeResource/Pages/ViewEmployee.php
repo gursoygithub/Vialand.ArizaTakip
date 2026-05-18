@@ -203,7 +203,8 @@ class ViewEmployee extends ViewRecord
                                 ->schema([
                                     TextEntry::make('compliance_rate')
                                         ->label(__('ui.employee_general_success_rate'))
-                                        ->helperText('Tüm zamanlar — kapalı ve aktif ihlaller dahil')
+                                        ->helperText('Tüm zamanlar — SLA\'lı ve kapatılmış talepler')
+                                        ->hint("{$closedOnTime} zamanında, {$totalBreached} ihlal")
                                         ->state($complianceRate === null ? '—' : '%' . number_format($complianceRate, 1, ',', '.'))
                                         ->weight('bold')
                                         ->badge()
