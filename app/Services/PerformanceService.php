@@ -37,7 +37,7 @@ class PerformanceService
         $tickets = Ticket::query()
             ->visibleBy($viewer)
             ->where('employee_id', $employee->id)
-            ->whereBetween('created_at', [$from, $to])
+            ->whereBetween('resolved_at', [$from, $to])
             ->get();
 
         $stats = $this->aggregate($user, $tickets);
@@ -77,7 +77,7 @@ class PerformanceService
 
         $tickets = Ticket::query()
             ->visibleBy($viewer)
-            ->whereBetween('created_at', [$from, $to])
+            ->whereBetween('resolved_at', [$from, $to])
             ->when($areaId, fn ($q) => $q->where('area_id', $areaId))
             ->get();
 
@@ -155,7 +155,7 @@ class PerformanceService
 
         return Ticket::query()
             ->visibleBy($viewer)
-            ->whereBetween('created_at', [$from, $to])
+            ->whereBetween('resolved_at', [$from, $to])
             ->whereNotIn('status', [TaskStatusEnum::CANCELLED])
             ->when($areaId, fn ($q) => $q->where('area_id', $areaId))
             ->with('area:id,name')

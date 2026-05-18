@@ -12,6 +12,7 @@ use App\Models\SubArea;
 use App\Models\Ticket;
 use App\Models\Unit;
 use App\Models\User;
+use App\Services\PerformanceService;
 use App\Services\TicketService;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -209,6 +210,160 @@ class EmployeePerformanceTest extends TestCase
         $this->assertEquals(100.0, $employeeB->fresh()->performance_score);
 
         Carbon::setTestNow();
+    }
+
+    // ── Test 7: SLA-less ticket excluded from score ──────────────────────────
+
+    public function test_sla_less_ticket_excluded_from_performance_score(): void
+    {
+        $area     = Area::factory()->create(['status' => ActiveStatusEnum::ACTIVE]);
+        $subArea  = SubArea::factory()->create(['area_id' => $area->id]);
+        $unit     = Unit::factory()->create();
+        $employee = Employee::factory()->create();
+
+        // No SlaPolicy → observer leaves sla_deadline = null on creating.
+        $ticket = Ticket::factory()->create([
+            'area_id'     => $area->id,
+            'sub_area_id' => $subArea->id,
+            'unit_id'     => $unit->id,
+            'employee_id' => $employee->id,
+            'status'      => TaskStatusEnum::IN_PROGRESS,
+        ]);
+
+        // Resolve: resolved_at set, sla_deadline = null, sla_breached = false.
+        // One true formula: success requires sla_deadline IS NOT NULL → excluded.
+        $this->service->transition($ticket, TaskStatusEnum::RESOLVED, $this->actor);
+
+        $fresh = $employee->fresh();
+        $this->assertNull($fresh->performance_score, 'SLA-less ticket must not contribute to score');
+    }
+
+    // ── Test 8: Active breach excluded from score ────────────────────────────
+
+    public function test_active_breach_excluded_from_performance_score(): void
+    {
+        Carbon::setTestNow('2026-06-01 10:00:00');
+
+        $area     = Area::factory()->create(['status' => ActiveStatusEnum::ACTIVE]);
+        $subArea  = SubArea::factory()->create(['area_id' => $area->id]);
+        $unit     = Unit::factory()->create();
+        $employee = Employee::factory()->create();
+
+        // Ticket is actively breached but NOT yet resolved (resolved_at = null).
+        Ticket::factory()->create([
+            'area_id'      => $area->id,
+            'sub_area_id'  => $subArea->id,
+            'unit_id'      => $unit->id,
+            'employee_id'  => $employee->id,
+            'status'       => TaskStatusEnum::IN_PROGRESS,
+            'sla_deadline' => Carbon::parse('2026-06-01 08:00:00'),
+            'sla_breached' => true,
+            // resolved_at is intentionally not set
+        ]);
+
+        $employee->refreshPerformanceMetrics();
+
+        $fresh = $employee->fresh();
+        $this->assertNull($fresh->performance_score, 'Active (unresolved) breach must not contribute to score');
+
+        Carbon::setTestNow();
+    }
+
+    // ── Test 9: Cancelled ticket excluded from score ─────────────────────────
+
+    public function test_cancelled_ticket_excluded_from_performance_score(): void
+    {
+        Carbon::setTestNow('2026-06-01 10:00:00');
+
+        $area     = Area::factory()->create(['status' => ActiveStatusEnum::ACTIVE]);
+        $subArea  = SubArea::factory()->create(['area_id' => $area->id]);
+        $unit     = Unit::factory()->create();
+
+        SlaPolicy::factory()->create([
+            'area_id'           => $area->id,
+            'sub_area_id'       => $subArea->id,
+            'unit_id'           => $unit->id,
+            'priority'          => TaskPriorityEnum::Medium->value,
+            'deadline_minutes'  => 120,
+            'success_threshold' => 80,
+        ]);
+
+        $employee = Employee::factory()->create();
+
+        $ticket = Ticket::factory()->create([
+            'area_id'     => $area->id,
+            'sub_area_id' => $subArea->id,
+            'unit_id'     => $unit->id,
+            'employee_id' => $employee->id,
+            'priority'    => TaskPriorityEnum::Medium,
+            'status'      => TaskStatusEnum::IN_PROGRESS,
+        ]);
+
+        // Cancel — markCancelled clears sla_breached; resolved_at is never set.
+        $this->service->transition($ticket, TaskStatusEnum::CANCELLED, $this->actor);
+
+        $fresh = $employee->fresh();
+        $this->assertNull($fresh->performance_score, 'Cancelled ticket must be excluded from score');
+
+        Carbon::setTestNow();
+    }
+
+    // ── Test 10: Dashboard date filter uses resolved_at ──────────────────────
+
+    public function test_dashboard_date_filter_uses_resolved_at(): void
+    {
+        $this->actor->assignRole('super_admin');
+
+        // Create ticket in January.
+        Carbon::setTestNow('2026-01-15 10:00:00');
+
+        $area     = Area::factory()->create(['status' => ActiveStatusEnum::ACTIVE]);
+        $subArea  = SubArea::factory()->create(['area_id' => $area->id]);
+        $unit     = Unit::factory()->create();
+        $employee = Employee::factory()->create();
+
+        SlaPolicy::factory()->create([
+            'area_id'           => $area->id,
+            'sub_area_id'       => $subArea->id,
+            'unit_id'           => $unit->id,
+            'priority'          => TaskPriorityEnum::Medium->value,
+            'deadline_minutes'  => 120,
+            'success_threshold' => 80,
+        ]);
+
+        $ticket = Ticket::factory()->create([
+            'area_id'     => $area->id,
+            'sub_area_id' => $subArea->id,
+            'unit_id'     => $unit->id,
+            'employee_id' => $employee->id,
+            'priority'    => TaskPriorityEnum::Medium,
+            'status'      => TaskStatusEnum::IN_PROGRESS,
+        ]);
+
+        // Resolve in February → resolved_at = 2026-02-15.
+        Carbon::setTestNow('2026-02-15 10:00:00');
+        $this->service->transition($ticket, TaskStatusEnum::RESOLVED, $this->actor);
+        Carbon::setTestNow();
+
+        $performanceService = app(PerformanceService::class);
+
+        // February window (resolved_at in range) → ticket must appear.
+        $feb = $performanceService->getOverview(
+            Carbon::parse('2026-02-01 00:00:00'),
+            Carbon::parse('2026-02-28 23:59:59'),
+            $this->actor
+        );
+        $this->assertGreaterThan(0, $feb['total_assigned'],
+            'Ticket resolved in February must appear in the February date range');
+
+        // January window (resolved_at NOT in range) → ticket must not appear.
+        $jan = $performanceService->getOverview(
+            Carbon::parse('2026-01-01 00:00:00'),
+            Carbon::parse('2026-01-31 23:59:59'),
+            $this->actor
+        );
+        $this->assertEquals(0, $jan['total_assigned'],
+            'Ticket resolved in February must NOT appear in the January date range');
     }
 
     // ── Test 6: No recalc on non-cohort save ─────────────────────────────────

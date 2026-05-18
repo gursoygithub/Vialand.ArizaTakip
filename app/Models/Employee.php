@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\ActiveStatusEnum;
+use App\Enums\TaskStatusEnum;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -87,9 +88,17 @@ class Employee extends Model
     public function refreshPerformanceMetrics()
     {
         $stats = $this->tickets()
+            ->whereNotIn('status', [TaskStatusEnum::CANCELLED])
             ->selectRaw('
-                SUM(CASE WHEN sla_breached = 0 AND resolved_at IS NOT NULL THEN 1 ELSE 0 END) as success_count,
-                SUM(CASE WHEN sla_breached = 1 THEN 1 ELSE 0 END) as failed_count
+                SUM(CASE
+                    WHEN resolved_at IS NOT NULL
+                     AND sla_breached = 0
+                     AND sla_deadline IS NOT NULL
+                    THEN 1 ELSE 0 END) as success_count,
+                SUM(CASE
+                    WHEN resolved_at IS NOT NULL
+                     AND sla_breached = 1
+                    THEN 1 ELSE 0 END) as failed_count
             ')
             ->first();
 

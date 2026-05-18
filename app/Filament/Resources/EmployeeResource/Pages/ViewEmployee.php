@@ -41,16 +41,20 @@ class ViewEmployee extends ViewRecord
             ->whereIn('ticket_id', Ticket::where('employee_id', $record->id)->select('id'))
             ->count();
 
-        // SLA Performans Analizi — uses sla_breached, not the legacy
-        // sla_outcome column. Aligned with PerformanceService.
-        $performanceCohort = $record->tickets()
-            ->whereNotIn('status', [TaskStatusEnum::CANCELLED]);
-
-        $closedOnTime     = (clone $performanceCohort)
+        // SLA Performans Analizi — one true formula: sealed = on-time + breached.
+        // On-time: resolved_at IS NOT NULL AND sla_breached = false AND sla_deadline IS NOT NULL.
+        // Failed:  resolved_at IS NOT NULL AND sla_breached = true.
+        // CANCELLED excluded from both.
+        $closedOnTime = $record->tickets()
+            ->whereNotIn('status', [TaskStatusEnum::CANCELLED])
             ->whereNotNull('resolved_at')
             ->where('sla_breached', false)
+            ->whereNotNull('sla_deadline')
             ->count();
-        $totalBreached    = (clone $performanceCohort)
+
+        $totalBreached = $record->tickets()
+            ->whereNotIn('status', [TaskStatusEnum::CANCELLED])
+            ->whereNotNull('resolved_at')
             ->where('sla_breached', true)
             ->count();
 
