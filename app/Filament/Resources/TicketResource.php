@@ -800,6 +800,10 @@ class TicketResource extends Resource
             return 'gray';
         }
 
+        if ($record->status === TaskStatusEnum::CANCELLED) {
+            return 'gray';
+        }
+
         if (!$record->sla_deadline) {
             return 'gray';
         }
@@ -812,7 +816,6 @@ class TicketResource extends Resource
             TaskStatusEnum::RESOLVED,
             TaskStatusEnum::CLOSED,
             TaskStatusEnum::COMPLETED,
-            TaskStatusEnum::CANCELLED,
         ], true);
         if ($terminal) {
             return $record->sla_breached ? 'danger' : 'success';

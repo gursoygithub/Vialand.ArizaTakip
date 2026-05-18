@@ -204,11 +204,14 @@ class Ticket extends Model implements HasMedia
             return '⏸';
         }
 
+        if ($this->status === TaskStatusEnum::CANCELLED) {
+            return __('ui.ticket_cancelled');
+        }
+
         $terminal = in_array($this->status, [
             TaskStatusEnum::RESOLVED,
             TaskStatusEnum::CLOSED,
             TaskStatusEnum::COMPLETED,
-            TaskStatusEnum::CANCELLED,
         ], true);
 
         if ($terminal) {
