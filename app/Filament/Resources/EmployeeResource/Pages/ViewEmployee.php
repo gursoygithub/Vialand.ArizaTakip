@@ -46,7 +46,6 @@ class ViewEmployee extends ViewRecord
         $performanceCohort = $record->tickets()
             ->whereNotIn('status', [TaskStatusEnum::CANCELLED]);
 
-        $totalCohortCount = (clone $performanceCohort)->count();
         $closedOnTime     = (clone $performanceCohort)
             ->whereNotNull('resolved_at')
             ->where('sla_breached', false)
@@ -56,6 +55,7 @@ class ViewEmployee extends ViewRecord
             ->count();
 
         $denominator       = $closedOnTime + $totalBreached;
+        $totalCohortCount  = $denominator; // sealed tickets only (on-time + breached)
         $complianceRate    = $denominator > 0
             ? round(($closedOnTime / $denominator) * 100, 1)
             : null;
@@ -262,7 +262,7 @@ class ViewEmployee extends ViewRecord
                                             'stats'          => "{$onTime} / {$sealed}",
                                             'percentage'     => '%' . number_format($rate, 1, ',', '.'),
                                             'raw_percentage' => $rate,
-                                            'threshold'      => (float) ($record->current_threshold ?? 80),
+                                            'threshold'      => $record->current_threshold,
                                         ];
                                     });
                             })
@@ -324,7 +324,7 @@ class ViewEmployee extends ViewRecord
                                             'stats'          => "{$onTime} / {$sealed}",
                                             'percentage'     => '%' . number_format($rate, 1, ',', '.'),
                                             'raw_percentage' => $rate,
-                                            'threshold'      => (float) ($record->current_threshold ?? 80),
+                                            'threshold'      => $record->current_threshold,
                                         ];
                                     });
                             })
