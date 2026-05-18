@@ -13,6 +13,7 @@ use Spatie\Activitylog\Traits\LogsActivity;
 use Spatie\MediaLibrary\HasMedia;
 use Spatie\MediaLibrary\InteractsWithMedia;
 use Illuminate\Support\Facades\Cache;
+use App\Models\Employee;
 use App\Models\GroupMember;
 
 class Ticket extends Model implements HasMedia
@@ -404,9 +405,20 @@ class Ticket extends Model implements HasMedia
             Cache::forget('dashboard_stats_overview');
             Cache::forget("ticket_target_{$ticket->id}");
 
-            if ($ticket->employee_id && $ticket->employee) {
-                Cache::forget("emp_perf_{$ticket->employee_id}");
-                $ticket->employee->refreshPerformanceMetrics();
+            if (!$ticket->wasChanged([
+                'sla_breached',
+                'resolved_at',
+                'employee_id',
+            ])) {
+                return;
+            }
+
+            if ($ticket->employee_id) {
+                $currentEmployee = Employee::find($ticket->employee_id);
+                if ($currentEmployee) {
+                    Cache::forget("emp_perf_{$ticket->employee_id}");
+                    $currentEmployee->refreshPerformanceMetrics();
+                }
             }
         });
 

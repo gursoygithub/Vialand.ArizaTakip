@@ -98,7 +98,10 @@ class Employee extends Model
         $total   = $success + $failed;
 
         if ($total === 0) {
-            $this->update(['performance_score' => 0]);
+            $this->update([
+                'performance_score' => null,
+                'current_threshold' => null,
+            ]);
             return;
         }
 
@@ -116,7 +119,7 @@ class Employee extends Model
             ->pluck('unit_id')
             ->unique();
 
-        $averageThreshold = SlaPolicy::whereIn('unit_id', $unitIds)->avg('success_threshold') ?? 61;
+        $averageThreshold = SlaPolicy::whereIn('unit_id', $unitIds)->avg('success_threshold');
 
         $this->update([
             'performance_score' => $actualRate,
@@ -124,15 +127,6 @@ class Employee extends Model
         ]);
     }
 
-
-    /**
-     * Dashboard veya Resource üzerinden kolay erişim için accessor.
-     * Artık hesap yapmaz, direkt veritabanındaki hazır kolonu döner.
-     */
-    public function getSlaPerformanceScoreAttribute()
-    {
-        return round($this->performance_score ?? 0, 1);
-    }
 
     public function accessibleAreaIds()
     {

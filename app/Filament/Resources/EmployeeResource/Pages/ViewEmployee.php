@@ -60,9 +60,9 @@ class ViewEmployee extends ViewRecord
             ? round(($closedOnTime / $denominator) * 100, 1)
             : null;
 
-        // Non-nullable threshold for RepeatableEntry color closures.
-        // Captured via use($threshold) — must be float, never null.
-        $threshold = (float) ($record->current_threshold ?? 80);
+        // Threshold captured for RepeatableEntry color closures.
+        // Nullable: no data yet → closures return 'gray'.
+        $threshold = $record->current_threshold;
 
         // Son 30 gün — matches PerformanceService::aggregate() denominator
         // (all resolved, CANCELLED excluded). Anchored on resolved_at so the
@@ -177,6 +177,7 @@ class ViewEmployee extends ViewRecord
                                         ->state($last30Rate === null ? '—' : '%' . number_format($last30Rate, 1, ',', '.'))
                                         ->badge()
                                         ->color(function () use ($last30Rate, $threshold) {
+                                            if (is_null($threshold)) return 'gray';
                                             if ($last30Rate === null) return 'gray';
                                             $hi = $threshold ?? 80;
                                             $lo = $threshold !== null ? $threshold * 0.75 : 50;
@@ -203,6 +204,7 @@ class ViewEmployee extends ViewRecord
                                         ->weight('bold')
                                         ->badge()
                                         ->color(function () use ($complianceRate, $threshold) {
+                                            if (is_null($threshold)) return 'gray';
                                             if ($complianceRate === null) return 'gray';
                                             $hi = $threshold ?? 80;
                                             $lo = $threshold !== null ? $threshold * 0.75 : 50;
@@ -279,6 +281,7 @@ class ViewEmployee extends ViewRecord
                                     ->label(__('ui.employee_col_rate'))
                                     ->badge()
                                     ->color(function ($state) use ($threshold) {
+                                        if (is_null($threshold)) return 'gray';
                                         $rate = (float) str_replace(',', '.', ltrim((string) $state, '%'));
                                         return $rate >= $threshold ? 'success' : ($rate >= $threshold * 0.75 ? 'warning' : 'danger');
                                     }),
@@ -343,6 +346,7 @@ class ViewEmployee extends ViewRecord
                                     ->label(__('ui.employee_col_success_rate'))
                                     ->badge()
                                     ->color(function ($state) use ($threshold) {
+                                        if (is_null($threshold)) return 'gray';
                                         $rate = (float) str_replace(',', '.', ltrim((string) $state, '%'));
                                         return $rate >= $threshold ? 'success' : ($rate >= $threshold * 0.75 ? 'warning' : 'danger');
                                     }),

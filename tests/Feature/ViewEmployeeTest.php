@@ -48,8 +48,9 @@ class ViewEmployeeTest extends TestCase
      */
     private function thresholdColor(float $rate, ?float $threshold): string
     {
-        $hi = $threshold ?? 80;
-        $lo = $threshold !== null ? $threshold * 0.75 : 50;
+        if (is_null($threshold)) return 'gray';
+        $hi = $threshold;
+        $lo = $threshold * 0.75;
 
         return $rate >= $hi ? 'success' : ($rate >= $lo ? 'warning' : 'danger');
     }
@@ -80,17 +81,13 @@ class ViewEmployeeTest extends TestCase
         $this->assertSame('danger', $this->thresholdColor(0.0, 70.0));
     }
 
-    public function test_badge_falls_back_to_80_50_defaults_when_threshold_is_null(): void
+    public function test_badge_is_gray_when_threshold_is_null(): void
     {
-        // null threshold → hi=80, lo=50.
-        $this->assertSame('success', $this->thresholdColor(80.0, null));
-        $this->assertSame('success', $this->thresholdColor(100.0, null));
-
-        $this->assertSame('warning', $this->thresholdColor(50.0, null));
-        $this->assertSame('warning', $this->thresholdColor(79.9, null));
-
-        $this->assertSame('danger', $this->thresholdColor(49.9, null));
-        $this->assertSame('danger', $this->thresholdColor(0.0, null));
+        // null threshold → no data yet → always gray, regardless of rate.
+        $this->assertSame('gray', $this->thresholdColor(100.0, null));
+        $this->assertSame('gray', $this->thresholdColor(80.0, null));
+        $this->assertSame('gray', $this->thresholdColor(50.0, null));
+        $this->assertSame('gray', $this->thresholdColor(0.0, null));
     }
 
     // ─── M3: TicketsRelationManager SLA badge color ─────────────────────────
