@@ -117,9 +117,10 @@ class EmployeeResource extends Resource
                         if (is_null($record->performance_score)) {
                             return 'gray';
                         }
-                        return $record->performance_score >= ($record->current_threshold ?? 0)
+                        $threshold = (float) ($record->current_threshold ?? 80);
+                        return $record->performance_score >= $threshold
                             ? 'success'
-                            : 'danger';
+                            : ($record->performance_score >= $threshold * 0.75 ? 'warning' : 'danger');
                     }),
 
                 Tables\Columns\TextColumn::make('current_threshold')
