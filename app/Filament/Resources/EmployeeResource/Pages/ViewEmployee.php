@@ -41,28 +41,32 @@ class ViewEmployee extends ViewRecord
             ->whereIn('ticket_id', Ticket::where('employee_id', $record->id)->select('id'))
             ->count();
 
-        // SLA Performans Analizi — uses sla_breached, not the legacy
-        // sla_outcome column. Aligned with PerformanceService.
-        $performanceCohort = $record->tickets()
-            ->whereNotIn('status', [TaskStatusEnum::CANCELLED]);
-
-        $totalCohortCount = (clone $performanceCohort)->count();
-        $closedOnTime     = (clone $performanceCohort)
+        // SLA Performans Analizi — one true formula: sealed = on-time + breached.
+        // On-time: resolved_at IS NOT NULL AND sla_breached = false AND sla_deadline IS NOT NULL.
+        // Failed:  resolved_at IS NOT NULL AND sla_breached = true.
+        // CANCELLED excluded from both.
+        $closedOnTime = $record->tickets()
+            ->whereNotIn('status', [TaskStatusEnum::CANCELLED])
             ->whereNotNull('resolved_at')
             ->where('sla_breached', false)
+            ->whereNotNull('sla_deadline')
             ->count();
-        $totalBreached    = (clone $performanceCohort)
+
+        $totalBreached = $record->tickets()
+            ->whereNotIn('status', [TaskStatusEnum::CANCELLED])
+            ->whereNotNull('resolved_at')
             ->where('sla_breached', true)
             ->count();
 
         $denominator       = $closedOnTime + $totalBreached;
+        $totalCohortCount  = $denominator; // sealed tickets only (on-time + breached)
         $complianceRate    = $denominator > 0
             ? round(($closedOnTime / $denominator) * 100, 1)
             : null;
 
-        // Non-nullable threshold for RepeatableEntry color closures.
-        // Captured via use($threshold) — must be float, never null.
-        $threshold = (float) ($record->current_threshold ?? 80);
+        // Threshold captured for RepeatableEntry color closures.
+        // Nullable: no data yet → closures return 'gray'.
+        $threshold = $record->current_threshold;
 
         // Son 30 gün — matches PerformanceService::aggregate() denominator
         // (all resolved, CANCELLED excluded). Anchored on resolved_at so the
@@ -177,6 +181,7 @@ class ViewEmployee extends ViewRecord
                                         ->state($last30Rate === null ? '—' : '%' . number_format($last30Rate, 1, ',', '.'))
                                         ->badge()
                                         ->color(function () use ($last30Rate, $threshold) {
+                                            if (is_null($threshold)) return 'gray';
                                             if ($last30Rate === null) return 'gray';
                                             $hi = $threshold ?? 80;
                                             $lo = $threshold !== null ? $threshold * 0.75 : 50;
@@ -198,11 +203,13 @@ class ViewEmployee extends ViewRecord
                                 ->schema([
                                     TextEntry::make('compliance_rate')
                                         ->label(__('ui.employee_general_success_rate'))
-                                        ->helperText('Tüm zamanlar — kapalı ve aktif ihlaller dahil')
+                                        ->helperText('Tüm zamanlar — SLA\'lı ve kapatılmış talepler')
+                                        ->hint("{$closedOnTime} zamanında, {$totalBreached} ihlal")
                                         ->state($complianceRate === null ? '—' : '%' . number_format($complianceRate, 1, ',', '.'))
                                         ->weight('bold')
                                         ->badge()
                                         ->color(function () use ($complianceRate, $threshold) {
+                                            if (is_null($threshold)) return 'gray';
                                             if ($complianceRate === null) return 'gray';
                                             $hi = $threshold ?? 80;
                                             $lo = $threshold !== null ? $threshold * 0.75 : 50;
@@ -260,7 +267,7 @@ class ViewEmployee extends ViewRecord
                                             'stats'          => "{$onTime} / {$sealed}",
                                             'percentage'     => '%' . number_format($rate, 1, ',', '.'),
                                             'raw_percentage' => $rate,
-                                            'threshold'      => (float) ($record->current_threshold ?? 80),
+                                            'threshold'      => $record->current_threshold,
                                         ];
                                     });
                             })
@@ -279,6 +286,7 @@ class ViewEmployee extends ViewRecord
                                     ->label(__('ui.employee_col_rate'))
                                     ->badge()
                                     ->color(function ($state) use ($threshold) {
+                                        if (is_null($threshold)) return 'gray';
                                         $rate = (float) str_replace(',', '.', ltrim((string) $state, '%'));
                                         return $rate >= $threshold ? 'success' : ($rate >= $threshold * 0.75 ? 'warning' : 'danger');
                                     }),
@@ -321,7 +329,7 @@ class ViewEmployee extends ViewRecord
                                             'stats'          => "{$onTime} / {$sealed}",
                                             'percentage'     => '%' . number_format($rate, 1, ',', '.'),
                                             'raw_percentage' => $rate,
-                                            'threshold'      => (float) ($record->current_threshold ?? 80),
+                                            'threshold'      => $record->current_threshold,
                                         ];
                                     });
                             })
@@ -343,6 +351,7 @@ class ViewEmployee extends ViewRecord
                                     ->label(__('ui.employee_col_success_rate'))
                                     ->badge()
                                     ->color(function ($state) use ($threshold) {
+                                        if (is_null($threshold)) return 'gray';
                                         $rate = (float) str_replace(',', '.', ltrim((string) $state, '%'));
                                         return $rate >= $threshold ? 'success' : ($rate >= $threshold * 0.75 ? 'warning' : 'danger');
                                     }),

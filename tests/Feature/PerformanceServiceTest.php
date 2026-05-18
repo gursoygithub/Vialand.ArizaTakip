@@ -58,35 +58,39 @@ class PerformanceServiceTest extends TestCase
         $from = now()->subDays(7);
         $to   = now()->endOfDay();
 
-        // Active breached
+        // Resolved-and-breached (in resolved_at window)
         $this->ticket([
-            'status'       => TaskStatusEnum::IN_PROGRESS,
+            'status'       => TaskStatusEnum::RESOLVED,
+            'resolved_at'  => now(),
             'sla_breached' => true,
         ]);
 
-        // Closed-and-breached
+        // Closed-and-breached (in resolved_at window; resolved_at required per tests/CLAUDE.md)
         $this->ticket([
             'status'       => TaskStatusEnum::CLOSED,
+            'resolved_at'  => now(),
             'closed_at'    => now(),
             'sla_breached' => true,
         ]);
 
-        // Cancelled-and-breached — excluded by aggregate's cancelled-reject
+        // Cancelled-and-breached — in window but excluded by aggregate's cancelled-reject
         $this->ticket([
             'status'       => TaskStatusEnum::CANCELLED,
+            'resolved_at'  => now(),
             'sla_breached' => true,
         ]);
 
-        // Active, not breached
+        // Resolved, not breached
         $this->ticket([
-            'status'       => TaskStatusEnum::OPEN,
+            'status'       => TaskStatusEnum::RESOLVED,
+            'resolved_at'  => now(),
             'sla_breached' => false,
         ]);
 
         $overview = $this->service->getOverview($from, $to, $this->admin);
 
         $this->assertSame(2, $overview['total_breached'],
-            'total_breached counts active + closed breached, excludes cancelled');
+            'total_breached counts resolved + closed breached, excludes cancelled');
 
         Carbon::setTestNow();
     }
@@ -142,8 +146,10 @@ class PerformanceServiceTest extends TestCase
 
         $overview = $this->service->getOverview($from, $to, $this->admin);
 
-        $this->assertSame(1, $overview['at_risk'],
-            'at_risk counts only active, non-paused, not-breached tickets with deadline ≤ now+2h');
+        // After the resolved_at date-filter change, active tickets (no resolved_at) are
+        // excluded from the window → at_risk is always 0 in a resolved_at-windowed query.
+        $this->assertSame(0, $overview['at_risk'],
+            'active tickets have no resolved_at and are excluded from the resolved_at window');
 
         Carbon::setTestNow();
     }
@@ -172,12 +178,6 @@ class PerformanceServiceTest extends TestCase
             'sla_breached' => true,
         ]);
 
-        // 1 Medium open, no closures yet → compliance 0
-        $this->ticket([
-            'priority' => TaskPriorityEnum::Medium,
-            'status'   => TaskStatusEnum::OPEN,
-        ]);
-
         // 1 Low CANCELLED → excluded entirely (Low should not appear)
         $this->ticket([
             'priority' => TaskPriorityEnum::Low,
@@ -195,14 +195,9 @@ class PerformanceServiceTest extends TestCase
         $this->assertSame(1, $high['breached']);
         $this->assertSame(50.0, $high['compliance_rate']);
 
-        $mediumLabel = TaskPriorityEnum::Medium->getLabel();
-        $this->assertArrayHasKey($mediumLabel, $breakdown);
-        $medium = $breakdown[$mediumLabel];
-        $this->assertSame(1, $medium['total']);
-        $this->assertSame(0, $medium['closed_on_time']);
-        $this->assertSame(0, $medium['breached']);
-        $this->assertSame(0, $medium['compliance_rate'],
-            'compliance rate is 0 when nothing has closed yet (denominator=0)');
+        // Medium had only an OPEN ticket (no resolved_at) — excluded from resolved_at window → absent
+        $this->assertArrayNotHasKey(TaskPriorityEnum::Medium->getLabel(), $breakdown,
+            'open tickets have no resolved_at and are excluded from the resolved_at window');
 
         // Low only had a cancelled ticket → excluded after cancelled-reject
         $this->assertArrayNotHasKey(TaskPriorityEnum::Low->getLabel(), $breakdown,
@@ -220,10 +215,10 @@ class PerformanceServiceTest extends TestCase
         $from = now()->subDays(7);
         $to   = now()->endOfDay();
 
-        // 4 tickets to back the history rows
+        // 4 tickets to back the history rows (resolved_at required to appear in the resolved_at window)
         $tickets = [];
         for ($i = 0; $i < 4; $i++) {
-            $tickets[] = $this->ticket(['status' => TaskStatusEnum::CLOSED, 'closed_at' => now()]);
+            $tickets[] = $this->ticket(['status' => TaskStatusEnum::CLOSED, 'resolved_at' => now(), 'closed_at' => now()]);
         }
 
         // CLOSED → ASSIGNED, in period — counts
@@ -307,25 +302,27 @@ class PerformanceServiceTest extends TestCase
             'created_by'  => $this->admin->id,
         ];
 
-        // 3 non-cancelled
+        // OPEN and IN_PROGRESS tickets have no resolved_at → excluded from the resolved_at window
         Ticket::factory()->create($base + ['status' => TaskStatusEnum::OPEN]);
         Ticket::factory()->create($base + ['status' => TaskStatusEnum::IN_PROGRESS]);
+        // CLOSED ticket with resolved_at — appears in the window
         Ticket::factory()->create($base + [
             'status'      => TaskStatusEnum::CLOSED,
             'resolved_at' => now(),
             'closed_at'   => now(),
         ]);
 
-        // 1 cancelled — must NOT inflate the area total
-        Ticket::factory()->create($base + ['status' => TaskStatusEnum::CANCELLED]);
+        // CANCELLED — in window (resolved_at set) but excluded by the CANCELLED filter
+        Ticket::factory()->create($base + ['status' => TaskStatusEnum::CANCELLED, 'resolved_at' => now()]);
 
         $breakdown = $this->service->getRegionBreakdown($from, $to, $this->admin);
 
         $this->assertCount(1, $breakdown);
         $row = $breakdown->first();
         $this->assertSame('Test Bölge', $row['area_name']);
-        $this->assertSame(3, $row['total'],
-            'region total must exclude cancelled tickets to stay consistent with aggregate()');
+        // Only the CLOSED ticket has resolved_at and is non-cancelled → total = 1
+        $this->assertSame(1, $row['total'],
+            'region total shows only resolved-window tickets; OPEN/IN_PROGRESS have no resolved_at');
         $this->assertSame(1, $row['closed']);
 
         Carbon::setTestNow();

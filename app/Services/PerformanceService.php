@@ -37,11 +37,11 @@ class PerformanceService
         $tickets = Ticket::query()
             ->visibleBy($viewer)
             ->where('employee_id', $employee->id)
-            ->whereBetween('created_at', [$from, $to])
+            ->whereBetween('resolved_at', [$from, $to])
             ->get();
 
         $stats = $this->aggregate($user, $tickets);
-        $stats['employee_threshold'] = (float) ($employee->current_threshold ?? 80);
+        $stats['employee_threshold'] = $employee->current_threshold;
         $stats['employee_id']        = $employee->id;
         return $stats;
     }
@@ -77,7 +77,7 @@ class PerformanceService
 
         $tickets = Ticket::query()
             ->visibleBy($viewer)
-            ->whereBetween('created_at', [$from, $to])
+            ->whereBetween('resolved_at', [$from, $to])
             ->when($areaId, fn ($q) => $q->where('area_id', $areaId))
             ->get();
 
@@ -155,7 +155,7 @@ class PerformanceService
 
         return Ticket::query()
             ->visibleBy($viewer)
-            ->whereBetween('created_at', [$from, $to])
+            ->whereBetween('resolved_at', [$from, $to])
             ->whereNotIn('status', [TaskStatusEnum::CANCELLED])
             ->when($areaId, fn ($q) => $q->where('area_id', $areaId))
             ->with('area:id,name')
@@ -287,7 +287,7 @@ class PerformanceService
             'avg_resolution_active_minutes' => 0,
             'sla_compliance_rate'           => 0,
             'avg_response_time_minutes' => 0,
-            'employee_threshold'        => 80.0,
+            'employee_threshold'        => null,
             'employee_id'              => null,
             // Backward compat
             'total'                     => 0,

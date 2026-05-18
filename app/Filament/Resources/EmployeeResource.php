@@ -114,12 +114,13 @@ class EmployeeResource extends Resource
                     ->badge()
                     ->sortable()
                     ->color(function ($record) {
-                        if (is_null($record->performance_score)) {
-                            return 'gray';
-                        }
-                        return $record->performance_score >= ($record->current_threshold ?? 0)
+                        if (is_null($record->performance_score)) return 'gray';
+                        if (is_null($record->current_threshold)) return 'gray';
+                        $t = $record->current_threshold;
+                        return $record->performance_score >= $t
                             ? 'success'
-                            : 'danger';
+                            : ($record->performance_score >= $t * 0.75
+                                ? 'warning' : 'danger');
                     }),
 
                 Tables\Columns\TextColumn::make('current_threshold')

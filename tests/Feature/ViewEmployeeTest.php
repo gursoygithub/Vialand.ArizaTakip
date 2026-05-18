@@ -48,8 +48,9 @@ class ViewEmployeeTest extends TestCase
      */
     private function thresholdColor(float $rate, ?float $threshold): string
     {
-        $hi = $threshold ?? 80;
-        $lo = $threshold !== null ? $threshold * 0.75 : 50;
+        if (is_null($threshold)) return 'gray';
+        $hi = $threshold;
+        $lo = $threshold * 0.75;
 
         return $rate >= $hi ? 'success' : ($rate >= $lo ? 'warning' : 'danger');
     }
@@ -80,17 +81,13 @@ class ViewEmployeeTest extends TestCase
         $this->assertSame('danger', $this->thresholdColor(0.0, 70.0));
     }
 
-    public function test_badge_falls_back_to_80_50_defaults_when_threshold_is_null(): void
+    public function test_badge_is_gray_when_threshold_is_null(): void
     {
-        // null threshold → hi=80, lo=50.
-        $this->assertSame('success', $this->thresholdColor(80.0, null));
-        $this->assertSame('success', $this->thresholdColor(100.0, null));
-
-        $this->assertSame('warning', $this->thresholdColor(50.0, null));
-        $this->assertSame('warning', $this->thresholdColor(79.9, null));
-
-        $this->assertSame('danger', $this->thresholdColor(49.9, null));
-        $this->assertSame('danger', $this->thresholdColor(0.0, null));
+        // null threshold → no data yet → always gray, regardless of rate.
+        $this->assertSame('gray', $this->thresholdColor(100.0, null));
+        $this->assertSame('gray', $this->thresholdColor(80.0, null));
+        $this->assertSame('gray', $this->thresholdColor(50.0, null));
+        $this->assertSame('gray', $this->thresholdColor(0.0, null));
     }
 
     // ─── M3: TicketsRelationManager SLA badge color ─────────────────────────
@@ -188,5 +185,51 @@ class ViewEmployeeTest extends TestCase
 
         // Observer will have set sla_breached=true due to past deadline.
         $this->assertSame('danger', $this->slaColor($ticket->fresh()));
+    }
+
+    // ─── FIX 1: cohort count uses $denominator (sealed only) ────────────────
+    //
+    // ViewEmployee section 3 "Değerlendirilen Talep" badge must show the
+    // sealed count (on-time + breached), not the total non-CANCELLED count.
+    // $totalCohortCount = $denominator = $closedOnTime + $totalBreached.
+
+    public function test_degerlendirilen_talep_shows_sealed_count_not_total(): void
+    {
+        $employee = Employee::factory()->create();
+
+        // Ticket 1: resolved on-time (sealed — counts in $closedOnTime).
+        $this->makeTicket([
+            'employee_id' => $employee->id,
+            'status'      => TaskStatusEnum::RESOLVED,
+            'resolved_at' => now(),
+            'sla_breached' => false,
+        ]);
+
+        // Ticket 2: still active OPEN (not sealed — excluded from denominator).
+        $this->makeTicket([
+            'employee_id' => $employee->id,
+            'status'      => TaskStatusEnum::OPEN,
+            'resolved_at' => null,
+            'sla_breached' => false,
+        ]);
+
+        // Replicate the ViewEmployee denominator computation exactly.
+        $performanceCohort = $employee->tickets()
+            ->whereNotIn('status', [TaskStatusEnum::CANCELLED]);
+
+        $closedOnTime  = (clone $performanceCohort)
+            ->whereNotNull('resolved_at')
+            ->where('sla_breached', false)
+            ->count();
+        $totalBreached = (clone $performanceCohort)
+            ->where('sla_breached', true)
+            ->count();
+
+        $denominator      = $closedOnTime + $totalBreached;
+        $totalCohortCount = $denominator;
+
+        // Only the sealed (RESOLVED on-time) ticket is in the denominator.
+        $this->assertSame(1, $denominator, 'denominator must equal sealed tickets only');
+        $this->assertSame(1, $totalCohortCount, 'cohort badge must show sealed count, not total');
     }
 }

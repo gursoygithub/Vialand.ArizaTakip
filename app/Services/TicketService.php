@@ -21,6 +21,7 @@ use App\Notifications\TicketStatusChangedNotification;
 use App\Observers\TicketObserver;
 use App\Enums\TaskPriorityEnum;
 use Illuminate\Notifications\Notification as BaseNotification;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 
@@ -520,9 +521,10 @@ class TicketService
             ? "{$oldEmployeeName} → {$newEmployeeName}"
             : "Atandı: {$newEmployeeName}";
 
-        $fullNote = trim($reassignLine . ($note ? "\n" . $note : ''));
+        $fullNote    = trim($reassignLine . ($note ? "\n" . $note : ''));
+        $oldEmployee = $ticket->employee;
 
-        return DB::transaction(function () use ($ticket, $employeeId, $newEmployee, $by, $fullNote, $statusBefore, $oldEmployeeName, $newEmployeeName) {
+        return DB::transaction(function () use ($ticket, $employeeId, $newEmployee, $by, $fullNote, $statusBefore, $oldEmployeeName, $newEmployeeName, $oldEmployee) {
             // Auto-unmute the new assignee BEFORE the update — TicketObserver's
             // updated() hook fires inside $ticket->update() and consults the
             // mute table. If the new assignee had previously muted this
@@ -542,6 +544,11 @@ class TicketService
                 $ticket->update(['employee_id' => $employeeId]);
             } finally {
                 TicketObserver::$skipReassignNotification = false;
+            }
+
+            if ($oldEmployee && $oldEmployee->id !== $employeeId) {
+                Cache::forget("emp_perf_{$oldEmployee->id}");
+                $oldEmployee->refreshPerformanceMetrics();
             }
 
             // Unified post-reassign block — applies to ALL pre-statuses so the
