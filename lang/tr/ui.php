@@ -757,6 +757,7 @@ return [
     'no_tickets_yet_description' => 'Yeni bir arıza talebi oluşturmak için aşağıdaki butona tıklayın.',
     'new_ticket' => 'Yeni Talep',
     'sla_no_policy' => 'SLA Yok',
+    'ticket_cancelled' => 'İptal Edildi',
     'sla_paused' => '⏸ Duraklatıldı',
 
     // Widget: Ticket Stats Overview

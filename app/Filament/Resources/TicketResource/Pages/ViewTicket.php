@@ -118,7 +118,19 @@ class ViewTicket extends ViewRecord
                             TextEntry::make('sla_deadline')
                                 ->label('SLA Son Tarihi')
                                 ->dateTime('d M Y H:i')
-                                ->color(fn (Ticket $record) => $record->sla_deadline?->isPast() ? 'danger' : 'success')
+                                ->color(function (Ticket $record) {
+                                    if ($record->status === TaskStatusEnum::CANCELLED) return 'gray';
+                                    if (!$record->sla_deadline) return 'gray';
+                                    $terminal = in_array($record->status, [
+                                        TaskStatusEnum::RESOLVED,
+                                        TaskStatusEnum::CLOSED,
+                                        TaskStatusEnum::COMPLETED,
+                                    ], true);
+                                    if ($terminal) {
+                                        return $record->sla_breached ? 'danger' : 'success';
+                                    }
+                                    return $record->sla_deadline->isPast() ? 'danger' : 'success';
+                                })
                                 ->icon('heroicon-o-clock')
                                 ->badge()
                                 ->placeholder('—'),

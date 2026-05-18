@@ -76,8 +76,21 @@ class RecentTicketsTable extends BaseWidget
                 Tables\Columns\TextColumn::make('sla_deadline')
                     ->label(__('ui.sla'))
                     ->formatStateUsing(function (Ticket $record): string {
+                        if ($record->status === TaskStatusEnum::CANCELLED) {
+                            return __('ui.ticket_cancelled');
+                        }
                         if (!$record->sla_deadline) {
                             return __('ui.sla_no_policy');
+                        }
+                        $terminal = in_array($record->status, [
+                            TaskStatusEnum::RESOLVED,
+                            TaskStatusEnum::CLOSED,
+                            TaskStatusEnum::COMPLETED,
+                        ], true);
+                        if ($terminal) {
+                            return $record->sla_breached
+                                ? __('ui.widget_recent_tickets_sla_breached')
+                                : '✓';
                         }
                         if (now()->isAfter($record->sla_deadline)) {
                             return __('ui.widget_recent_tickets_sla_breached');
@@ -92,8 +105,19 @@ class RecentTicketsTable extends BaseWidget
                     })
                     ->badge()
                     ->color(function (Ticket $record): string {
+                        if ($record->status === TaskStatusEnum::CANCELLED) {
+                            return 'gray';
+                        }
                         if (!$record->sla_deadline) {
                             return 'gray';
+                        }
+                        $terminal = in_array($record->status, [
+                            TaskStatusEnum::RESOLVED,
+                            TaskStatusEnum::CLOSED,
+                            TaskStatusEnum::COMPLETED,
+                        ], true);
+                        if ($terminal) {
+                            return $record->sla_breached ? 'danger' : 'success';
                         }
                         if (now()->isAfter($record->sla_deadline)) {
                             return 'danger';

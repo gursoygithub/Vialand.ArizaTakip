@@ -2,6 +2,7 @@
 
 namespace App\Filament\Widgets;
 
+use App\Enums\TaskStatusEnum;
 use App\Models\Ticket;
 use Filament\Widgets\ChartWidget;
 
@@ -42,6 +43,7 @@ class SlaComplianceTrendChart extends ChartWidget
             ->visibleBy(auth()->user())
             ->whereNotNull('resolved_at')
             ->whereNotNull('sla_deadline')
+            ->whereNotIn('status', [TaskStatusEnum::CANCELLED])
             ->whereBetween('resolved_at', [$start, $end])
             ->selectRaw('DATE(resolved_at) as day, sla_breached, COUNT(*) as total')
             ->groupBy('day', 'sla_breached')

@@ -63,6 +63,9 @@ with its own 4-branch logic. See root CLAUDE.md § "Ticket Visibility".
   - `Not Ekle` / `Sesi Kapat`/`Sesi Aç` → any participant (creator / current assignee / anyone in `ticket_status_histories.changed_by`)
 - Assign action options: prefer active group members (when `group_id` set), fall back to active employees in same company, capped at 500
 
+### Create page (`Pages/CreateTicket`)
+- **`beforeCreate()` SLA guard** — runs after Filament's own required-field validation but before the Eloquent record is created. Calls `SlaService::resolvePolicy()` with the submitted `area_id`, `sub_area_id`, `unit_id`, and `priority`. If the policy is `null`, throws `ValidationException` on `data.unit_id` with a Turkish error message. This prevents tickets from being created without an SLA policy (which would leave `sla_deadline = NULL`). The unit dropdown already filters to SLA-covered units, so this guard mainly catches the gap where a unit has SLA for some priorities but not the one selected.
+
 ### Edit page (`Pages/EditTicket`)
 - **Hard 403 at `mount()`** — only ticket creator OR `super_admin` may reach it; `ticket.view.*` are read-only scopes and do NOT grant write access
 - Terminal-state lock: `TicketPolicy::update` AND `TicketPolicy::delete` both return `false` for RESOLVED/CLOSED/CANCELLED **including super_admin** — reopen must go through `TicketService::transition` (CLOSED/RESOLVED → ASSIGNED), never via the Edit page; the same rule blocks deletion of finalised tickets (reopen first, then delete)
@@ -90,6 +93,7 @@ with its own 4-branch logic. See root CLAUDE.md § "Ticket Visibility".
 - Field labels via `__('ui.*')` keys — `ui.task_date` resolves to "Arıza Tarihi"
 - Section icons use `heroicon-o-*` outlines
 - For per-row SLA badges, prefer `Ticket::getSlaStatusLabel()` and the live `now()` comparison; the `sla_breached` column is for **filtering**, not display
+- **CANCELLED SLA badge is always `gray`** — `TicketResource::getRowSlaColor()` (and all surfaces: `RecentTicketsTable`, Relation Managers) explicitly returns `'gray'` for CANCELLED before falling through to the terminal-outcome branch. Note: `TaskStatusEnum::CANCELLED->getColor()` returns `'danger'` (the status badge color); the gray behavior is specific to the SLA badge, not the status badge.
 - List row actions: wrap them in `Tables\Actions\ActionGroup::make([...])`
   for the compact three-dot menu, with `ViewAction`, `EditAction`,
   `DeleteAction` in that order. Apply per-action `->visible(...)` gates

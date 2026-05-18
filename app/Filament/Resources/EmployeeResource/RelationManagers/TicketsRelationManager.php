@@ -89,6 +89,7 @@ class TicketsRelationManager extends RelationManager
                     ->badge()
                     ->getStateUsing(fn ($record) => $record->getSlaStatusLabel())
                     ->color(function ($record) {
+                        if ($record->status === TaskStatusEnum::CANCELLED) return 'gray';
                         if ($record->sla_breached) return 'danger';
                         if ($record->status === TaskStatusEnum::ON_HOLD) return 'warning';
                         if (is_null($record->sla_deadline)) return 'gray';
