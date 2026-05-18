@@ -50,3 +50,4 @@ Always write a new migration file. Schema changes are additive.
 - The `2026_01_24_170253_update_employees_unique_constraint` migration was patched to be
   idempotent (try/catch) so SQLite test runs do not fail on the duplicate index
 - Tests use SQLite in-memory; production uses MySQL via `.env`
+- `employees.performance_score` and `employees.current_threshold` are **NULLABLE** (`decimal(5,2) NULL`). The original migration added them as `DEFAULT 0`; a follow-up migration (`2026_05_18_*_make_employee_performance_columns_nullable`) backfills all zeros to NULL. **`null` means "no sealed tickets yet"** — not a zero score. UI code must guard `is_null()` before rendering.

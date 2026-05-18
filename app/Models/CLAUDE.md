@@ -46,7 +46,7 @@
 
 ## Ticket Helpers (live SLA display)
 - `Ticket::getRemainingMinutes(): int` — minutes vs sla_deadline (negative when breached, 0 if no policy)
-- `Ticket::getSlaStatusLabel(): string` — label like `'2sa 30dk kaldı'` / `'İhlal 1sa'` / `'⏸'` / `'✓ Zamanında çözüldü'` — terminal states derive outcome from `resolved_at` ?? `closed_at` vs `sla_deadline`
+- `Ticket::getSlaStatusLabel(): string` — label like `'2sa 30dk kaldı'` / `'İhlal 1sa'` / `'⏸'` / `'✓ Zamanında çözüldü'`. **CANCELLED returns `__('ui.ticket_cancelled')` ("İptal Edildi") immediately** before the terminal-outcome branch — cancelled tickets have no SLA outcome to display. Terminal states (RESOLVED/CLOSED) then derive outcome from `resolved_at` ?? `closed_at` vs `sla_deadline`.
 - Use these for **per-row** badge rendering; never read `sla_breached` directly for the live label
 
 ## SLA Breach Architecture
@@ -62,7 +62,8 @@
     2. **Recalculate `sla_deadline` on priority change** — only when `exists && isDirty('priority') && area_id && priority` and **status is non-terminal** (excludes RESOLVED/CLOSED/CANCELLED). Rebases as `now() + policy.deadline_minutes + total_on_hold_minutes`. Runs BEFORE the breach flip so the same save evaluates the fresh deadline. Creating path is owned by `creating()` (not this branch)
     3. Flip `sla_breached = true` when `sla_deadline` has passed and status is non-terminal (excludes RESOLVED/CLOSED/COMPLETED/CANCELLED)
     4. Clear `sla_breached = false` when a terminal status save sees deadline still in the future
-  - `updated`: notify on direct `employee_id` reassignment (when status didn't change AND `$skipReassignNotification` is false). Sends `TicketAssignedNotification` AND fires FCM push (actor-name-prefixed body: `"{actor} tarafından atandı — {area} / {priority}"`); respects `ticket_mutes` and `wantsNotification('ticket_assigned', 'database')`
+  - `saved` (after every successful write): guards with `wasChanged(['sla_breached','resolved_at','employee_id'])` — **only those three column changes trigger a `refreshPerformanceMetrics()` recalculation**. Uses `Employee::find($ticket->employee_id)` (not the cached relation) to bypass stale FK when `employee_id` itself just changed in the same save. Also forgets `dashboard_stats_overview` and `ticket_target_{id}` cache keys on every save regardless of the guard.
+  - `updated`: notify on direct `employee_id` reassignment (when status didn't change AND `$skipReassignNotification` is false). Uses `wasChanged('employee_id')` / `wasChanged('status')` — **always use `wasChanged()` inside `saved()`/`updated()` hooks, never `isDirty()`** (by the time `saved` fires, `isDirty()` has already been cleared). Sends `TicketAssignedNotification` AND fires FCM push (actor-name-prefixed body: `"{actor} tarafından atandı — {area} / {priority}"`); respects `ticket_mutes` and `wantsNotification('ticket_assigned', 'database')`
   - `static $skipReassignNotification` — `TicketService::reassign` toggles this around `$ticket->update(['employee_id'])` to prevent the observer from double-firing alongside the service's own notify path
 - Other models set `created_by` / `updated_by` / `deleted_by` directly in `booted()`
 
@@ -70,6 +71,20 @@
 - `created_at` / `assigned_at` / `on_hold_since` / `resolved_at` / `closed_at` / `closed_by` — written by `TicketObserver` + `TicketService::transition` matchers
 - **Reopen resets the cycle**: `TicketService::transition` (terminal → ASSIGNED) clears `closed_at` / `closed_by` / `resolved_at` / `assigned_at`; the same save's `TicketObserver::saving` re-stamps `assigned_at = now()` because `employee_id` is preserved. This makes `assigned_at` the start-of-current-cycle marker
 - The view-page lifecycle strip queries `ticket_status_histories` for the first IN_PROGRESS row **scoped to `created_at >= assigned_at`** (no dedicated column for "İşleme Alındı"); the scope ensures pre-reopen IN_PROGRESS rows are excluded
+
+## Employee Performance
+
+`Employee::refreshPerformanceMetrics()` — called from `Ticket::saved()` whenever `sla_breached`, `resolved_at`, or `employee_id` changes. Also called by `TicketService::reassign()` on both the old and new employee after the FK is updated.
+
+**Formula ("sealed" cohort = resolved + breached)**:
+- `success_count`: tickets where `resolved_at IS NOT NULL AND sla_breached = 0 AND sla_deadline IS NOT NULL` (excludes SLA-less tickets)
+- `failed_count`: tickets where `resolved_at IS NOT NULL AND sla_breached = 1`
+- CANCELLED tickets excluded via `whereNotIn('status', [CANCELLED])`
+- Active (unresolved) breached tickets are **not counted** — only resolved tickets enter the cohort
+- If `total = 0`: both `performance_score` and `current_threshold` are set to **`null`** — this means the employee has no sealed tickets yet (not a zero score)
+- Otherwise: `performance_score = (success / total) * 100`; `current_threshold = avg(sla_policies.success_threshold)` for units the employee has sealed tickets in
+
+**Nullability rule**: `performance_score = null` / `current_threshold = null` means "no data yet". A score of `0.0` is a real score (all breached). UI code must guard `is_null($score)` before rendering, and show gray/empty state rather than "0%".
 
 ## Media
 - Collection `task_attachments` on `Ticket` — disk `s3`, **multi-file** (no `singleFile()`); the create form caps at 5 files via `maxFiles(5)`

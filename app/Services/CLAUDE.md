@@ -46,7 +46,7 @@ Private helpers: `notifyResolved(Ticket, User)`, `notifyCancelled(Ticket, User)`
 - Tokens stored in `fcm_tokens` (`user_id`, `token`, `last_seen_at`)
 
 ## PerformanceService (`App\Services\PerformanceService`)
-- `getStats(User $user, Carbon $from, Carbon $to, ?User $viewer = null): array` — per-user stats. Resolves User → Employee by email, scopes by `Ticket::scopeVisibleBy($viewer)` AND `whereBetween('created_at', [$from, $to])`. Cancelled tickets excluded.
+- `getStats(User $user, Carbon $from, Carbon $to, ?User $viewer = null): array` — per-user stats. Resolves User → Employee by email, scopes by `Ticket::scopeVisibleBy($viewer)` AND `whereBetween('resolved_at', [$from, $to])`. Cancelled tickets excluded. **Date filter uses `resolved_at`, not `created_at`** — the window selects tickets resolved within the period, not tickets opened then.
 - `getTeamStats(int $areaId, Carbon $from, Carbon $to): Collection` — per-person stats for every employee in the area's groups (deduped). N+1 by design (one `getStats` query per employee). Returns `avg_resolution_active_minutes` (net resolution time excluding on-hold minutes: `avg_resolution_minutes - avg(total_on_hold_minutes)`) alongside the other `aggregate()` keys.
 - `getOverview(Carbon $from, Carbon $to, ?User $viewer = null, ?int $areaId = null): array` — dashboard headline. The optional `$areaId` narrows the ticket scope to a single area. Returns the full `aggregate()` shape PLUS `priority_breakdown` (per-priority [label, total, closed_on_time, breached, compliance_rate], cancelled excluded, only priorities with total>0), `reopen_count` (rows in `ticket_status_histories` with `from_status IN [RESOLVED,CLOSED] AND to_status = ASSIGNED`, scoped to visible tickets, dated within `[$from,$to]`), and `reopen_rate` (`reopen_count / total_assigned * 100`).
 - `getRegionBreakdown(Carbon $from, Carbon $to, ?User $viewer = null, ?int $areaId = null): Collection` — per-area roll-up. The optional `$areaId` narrows to a single area (returns a single-row collection). **Excludes CANCELLED** so totals match `aggregate()`'s per-person numbers.
@@ -107,6 +107,11 @@ enforce this chain:
 6. **Ticket requires: area + SLA policy** (resolved automatically)
    → `TicketObserver` resolves SLA on `creating`
    → If no SLA found → ticket gets `NULL sla_deadline` (no SLA tracking)
+   → **`CreateTicket::beforeCreate()` adds a server-side guard**: if
+     `SlaService::resolvePolicy()` returns null for the submitted
+     area/unit/priority combination, it throws a `ValidationException`
+     on `data.unit_id` before the Eloquent record is created. This
+     prevents tickets from silently landing with no SLA.
 
 7. **User visibility requires: employee → company_id**
    → If employee has no `company_id` → fallback to own tickets only
