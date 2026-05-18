@@ -14,7 +14,7 @@ class AuthRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'username' => 'required|regex:/^[a-zA-Z0-9_]+$/',
+            'username' => 'required|regex:/^[a-zA-Z0-9_.]+$/',
             'password' => 'required',
         ];
     }
