@@ -22,10 +22,9 @@ protected function setUp(): void
 All business-rule tests in `tests/Feature/`
 
 ## Required Factories
-- `UserFactory` (exists: `database/factories/UserFactory.php`)
-- `TicketFactory` — create if missing
-- `GroupFactory` — create if missing
-- `SlaPolicyFactory` — create if missing
+All exist in `database/factories/`:
+- `UserFactory`, `TicketFactory`, `GroupFactory`, `SlaPolicyFactory`
+- `AreaFactory`, `CompanyFactory`, `EmployeeFactory`, `GroupMemberFactory`, `SubAreaFactory`, `UnitFactory`
 
 ## Filament Resource Testing Pattern
 ```php

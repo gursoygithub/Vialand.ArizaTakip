@@ -46,5 +46,6 @@ Forms\Components\Select::make('area_id')
 
 ## Locale & Date Formatting
 - `AppServiceProvider::boot` sets `Carbon::setLocale('tr')` + `setlocale(LC_TIME, 'tr_TR.UTF-8', 'tr_TR', 'tr')`
-- Filament defaults: `Table::$defaultDateTimeDisplayFormat = 'd F Y - H:i'`, same for Infolist
+- Filament Table defaults: `Table::$defaultDateTimeDisplayFormat = 'd F Y - H:i'`, `Table::$defaultDateDisplayFormat = 'd F Y'`
+- Filament Infolist defaults: `Infolist::$defaultDateTimeDisplayFormat = 'd F Y - H:i'`, `Infolist::$defaultDateDisplayFormat = 'd F Y'`, `Infolist::$defaultCurrency = 'TRY'`
 - For Turkish month names in custom blade output, use `$carbon->translatedFormat('d F Y H:i')` — never `format()`

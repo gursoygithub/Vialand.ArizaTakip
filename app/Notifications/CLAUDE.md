@@ -12,7 +12,7 @@
 |---|---|---|
 | Ticket created/assigned (initial) | Assignee only | `TicketAssignedNotification` |
 | Reassigned (devredildi) | New assignee (`TicketAssignedNotification`) + creator (`TicketReassignedNotification`) | two classes |
-| Resolved (çözüldü) | Creator only | `TicketResolvedNotification` |
+| Resolved (çözüldü) | Creator + group supervisor (if different) | `TicketResolvedNotification` |
 | Cancelled (iptal edildi) | Current assignee only | `TicketCancelledNotification` |
 | Reopened (yeniden açıldı) | Assignee (if any) + creator | `TicketReopenedNotification` |
 | SLA Warning (80% elapsed) | Assignee + creator | `SlaWarningNotification` |
@@ -34,10 +34,10 @@ Template always renders: ticket_no, status label, priority badge, area/location/
 ## Classes
 - `TicketAssignedNotification` — fires from `TicketObserver::updated` (direct reassign), `TicketObserver::created` (created already-assigned), and `TicketService::dispatchTransitionNotifications` (OPEN → ASSIGNED); each path also fires an FCM data-only push; mail always sent
 - `TicketReassignedNotification` — sent to the **creator** by `TicketService::notifyCreatorOfReassignment` when someone else reassigns (skipped if creator is actor or new assignee); mail always sent
-- `TicketResolvedNotification` — sent to **creator only** by `TicketService::notifyResolved` when → RESOLVED; mail always sent
+- `TicketResolvedNotification` — sent to **creator** by `TicketService::notifyResolved` when → RESOLVED (mail + panel + FCM); **also sent to group supervisor** (panel only, no FCM) unless supervisor is creator or actor
 - `TicketCancelledNotification` — sent to **current assignee only** by `TicketService::notifyCancelled` when → CANCELLED; mail always sent
 - `TicketReopenedNotification` — sent to **assignee + creator** by `TicketService::notifyReopened` on reopen (terminal → ASSIGNED); mail always sent
-- `TicketStatusChangedNotification` — database-only bell to full participant set for all other transitions (ON_HOLD, IN_PROGRESS, CLOSED, etc.); no mail
+- `TicketStatusChangedNotification` — database-only bell + FCM push to full participant set for all other transitions (IN_PROGRESS, CLOSED, etc.); no mail. **ON_HOLD special case**: also notifies the group supervisor (if not already a participant) with bell + FCM + mail (`TicketOnHoldMail`)
 - `TicketCommentNotification` — used by `TicketService::addComment`, `updateComment` (body: `"Not güncellendi: ..."`), AND `notifyPriorityChange`; `via()` returns `['database']` only — fans out to bell + FCM, **never mail**
 - `SlaWarningNotification` — 80% time elapsed; sent by `CheckSlaBreaches` to assignee + creator; mail always sent
 - `SlaBreachedNotification` — sent by `CheckSlaBreaches` when deadline crossed; to assignee + creator; mail always sent

@@ -5,11 +5,17 @@ All business logic lives in `app/Services/`. Never put business logic in Filamen
 Widgets, or Observers (observers trigger services, they don't contain logic).
 
 ## SlaService (`App\Services\SlaService`)
-- `resolvePolicy(int $areaId, ?int $subAreaId, int $unitId, string|int $priority): ?SlaPolicy` — lookup order: (area + subArea + unit + priority) → fallback (area + unit + priority)
-- `calculateDeadline(SlaPolicy $policy, Carbon $from): Carbon` — `$from->addMinutes($policy->deadline_minutes)`
-- `getRemainingMinutes(Ticket $ticket): ?int` — minutes until deadline, paused while `on_hold` (uses `on_hold_since`)
+- `resolvePolicy(int $areaId, ?int $subAreaId, ?int $unitId, int|string $priority): ?SlaPolicy` — 4-level fallback:
+  - L1: area + sub_area + unit + priority (location-specific override)
+  - L2: area + sub_area IS NULL + unit + priority (area-wide default for unit)
+  - L3: area + priority (any sub_area / any unit in area)
+  - L4: priority only (global fallback)
+- `calculateDeadline(SlaPolicy $policy, Carbon $from): Carbon` — `$from->copy()->addMinutes($policy->deadline_minutes)`
+- `extendDeadlineForOnHold(Ticket $ticket): int` — extends `sla_deadline` by the duration since `on_hold_since`, clears `on_hold_since`, increments `total_on_hold_minutes`. Always clears `on_hold_since` even for SLA-less tickets. Called by `TicketService::transition` when leaving ON_HOLD.
+- `getRemainingMinutes(Ticket $ticket): ?int` — minutes until deadline, paused while `on_hold` (uses `on_hold_since` as reference instead of `now()`)
 - `getElapsedPercentage(Ticket $ticket): ?float` — `0.0`–`1.0+`, used by widgets for the >50%/<50% split
-- `checkBreach(Ticket $ticket): bool` — true when deadline is in the past and ticket is not closed
+- `checkBreach(Ticket $ticket): bool` — true when deadline is in the past and status is non-terminal AND not ON_HOLD (ON_HOLD pauses the clock; CANCELLED never breaches)
+- `percentElapsed(Ticket $ticket): ?float` — **@deprecated** alias for `getElapsedPercentage`, returns 0.0–100.0 (not 0.0–1.0)
 
 ## TicketService (`App\Services\TicketService`)
 - `transition(Ticket, TaskStatusEnum $to, User $by, ?string $note = null): Ticket` — validates against transition matrix, stamps timestamps, writes `TicketStatusHistory`, dispatches `TicketStatusChanged` event, fans out notifications via `dispatchTransitionNotifications`
@@ -26,18 +32,19 @@ Widgets, or Observers (observers trigger services, they don't contain logic).
   - `in_progress → [resolved, on_hold, cancelled]`
   - `on_hold → [in_progress, cancelled]`
   - `resolved → [closed, assigned]` (reopen target is ASSIGNED, not IN_PROGRESS)
-  - `closed → [assigned]` (reopen — permission gated separately by `ticket.reopen`)
+  - `closed → [assigned]` (reopen — permission gated by `TicketPolicy::reopen`, not a Spatie permission)
   - `cancelled → []` (terminal — no path back; reopen-recalc still resets state if matrix opens later)
 
 ### dispatchTransitionNotifications — targeted recipient rules
 `dispatchTransitionNotifications` was refactored to send to narrower recipient sets for key events:
 - **OPEN → ASSIGNED** → `TicketAssignedNotification` to assignee only (mail + panel + FCM)
 - **terminal → ASSIGNED (reopen)** → `TicketReopenedNotification` to assignee + creator (mail + panel + FCM); via `notifyReopened()`
-- **→ RESOLVED** → `TicketResolvedNotification` to creator only (mail + panel + FCM); via `notifyResolved()`
+- **→ RESOLVED** → `TicketResolvedNotification` to creator (mail + panel + FCM) + group supervisor (panel only); via `notifyResolved()`
 - **→ CANCELLED** → `TicketCancelledNotification` to current assignee only (mail + panel + FCM); via `notifyCancelled()`
-- **all other transitions** → `TicketStatusChangedNotification` to full participant set (database-only bell + FCM)
+- **→ ON_HOLD** → `TicketStatusChangedNotification` to full participant set (bell + FCM); **additionally** notifies group supervisor (if not already a participant) with bell + mail (`TicketOnHoldMail`) + FCM
+- **all other transitions** → `TicketStatusChangedNotification` to full participant set (bell + FCM)
 
-Private helpers: `notifyResolved(Ticket, User)`, `notifyCancelled(Ticket, User)`, `notifyReopened(Ticket, User)` — all check mute, skip actor, then notify and fire FCM directly.
+Private helpers: `notifyResolved(Ticket, User)` (also notifies group supervisor with bell only), `notifyCancelled(Ticket, User)`, `notifyReopened(Ticket, User)` — all check mute, skip actor, then notify and fire FCM directly.
 
 ## FcmService (`App\Services\FcmService`)
 - `sendToUser(User, string $title, string $body, ?string $url): void` / `sendToUsers(Collection, …)` — fans out to each user's `fcm_tokens` rows
@@ -65,10 +72,21 @@ Private helpers: `notifyResolved(Ticket, User)`, `notifyCancelled(Ticket, User)`
 - `App\Jobs\CheckSlaBreaches` — see `app/Jobs/CLAUDE.md`. The job is one of three writers of the `sla_breached` column; the other two are `TicketObserver::saving` and the `TicketService` terminal-state markers
 - `App\Observers\TicketObserver` — registered in AppServiceProvider; see `app/Models/CLAUDE.md` for the saving-hook flip rule
 
+## Other Services (data sync — SQL Server / LDAP)
+
+These services handle external data synchronization and are scheduled or called from Artisan commands:
+
+- `AuthService` — LDAP authentication; delegates user create/update to `UserService`; also handles local admin bypass login
+- `UserService` — syncs user from LDAP `ActiveDirectory\User` to local `users` table (create or update); maps LDAP attributes
+- `EmployeeService` — syncs employees from SQL Server `sqlsrv2` connection (`_TGRY_PERSONEL` table); batched upsert
+- `TechnicianService` — syncs technicians from SQL Server `sqlsrv2` connection; same pattern as EmployeeService
+- `DailyReportService` — fetches daily attendance data from SQL Server `sqlsrv` VIEW and upserts into local `daily_reports` table
+- `ReportService` — streams card-reading reports from an internal HTTP API (`/api/zk/cardreadingsall`); batched insert
+
 ## Notifications (Filament-compatible)
 - All ticket notifications return `FilamentNotification::getDatabaseMessage()` from `toDatabase()` so the panel bell renders title/body/icon/action
-- Mail channel is opt-in via `config/notifications.php` (`mail_enabled`, default false)
-- Per-user channel preferences via `UserNotificationPreference` (`database` / `mail` / `push` per event type) — see `app/Notifications/CLAUDE.md`
+- Mail: the 8 targeted events (see `app/Notifications/CLAUDE.md`) always send mail regardless of `mail_enabled` config; `TicketStatusChangedNotification` and `TicketCommentNotification` are database-only
+- Per-user channel preferences via `UserNotificationPreference` (`mail_enabled`, `database_enabled` per event type) — see `app/Notifications/CLAUDE.md`
 
 ## Setup Chain Rules
 

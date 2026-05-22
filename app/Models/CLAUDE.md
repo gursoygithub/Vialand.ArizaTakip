@@ -39,7 +39,14 @@
 - **TicketMute**: ticket, user (composite-unique on `(ticket_id, user_id)`)
 - **Group**: company, area, unit, manager (Employee), members (GroupMember has employee)
 - **SlaPolicy**: area, subArea, unit
-- **Employee**: tasks (→ tickets), groupMemberships, managedGroups, user
+- **Employee**: tickets, groupMemberships, managedGroups, user, slaPolicies (BelongsToMany via `employee_sla_policies`)
+
+## Other Models (not primary domain)
+- **Technician**: legacy model from external sync (`TechnicianService`); separate from Employee
+- **EmployeeSlaPolicy**: Pivot model for `employee_sla_policies` table
+- **FcmToken**: `user_id`, `token`, `token_hash`, `is_active`; belongs to User
+- **UserNotificationPreference**: per-user channel switches (`mail_enabled`, `database_enabled`) per notification type
+- **Subcontractor** / **SubcontractorEmployee**: external contractor management
 
 ## SoftDeletes — required on
 `tickets`, `groups`, `sla_policies`, `employees`, `users`, `areas`, `sub_areas`

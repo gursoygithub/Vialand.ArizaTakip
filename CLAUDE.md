@@ -137,6 +137,10 @@ Tests use SQLite in-memory (configured in `phpunit.xml`).
 ## Job Dispatching
 - All async work via Jobs: `MyJob::dispatch()` — never `sync` driver for production
 - Schedule entries: add in `bootstrap/app.php` → `withSchedule()` callback
+- Current schedule:
+  - `employee:sync` — every 5 minutes (syncs employees from external SQL Server)
+  - `CheckSlaBreaches` job — every 5 minutes (sweeps + warns on SLA deadlines)
+  - Daily log pre-creation — daily at 23:55
 
 ## Files Never to Modify
 - `vendor/` — use `sail composer`
@@ -193,8 +197,8 @@ Usage rules:
 
 ## Locale & Notifications
 - Carbon locale is `tr` (set in `AppServiceProvider::boot`); use `translatedFormat('d F Y H:i')` for Turkish month names in custom output. Filament tables/infolists already format via `Table::$defaultDateTimeDisplayFormat = 'd F Y - H:i'`
-- Bell uses Filament `databaseNotifications`; mail is opt-in (`config/notifications.php` → `mail_enabled`); FCM web-push tokens live in `fcm_tokens`, dispatched via `App\Services\FcmService`
-- Per-user `UserNotificationPreference` toggles channels (`database` / `mail` / `push`) per event type
+- Bell uses Filament `databaseNotifications`; mail is opt-in (`config/notifications.php` → `mail_enabled`) but the 8 targeted events always send mail regardless; FCM web-push tokens live in `fcm_tokens` (`user_id`, `token`, `is_active`, `token_hash`), dispatched via `App\Services\FcmService`
+- Per-user `UserNotificationPreference` toggles channels (`mail_enabled`, `database_enabled`) per event type — no separate `push` column (FCM follows `database_enabled`)
 - Per-ticket mute: `ticket_mutes` (UNIQUE on `ticket_id, user_id`); `Ticket::isMutedBy(User)` short-circuits sender paths
 
 ## Gotchas

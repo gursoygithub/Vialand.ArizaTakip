@@ -5,8 +5,9 @@
 - `Resources/{Name}Resource/Pages/` — List, Create, Edit, View; **Ticket** also has the View page hosting the timeline + transition actions
 - `Resources/{Name}Resource/RelationManagers/` — RelationManagers for nested relationships (e.g. `UserResource/CompanyAccessRelationManager`)
 - `Pages/` — custom pages: `CompanySetupWizard`, `PerformanceDashboard`, `NotificationPreferences`, `ManageGeneralSettings`
+- `Pages/Auth/` — `LoginPage` (custom LDAP login) and `EditProfile` (profile edit page)
 - `Widgets/` — `TicketStatsOverview`, `RecentTicketsTable`, `SlaComplianceTrendChart`, `TicketsByPriorityChart`, `TicketsByStatusChart`
-- `Exports/` — Filament export classes
+- `Exports/` — Filament export classes (`TaskExporter.php` — legacy name, exports tickets)
 
 ## Single Responsibility
 - One Resource per model; one Widget per chart/metric
