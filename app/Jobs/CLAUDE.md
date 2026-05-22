@@ -22,9 +22,9 @@
 - Survives the Observer flipping `sla_breached` mid-window — the database/push channels won't double-send even if the job picks up a row twice
 
 ### Recipients
-- `slaRecipients()` returns assignee (`$ticket->employee->user`) + creator (`User::find($ticket->created_by)`) — **changed from group supervisor to creator**
+- `slaRecipients()` returns assignee (`$ticket->employee->user`) + creator (`User::find($ticket->created_by)`) + **group supervisor** (when `employee_id` is null but `group_id` is set — ensures the responsible supervisor is alerted before individual assignment)
 - No admin fallback by design; admins see breach state through the panel widgets and the navigation badge
-- Missing relations short-circuit silently (filter + unique on the collect)
+- Missing relations short-circuit silently (filter + unique('id') on the collect)
 
 ## Adding New Jobs
 - Place the class under `app/Jobs/`

@@ -63,15 +63,22 @@
 
 ## Observer Hooks
 - `TicketObserver` (registered in AppServiceProvider):
-  - `creating`: resolve SLA policy → set `sla_deadline`; default `status` (ASSIGNED if `employee_id` set, else OPEN); stamp `assigned_at` if created already-assigned; generate `ticket_no`
+  - `creating`: resolve SLA policy → set `sla_deadline`; default `status` (ASSIGNED if `employee_id` set, else OPEN); stamp `assigned_at` if created already-assigned
+  - `created`: write initial `TicketStatusHistory` row (from=null, to=status); notify assignee if created already-assigned (`notifyAssignedUser`); else notify group supervisor if group_id set (`notifyGroupSupervisor`)
   - `saving` (every save):
     1. Stamp `assigned_at` when `employee_id` is set and `assigned_at` is empty
     2. **Recalculate `sla_deadline` on priority change** — only when `exists && isDirty('priority') && area_id && priority` and **status is non-terminal** (excludes RESOLVED/CLOSED/CANCELLED). Rebases as `now() + policy.deadline_minutes + total_on_hold_minutes`. Runs BEFORE the breach flip so the same save evaluates the fresh deadline. Creating path is owned by `creating()` (not this branch)
     3. Flip `sla_breached = true` when `sla_deadline` has passed and status is non-terminal (excludes RESOLVED/CLOSED/COMPLETED/CANCELLED)
     4. Clear `sla_breached = false` when a terminal status save sees deadline still in the future
-  - `saved` (after every successful write): guards with `wasChanged(['sla_breached','resolved_at','employee_id'])` — **only those three column changes trigger a `refreshPerformanceMetrics()` recalculation**. Uses `Employee::find($ticket->employee_id)` (not the cached relation) to bypass stale FK when `employee_id` itself just changed in the same save. Also forgets `dashboard_stats_overview` and `ticket_target_{id}` cache keys on every save regardless of the guard.
   - `updated`: notify on direct `employee_id` reassignment (when status didn't change AND `$skipReassignNotification` is false). Uses `wasChanged('employee_id')` / `wasChanged('status')` — **always use `wasChanged()` inside `saved()`/`updated()` hooks, never `isDirty()`** (by the time `saved` fires, `isDirty()` has already been cleared). Sends `TicketAssignedNotification` AND fires FCM push (actor-name-prefixed body: `"{actor} tarafından atandı — {area} / {priority}"`); respects `ticket_mutes` and `wantsNotification('ticket_assigned', 'database')`
   - `static $skipReassignNotification` — `TicketService::reassign` toggles this around `$ticket->update(['employee_id'])` to prevent the observer from double-firing alongside the service's own notify path
+
+- `Ticket::booted()` closures (in the model itself, not in the observer):
+  - `creating`: set `created_by`, generate `ticket_no` (TKT-YYYY-NNNNN)
+  - `saved`: forgets `dashboard_stats_overview` and `ticket_target_{id}` cache keys on every save; guards with `wasChanged(['sla_breached','resolved_at','employee_id'])` — **only those three column changes trigger a `refreshPerformanceMetrics()` recalculation**. Uses `Employee::find($ticket->employee_id)` (not the cached relation) to bypass stale FK when `employee_id` itself just changed in the same save.
+  - `updating`: set `updated_by`
+  - `deleting`: set `deleted_by`
+
 - Other models set `created_by` / `updated_by` / `deleted_by` directly in `booted()`
 
 ## Lifecycle Timestamps (Ticket)
