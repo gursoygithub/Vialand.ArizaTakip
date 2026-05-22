@@ -416,6 +416,12 @@ class Ticket extends Model implements HasMedia
                 return;
             }
 
+            // Skip per-ticket recalc when the bulk job is processing —
+            // the job will recalculate once per unique employee at the end.
+            if (\App\Jobs\CheckSlaBreaches::$inProgress) {
+                return;
+            }
+
             if ($ticket->employee_id) {
                 $currentEmployee = Employee::find($ticket->employee_id);
                 if ($currentEmployee) {

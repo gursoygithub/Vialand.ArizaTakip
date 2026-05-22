@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Models\Employee;
+use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -66,8 +68,28 @@ class EmployeeService
                 $totalProcessed += count($buffer);
             }
 
+            // Relink orphan users whose email matches an employee.
+            $relinked = 0;
+            User::whereNull('employee_id')
+                ->whereNotNull('email')
+                ->where('email', '!=', '')
+                ->chunkById(500, function ($users) use (&$relinked) {
+                    foreach ($users as $user) {
+                        $employee = Employee::where('email', $user->email)->first();
+                        if ($employee) {
+                            $user->update(['employee_id' => $employee->employee_id]);
+                            $relinked++;
+                        }
+                    }
+                });
+
+            if ($relinked > 0) {
+                Log::info("Orphan user relink completed", ['relinked' => $relinked]);
+            }
+
             Log::info("Personel senkronizasyonu tamamlandı", [
-                'total_processed' => $totalProcessed
+                'total_processed' => $totalProcessed,
+                'relinked_users'  => $relinked,
             ]);
 
             return $totalProcessed;
@@ -114,23 +136,47 @@ class EmployeeService
             );
         }
 
-        // 3. Upsert employees with the new company_name / company_id columns.
-        DB::table('employees')->upsert(
-            $buffer,
-            ['employee_id'],  // unique key
-            [
-                'name',
-                'tc_no',
-                'email',
-                'phone',
-                'status',
-                'title',
-                'profession',
-                'company_name',
-                'company_id',
-                'updated_at',
-            ]
-        );
+        // 3. Upsert employees — split by email presence so blank email
+        //    from SQL Server never overwrites a previously-correct value.
+        $withEmail = [];
+        $withoutEmail = [];
+
+        foreach ($buffer as $row) {
+            if (is_null($row['email']) || trim($row['email']) === '') {
+                $row['email'] = $row['email'] ?? '';
+                $withoutEmail[] = $row;
+            } else {
+                $withEmail[] = $row;
+            }
+        }
+
+        $updateColumns = [
+            'name',
+            'tc_no',
+            'phone',
+            'status',
+            'title',
+            'profession',
+            'company_name',
+            'company_id',
+            'updated_at',
+        ];
+
+        if (!empty($withEmail)) {
+            DB::table('employees')->upsert(
+                $withEmail,
+                ['employee_id'],
+                array_merge($updateColumns, ['email']),
+            );
+        }
+
+        if (!empty($withoutEmail)) {
+            DB::table('employees')->upsert(
+                $withoutEmail,
+                ['employee_id'],
+                $updateColumns,
+            );
+        }
 
         // 4. Resolve company_id via normalized join. Re-running this is safe;
         //    join is on UPPER(TRIM(...)) so casing/whitespace shifts upstream

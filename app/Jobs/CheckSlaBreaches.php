@@ -14,14 +14,21 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Notifications\Notification;
 use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Queue\SerializesModels;
 
 class CheckSlaBreaches implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
+    public static bool $inProgress = false;
+
     public function handle(): void
     {
+        self::$inProgress = true;
+        $affectedEmployeeIds = collect();
+
+        try {
         // The sla_breached column is the indexed source of truth for filters
         // and badges. TicketObserver::saving keeps it current on every save,
         // and this job is the periodic sweep for rows nobody touched: it
@@ -42,9 +49,12 @@ class CheckSlaBreaches implements ShouldQueue
             ->whereNotNull('sla_deadline')
             ->where('sla_deadline', '<', now())
             ->where('sla_breached', false)
-            ->chunkById(100, function ($tickets) {
+            ->chunkById(100, function ($tickets) use (&$affectedEmployeeIds) {
                 foreach ($tickets as $ticket) {
                     $ticket->update(['sla_breached' => true]);
+                    if ($ticket->employee_id) {
+                        $affectedEmployeeIds->push($ticket->employee_id);
+                    }
                     event(new TicketSlaBreached($ticket));
                     $this->notifyBreached($ticket);
                 }
@@ -60,6 +70,16 @@ class CheckSlaBreaches implements ShouldQueue
                     $this->maybeSendWarning($ticket);
                 }
             });
+
+        // Dedup and recalculate once per unique employee
+        $affectedEmployeeIds->unique()->each(function ($employeeId) {
+            Cache::forget("emp_perf_{$employeeId}");
+            \App\Models\Employee::find($employeeId)?->refreshPerformanceMetrics();
+        });
+
+        } finally {
+            self::$inProgress = false;
+        }
     }
 
     private function maybeSendWarning(Ticket $ticket): void
