@@ -50,11 +50,11 @@ Private helpers: `notifyResolved(Ticket, User)` (also notifies group supervisor 
 - `sendToUser(User, string $title, string $body, ?string $url): void` / `sendToUsers(Collection, …)` — fans out to each user's `fcm_tokens` rows
 - **Data-only messages** — no `notification` key is sent to FCM; all payload is in the `data` field (`title`, `body`, `url`). This ensures the browser's `onMessage` handler fires in the foreground so Filament can render its own toast instead of the OS notification system intercepting the message.
 - Used by `TicketService` notification helpers (`notifyResolved`, `notifyCancelled`, `notifyReopened`), `notifyAssignee`, `notifyCreatorOfReassignment`, `CheckSlaBreaches`, and the comment / priority-change paths
-- Tokens stored in `fcm_tokens` (`user_id`, `token`, `last_seen_at`)
+- Tokens stored in `fcm_tokens` (`user_id`, `token`, `token_hash`, `is_active`)
 
 ## PerformanceService (`App\Services\PerformanceService`)
 - `getStats(User $user, Carbon $from, Carbon $to, ?User $viewer = null): array` — per-user stats. Resolves User → Employee by email, scopes by `Ticket::scopeVisibleBy($viewer)` AND `whereBetween('resolved_at', [$from, $to])`. Cancelled tickets excluded. **Date filter uses `resolved_at`, not `created_at`** — the window selects tickets resolved within the period, not tickets opened then.
-- `getTeamStats(int $areaId, Carbon $from, Carbon $to): Collection` — per-person stats for every employee in the area's groups (deduped). N+1 by design (one `getStats` query per employee). Returns `avg_resolution_active_minutes` (net resolution time excluding on-hold minutes: `avg_resolution_minutes - avg(total_on_hold_minutes)`) alongside the other `aggregate()` keys.
+- `getTeamStats(int $areaId, Carbon $from, Carbon $to, ?User $viewer = null): Collection` — per-person stats for every employee in the area's groups (deduped). N+1 by design (one `getStats` query per employee). Returns `avg_resolution_active_minutes` (net resolution time excluding on-hold minutes: `avg_resolution_minutes - avg(total_on_hold_minutes)`) alongside the other `aggregate()` keys.
 - `getOverview(Carbon $from, Carbon $to, ?User $viewer = null, ?int $areaId = null): array` — dashboard headline. The optional `$areaId` narrows the ticket scope to a single area. Returns the full `aggregate()` shape PLUS `priority_breakdown` (per-priority [label, total, closed_on_time, breached, compliance_rate], cancelled excluded, only priorities with total>0), `reopen_count` (rows in `ticket_status_histories` with `from_status IN [RESOLVED,CLOSED] AND to_status = ASSIGNED`, scoped to visible tickets, dated within `[$from,$to]`), and `reopen_rate` (`reopen_count / total_assigned * 100`).
 - `getRegionBreakdown(Carbon $from, Carbon $to, ?User $viewer = null, ?int $areaId = null): Collection` — per-area roll-up. The optional `$areaId` narrows to a single area (returns a single-row collection). **Excludes CANCELLED** so totals match `aggregate()`'s per-person numbers.
 - `aggregate()` (private) emits these metric keys per cohort:
@@ -78,7 +78,10 @@ These services handle external data synchronization and are scheduled or called 
 
 - `AuthService` — LDAP authentication; delegates user create/update to `UserService`; also handles local admin bypass login
 - `UserService` — syncs user from LDAP `ActiveDirectory\User` to local `users` table (create or update); maps LDAP attributes
-- `EmployeeService` — syncs employees from SQL Server `sqlsrv2` connection (`_TGRY_PERSONEL` table); batched upsert
+- `EmployeeService` — syncs employees from SQL Server `sqlsrv2` connection (`_TGRY_PERSONEL` table); batched upsert.
+  - **Split upsert**: `processBatch()` splits buffer into `$withEmail` and `$withoutEmail` groups. Blank/null email rows upsert WITHOUT updating the email column — preserves existing admin-entered or previously synced value.
+  - **Orphan user relinking**: after all batches complete, queries `User::whereNull('employee_id')` and links each to matching Employee by email. Logs count of relinked users.
+  - **Company auto-creation**: `processBatch()` upserts companies via `normalized_name` (UPPER TRIM) before employee upsert — idempotent.
 - `TechnicianService` — syncs technicians from SQL Server `sqlsrv2` connection; same pattern as EmployeeService
 - `DailyReportService` — fetches daily attendance data from SQL Server `sqlsrv` VIEW and upserts into local `daily_reports` table
 - `ReportService` — streams card-reading reports from an internal HTTP API (`/api/zk/cardreadingsall`); batched insert
@@ -109,7 +112,7 @@ enforce this chain:
 
 4. **SLA Policy requires: area + unit + priority** (at minimum)
    → Cannot create SLA without at least one area
-   → `SlaService::resolvePolicy()` uses 3-level fallback but always needs
+   → `SlaService::resolvePolicy()` uses 4-level fallback but always needs
      `area_id` as the starting point
 
 5. **Group requires: area + unit + supervisor (employee_id)**

@@ -16,6 +16,8 @@
 - Eligible statuses: `OPEN`, `ASSIGNED`, `IN_PROGRESS`, `PENDING` (skips `ON_HOLD` because the clock is paused, and the terminal trio because their breach state is set deterministically by `TicketService`)
 - Both loops `chunkById(100)` to bound memory on large backlogs
 - Both notification classes (`SlaWarningNotification`, `SlaBreachedNotification`) always send mail regardless of `mail_enabled` config
+- **`public static bool $inProgress = false`** — set `true` at start of `handle()`, reset in `finally`. `Ticket::saved()` checks this flag and skips per-ticket `refreshPerformanceMetrics()` when `true` — prevents N redundant recalculations for N tickets of the same employee
+- **Dedup recalc**: collects `$affectedEmployeeIds` during the breach sweep chunk loop; after all chunks complete, deduplicates and calls `refreshPerformanceMetrics()` once per unique employee_id
 
 ### De-dupe
 - `alreadySentToday(Ticket, NotificationClass)` reads today's `notifications` rows and inspects `data.actions[*].url` for `/tickets/{id}` — portable across MySQL/SQLite (no JSON-extract SQL)

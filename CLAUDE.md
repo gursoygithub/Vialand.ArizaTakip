@@ -112,7 +112,7 @@ Ticket uses `Ticket::scopeVisibleBy(User $user)` with 4 branches:
 1. `ticket.view.all` — no filter
 2. `ticket.view.group` — member areas + supervised areas + creator/assignee bypass + scoped companies
 3. `ticket.view.own` or fallback — creator + assignee + group areas + scoped companies
-4. No user (CLI/queue context) — empty result
+4. No user (CLI/queue context) — unfiltered (caller is responsible)
 
 `view_all_tickets` does **not** exist — `ticket.view.all` is canonical.
 `view_all_tasks` was the legacy name; it was removed in the May 2026 reform.

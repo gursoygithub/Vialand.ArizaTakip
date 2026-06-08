@@ -74,8 +74,8 @@
   - `static $skipReassignNotification` — `TicketService::reassign` toggles this around `$ticket->update(['employee_id'])` to prevent the observer from double-firing alongside the service's own notify path
 
 - `Ticket::booted()` closures (in the model itself, not in the observer):
-  - `creating`: set `created_by`, generate `ticket_no` (TKT-YYYY-NNNNN)
-  - `saved`: forgets `dashboard_stats_overview` and `ticket_target_{id}` cache keys on every save; guards with `wasChanged(['sla_breached','resolved_at','employee_id'])` — **only those three column changes trigger a `refreshPerformanceMetrics()` recalculation**. Uses `Employee::find($ticket->employee_id)` (not the cached relation) to bypass stale FK when `employee_id` itself just changed in the same save.
+  - `creating`: set `created_by`, generate `ticket_no` (TKT-YYYY-NNNNN), set default `status` (ASSIGNED if `employee_id` set, else OPEN). Runs before `TicketObserver::creating` (model boot beats observer order); both set the same defaults.
+  - `saved`: forgets `dashboard_stats_overview` and `ticket_target_{id}` cache keys on every save; guards with `wasChanged(['sla_breached','resolved_at','employee_id'])` — **only those three column changes trigger a `refreshPerformanceMetrics()` recalculation**. Second guard: if `CheckSlaBreaches::$inProgress` is `true`, skips `refreshPerformanceMetrics()` call — the job handles recalc once per unique employee after all chunks complete. Uses `Employee::find($ticket->employee_id)` (not the cached relation) to bypass stale FK when `employee_id` itself just changed in the same save.
   - `updating`: set `updated_by`
   - `deleting`: set `deleted_by`
 
