@@ -385,6 +385,7 @@ class TicketResource extends Resource
 
                                 return Group::query()
                                     ->where('area_id', $areaId)
+                                    ->when($get('unit_id'), fn ($q, $v) => $q->where('unit_id', $v))
                                     ->where(function ($q) use ($companyIds, $supplementaryGroupIds) {
                                         // Empty scopedCompanyIds() means "no scope" (super_admin
                                         // or unfiltered user) — show all groups in this area.
