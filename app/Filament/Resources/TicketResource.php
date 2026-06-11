@@ -249,12 +249,19 @@ class TicketResource extends Resource
 
                         Forms\Components\Select::make('sub_area_id')
                             ->label(__('ui.sub_area'))
-                            ->placeholder('Alt bölge seçiniz (opsiyonel)')
+                            ->placeholder('Alt bölge seçiniz')
                             ->prefixIcon('heroicon-o-map-pin')
                             ->options(fn (Forms\Get $get) => SubArea::where('area_id', $get('area_id'))->pluck('name', 'id'))
                             ->searchable()
+                            ->required()
+                            ->live()
+                            ->afterStateUpdated(function (Forms\Set $set) {
+                                $set('group_id', null);
+                                $set('employee_id', null);
+                            })
                             ->disabled(fn ($livewire) => $livewire instanceof \App\Filament\Resources\TicketResource\Pages\EditTicket)
-                            ->dehydrated(fn ($livewire) => !($livewire instanceof \App\Filament\Resources\TicketResource\Pages\EditTicket)),
+                            ->dehydrated(fn ($livewire) => !($livewire instanceof \App\Filament\Resources\TicketResource\Pages\EditTicket))
+                            ->validationMessages(['required' => __('ui.required')]),
 
                         Forms\Components\Select::make('unit_id')
                             ->label(__('ui.unit'))
