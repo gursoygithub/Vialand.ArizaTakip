@@ -4,6 +4,8 @@ namespace App\Filament\Resources\EmployeeResource\RelationManagers;
 
 use App\Enums\ActiveStatusEnum;
 use App\Filament\Resources\GroupResource;
+use App\Models\Group;
+use App\Models\GroupMember;
 use Filament\Forms\Form;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables;
@@ -44,69 +46,95 @@ class GroupMembershipsRelationManager extends RelationManager
         return $form->schema([]);
     }
 
+    /**
+     * Override the base query to return Group models instead of GroupMember.
+     * This lets the table show both member groups AND managed groups in one list.
+     */
+    protected function getTableQuery(): Builder
+    {
+        $employee = $this->getOwnerRecord();
+
+        return Group::query()
+            ->where(function (Builder $q) use ($employee) {
+                $q->whereHas('members', fn (Builder $q) => $q->where('employee_id', $employee->id))
+                  ->orWhere('employee_id', $employee->id);
+            });
+    }
+
     public function table(Table $table): Table
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('group.name')
+                Tables\Columns\TextColumn::make('name')
                     ->label(__('ui.group'))
                     ->badge()
                     ->searchable()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('group.company.name')
+                Tables\Columns\TextColumn::make('role_label')
+                    ->label('Rol')
+                    ->badge()
+                    ->getStateUsing(function (Group $record): string {
+                        $employee = $this->getOwnerRecord();
+                        $isMember = GroupMember::where('group_id', $record->id)
+                            ->where('employee_id', $employee->id)
+                            ->exists();
+                        $isManager = $record->employee_id === $employee->id;
+
+                        if ($isMember && $isManager) {
+                            return 'Uye + Yonetici';
+                        }
+                        if ($isManager) {
+                            return 'Yonetici';
+                        }
+
+                        return 'Uye';
+                    })
+                    ->color(function (Group $record): string {
+                        $employee = $this->getOwnerRecord();
+                        $isMember = GroupMember::where('group_id', $record->id)
+                            ->where('employee_id', $employee->id)
+                            ->exists();
+                        $isManager = $record->employee_id === $employee->id;
+
+                        if ($isMember && $isManager) {
+                            return 'success';
+                        }
+                        if ($isManager) {
+                            return 'warning';
+                        }
+
+                        return 'info';
+                    }),
+                Tables\Columns\TextColumn::make('company.name')
                     ->label(__('ui.company'))
                     ->icon('heroicon-o-building-office')
                     ->searchable()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('group.area.name')
+                Tables\Columns\TextColumn::make('area.name')
                     ->label(__('ui.area'))
                     ->icon('heroicon-o-map')
                     ->searchable()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('group.manager.name')
+                Tables\Columns\TextColumn::make('manager.name')
                     ->label(__('ui.group_manager'))
                     ->icon('heroicon-o-user')
                     ->searchable()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('group.status')
+                Tables\Columns\TextColumn::make('status')
                     ->label(__('ui.status'))
                     ->badge()
                     ->alignCenter()
                     ->searchable()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('created_at')
-                    ->label('Üyelik Başlangıcı')
-                    ->icon('heroicon-o-calendar-days')
-                    ->date()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('group_id')
-                    ->label(__('ui.group'))
-                    ->options(function () {
-                        $ownerRecord = $this->getOwnerRecord();
-                        return $ownerRecord->groupMemberships()
-                            ->with('group')
-                            ->get()
-                            ->pluck('group.name', 'group_id')
-                            ->filter();
-                    })
-                    ->searchable(),
-                Tables\Filters\SelectFilter::make('group_status')
+                Tables\Filters\SelectFilter::make('status')
                     ->label(__('ui.status'))
-                    ->options(ActiveStatusEnum::class)
-                    ->query(fn (Builder $query, array $data) => $query->when(
-                        $data['value'] !== null,
-                        fn (Builder $q) => $q->whereHas('group', fn (Builder $q) => $q->where('status', $data['value']))
-                    )),
+                    ->options(ActiveStatusEnum::class),
             ])
             ->actions([
-                // ViewAction navigates to the underlying Group, not the
-                // GroupMember pivot. Passing $record (a GroupMember) directly
-                // 404s because GroupResource binds on Group::id.
                 Tables\Actions\ViewAction::make()
-                    ->url(fn ($record) => GroupResource::getUrl('view', ['record' => $record->group_id])),
+                    ->url(fn (Group $record) => GroupResource::getUrl('view', ['record' => $record->id])),
             ])
             ->bulkActions([]);
     }
