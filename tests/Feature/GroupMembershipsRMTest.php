@@ -65,7 +65,7 @@ class GroupMembershipsRMTest extends TestCase
             'pageClass' => \App\Filament\Resources\EmployeeResource\Pages\ViewEmployee::class,
         ])
             ->assertCanSeeTableRecords([$group])
-            ->assertTableColumnStateSet('role_label', 'Uye', $group);
+            ->assertTableColumnStateSet('role_label', __('ui.group_role_member'), $group);
     }
 
     public function test_manager_only_group_appears_with_yonetici_role(): void
@@ -78,7 +78,7 @@ class GroupMembershipsRMTest extends TestCase
             'pageClass' => \App\Filament\Resources\EmployeeResource\Pages\ViewEmployee::class,
         ])
             ->assertCanSeeTableRecords([$group])
-            ->assertTableColumnStateSet('role_label', 'Yonetici', $group);
+            ->assertTableColumnStateSet('role_label', __('ui.group_role_manager'), $group);
     }
 
     public function test_member_and_manager_group_appears_with_combined_role(): void
@@ -95,7 +95,7 @@ class GroupMembershipsRMTest extends TestCase
             'pageClass' => \App\Filament\Resources\EmployeeResource\Pages\ViewEmployee::class,
         ])
             ->assertCanSeeTableRecords([$group])
-            ->assertTableColumnStateSet('role_label', 'Uye + Yonetici', $group);
+            ->assertTableColumnStateSet('role_label', __('ui.group_role_member_manager'), $group);
     }
 
     public function test_unrelated_group_does_not_appear(): void

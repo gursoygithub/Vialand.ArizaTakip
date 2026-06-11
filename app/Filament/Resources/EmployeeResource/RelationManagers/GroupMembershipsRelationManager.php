@@ -70,41 +70,6 @@ class GroupMembershipsRelationManager extends RelationManager
                     ->badge()
                     ->searchable()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('role_label')
-                    ->label('Rol')
-                    ->badge()
-                    ->getStateUsing(function (Group $record): string {
-                        $employee = $this->getOwnerRecord();
-                        $isMember = GroupMember::where('group_id', $record->id)
-                            ->where('employee_id', $employee->id)
-                            ->exists();
-                        $isManager = $record->employee_id === $employee->id;
-
-                        if ($isMember && $isManager) {
-                            return 'Uye + Yonetici';
-                        }
-                        if ($isManager) {
-                            return 'Yonetici';
-                        }
-
-                        return 'Uye';
-                    })
-                    ->color(function (Group $record): string {
-                        $employee = $this->getOwnerRecord();
-                        $isMember = GroupMember::where('group_id', $record->id)
-                            ->where('employee_id', $employee->id)
-                            ->exists();
-                        $isManager = $record->employee_id === $employee->id;
-
-                        if ($isMember && $isManager) {
-                            return 'success';
-                        }
-                        if ($isManager) {
-                            return 'warning';
-                        }
-
-                        return 'info';
-                    }),
                 Tables\Columns\TextColumn::make('company.name')
                     ->label(__('ui.company'))
                     ->icon('heroicon-o-building-office')
@@ -120,6 +85,30 @@ class GroupMembershipsRelationManager extends RelationManager
                     ->icon('heroicon-o-user')
                     ->searchable()
                     ->sortable(),
+                Tables\Columns\TextColumn::make('role_label')
+                    ->label(__('ui.role'))
+                    ->badge()
+                    ->getStateUsing(function (Group $record): string {
+                        $employee = $this->getOwnerRecord();
+                        $isMember = GroupMember::where('group_id', $record->id)
+                            ->where('employee_id', $employee->id)
+                            ->exists();
+                        $isManager = $record->employee_id === $employee->id;
+
+                        if ($isMember && $isManager) {
+                            return __('ui.group_role_member_manager');
+                        }
+                        if ($isManager) {
+                            return __('ui.group_role_manager');
+                        }
+
+                        return __('ui.group_role_member');
+                    })
+                    ->color(fn (string $state): string => match ($state) {
+                        __('ui.group_role_member_manager') => 'success',
+                        __('ui.group_role_manager') => 'warning',
+                        default => 'info',
+                    }),
                 Tables\Columns\TextColumn::make('status')
                     ->label(__('ui.status'))
                     ->badge()
