@@ -51,7 +51,7 @@ class TicketReassignedNotification extends Notification implements ShouldQueue
                 'ticket'           => $this->ticket,
                 'notifiableName'   => $notifiable->name ?? $notifiable->email ?? '',
                 'eventTitle'       => 'Talep Devredildi',
-                'eventDescription' => 'Takip ettiğiniz talep yeni bir personele devredildi.',
+                'eventDescription' => __('ui.notification_reassigned_desc'),
                 'headerColor'      => '#0d6efd',
                 'headerColorDark'  => '#0a58ca',
                 'note'             => "{$this->oldName} → {$this->newName}",

@@ -40,7 +40,7 @@ class SlaWarningNotification extends Notification implements ShouldQueue
                 'ticket'           => $this->ticket,
                 'notifiableName'   => $notifiable->name ?? $notifiable->email ?? '',
                 'eventTitle'       => 'SLA Uyarısı',
-                'eventDescription' => 'Bu talebin SLA süresi %80 doldu. Lütfen acilen ilgilenin.',
+                'eventDescription' => __('ui.notification_sla_warning_desc'),
                 'headerColor'      => '#ffc107',
                 'headerColorDark'  => '#d39e00',
                 'note'             => null,

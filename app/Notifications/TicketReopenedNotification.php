@@ -40,7 +40,7 @@ class TicketReopenedNotification extends Notification implements ShouldQueue
                 'ticket'           => $this->ticket,
                 'notifiableName'   => $notifiable->name ?? $notifiable->email ?? '',
                 'eventTitle'       => 'Talep Yeniden Açıldı',
-                'eventDescription' => 'Talep yeniden açıldı ve atanan personele iletildi.',
+                'eventDescription' => __('ui.notification_reopened_desc'),
                 'headerColor'      => '#fd7e14',
                 'headerColorDark'  => '#e67e22',
                 'note'             => null,

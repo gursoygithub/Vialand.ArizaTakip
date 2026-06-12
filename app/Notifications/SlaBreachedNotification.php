@@ -40,7 +40,7 @@ class SlaBreachedNotification extends Notification implements ShouldQueue
                 'ticket'           => $this->ticket,
                 'notifiableName'   => $notifiable->name ?? $notifiable->email ?? '',
                 'eventTitle'       => 'SLA İhlali',
-                'eventDescription' => 'Bu talebin SLA süresi doldu. Acil müdahale gerekiyor.',
+                'eventDescription' => __('ui.notification_sla_breached_desc'),
                 'headerColor'      => '#dc3545',
                 'headerColorDark'  => '#b02a37',
                 'note'             => null,

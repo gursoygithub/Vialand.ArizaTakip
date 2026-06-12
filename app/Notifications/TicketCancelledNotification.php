@@ -40,7 +40,7 @@ class TicketCancelledNotification extends Notification implements ShouldQueue
                 'ticket'           => $this->ticket,
                 'notifiableName'   => $notifiable->name ?? $notifiable->email ?? '',
                 'eventTitle'       => 'Talep İptal Edildi',
-                'eventDescription' => 'Atandığınız talep iptal edildi.',
+                'eventDescription' => __('ui.notification_cancelled_desc'),
                 'headerColor'      => '#dc3545',
                 'headerColorDark'  => '#b02a37',
                 'note'             => null,

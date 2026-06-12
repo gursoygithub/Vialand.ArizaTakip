@@ -44,7 +44,7 @@ class TicketResolvedNotification extends Notification implements ShouldQueue
                 'ticket'           => $this->ticket,
                 'notifiableName'   => $notifiable->name ?? $notifiable->email ?? '',
                 'eventTitle'       => 'Talep Çözüldü',
-                'eventDescription' => 'Açmış olduğunuz talep çözüldü.',
+                'eventDescription' => __('ui.notification_resolved_desc'),
                 'headerColor'      => '#198754',
                 'headerColorDark'  => '#146c43',
                 'note'             => null,

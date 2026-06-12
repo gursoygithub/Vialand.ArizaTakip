@@ -862,4 +862,13 @@ return [
     'employee_col_rate'            => 'Oran',
     'employee_col_success_rate'    => 'Başarı Oranı',
     'employee_col_priority'        => 'Görev Önceliği',
+
+    // Notification event descriptions
+    'notification_assigned_desc'     => 'Aşağıdaki talep size atanmıştır. En kısa sürede ilgilenmeniz rica olunur.',
+    'notification_resolved_desc'     => 'Açmış olduğunuz talep çözüme kavuşturulmuştur.',
+    'notification_cancelled_desc'    => 'Atandığınız talep iptal edilmiştir.',
+    'notification_reopened_desc'     => 'Talep yeniden açılmış ve ilgili personele iletilmiştir.',
+    'notification_reassigned_desc'   => 'Takibinizdeki talep başka bir personele devredilmiştir.',
+    'notification_sla_warning_desc'  => 'Talebin çözüm süresinin %80\'i dolmuştur. Lütfen acilen ilgilenin.',
+    'notification_sla_breached_desc' => 'Talebin çözüm süresi sona ermiştir. Acil müdahale gerekmektedir.',
 ];

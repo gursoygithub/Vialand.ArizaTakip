@@ -40,7 +40,7 @@ class TicketAssignedNotification extends Notification implements ShouldQueue
                 'ticket'           => $this->ticket,
                 'notifiableName'   => $notifiable->name ?? $notifiable->email ?? '',
                 'eventTitle'       => 'Talep Size Atandı',
-                'eventDescription' => 'Aşağıdaki talep size atandı. Lütfen en kısa sürede ilgilenin.',
+                'eventDescription' => __('ui.notification_assigned_desc'),
                 'headerColor'      => '#007bff',
                 'headerColorDark'  => '#0056b3',
                 'note'             => null,
