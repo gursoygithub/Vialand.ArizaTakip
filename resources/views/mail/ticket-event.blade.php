@@ -15,7 +15,7 @@
 
 <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f8f9fa;">
     <tr>
-        <td align="center" style="padding: 40px 10px;">
+        <td align="center" style="padding: 10px 10px;">
             <table class="container" width="600" cellpadding="0" cellspacing="0" border="0"
                    style="background-color: #ffffff; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); border-collapse: collapse; overflow: hidden;">
 
