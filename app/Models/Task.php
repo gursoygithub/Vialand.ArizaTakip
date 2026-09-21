@@ -80,8 +80,7 @@ class Task extends Model Implements HasMedia
     public function registerMediaCollections(): void
     {
         $this->addMediaCollection('task_attachments')
-            ->useDisk('s3')
-            ->singleFile();
+            ->useDisk('s3');
     }
 
     public static function query()
