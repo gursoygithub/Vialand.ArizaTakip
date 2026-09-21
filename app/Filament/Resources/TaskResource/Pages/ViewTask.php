@@ -148,19 +148,11 @@ class ViewTask extends ViewRecord
                                                     return '<div style="width:150px;">'
                                                         .'<img src="'.e($url).'" alt="'.$alt.'" loading="lazy" '
                                                         .'style="width:100%;height:150px;object-fit:cover;cursor:zoom-in;border-radius:8px;display:block;" '
-                                                        .'@click=\'lightboxSrc = '.$jsUrl.'\' />'
+                                                        .'x-on:click=\'$wire.mountAction("viewImage", { url: '.$jsUrl.' })\' />'
                                                         .'</div>';
                                                 })->implode('');
 
-                                                return '<div x-data="{ lightboxSrc: null }">'
-                                                    .'<div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:center;">'.$thumbs.'</div>'
-                                                    .'<template x-teleport="body">'
-                                                    .'<div x-show="lightboxSrc" @click="lightboxSrc = null" style="display:flex;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.9);align-items:center;justify-content:center;padding:24px;cursor:zoom-out;">'
-                                                    .'<img :src="lightboxSrc" @click.stop '
-                                                    .'style="max-width:95vw;max-height:95vh;object-fit:contain;border-radius:8px;cursor:default;" />'
-                                                    .'</div>'
-                                                    .'</template>'
-                                                    .'</div>';
+                                                return '<div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:center;">'.$thumbs.'</div>';
                                             })
                                             ->html()
                                             ->helperText(__('ui.click_image_to_view_full_size'))
@@ -221,5 +213,18 @@ class ViewTask extends ViewRecord
                             ])->columns(3),
                     ]),
             ]);
+    }
+
+    public function viewImageAction(): Actions\Action
+    {
+        return Actions\Action::make('viewImage')
+            ->modalHeading(__('ui.images'))
+            ->modalContent(fn (array $arguments) => new \Illuminate\Support\HtmlString(
+                '<img src="'.e($arguments['url'] ?? '').'" alt="" '
+                .'style="max-width:100%;max-height:75vh;object-fit:contain;display:block;margin:0 auto;border-radius:8px;" />'
+            ))
+            ->modalSubmitAction(false)
+            ->modalCancelAction(false)
+            ->modalWidth('4xl');
     }
 }
