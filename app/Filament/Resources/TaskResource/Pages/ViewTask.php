@@ -144,19 +144,17 @@ class ViewTask extends ViewRecord
                                                 $thumbs = $record->getMedia('task_attachments')->map(function ($media) {
                                                     $url = $media->getUrl();
                                                     $alt = e($media->file_name ?? '');
-                                                    return '<details style="width:150px;">'
-                                                        .'<summary style="display:block;cursor:zoom-in;width:150px;height:150px;">'
+                                                    return '<details style="display:inline-block;vertical-align:top;margin:0 8px 8px 0;">'
+                                                        .'<summary style="display:block;cursor:zoom-in;list-style:none;">'
                                                         .'<img src="'.e($url).'" alt="'.$alt.'" loading="lazy" '
-                                                        .'style="width:150px;height:150px;object-fit:cover;border-radius:8px;display:block;" />'
+                                                        .'style="width:120px;height:120px;object-fit:cover;border-radius:8px;display:block;" />'
                                                         .'</summary>'
-                                                        .'<div style="margin-top:8px;">'
                                                         .'<img src="'.e($url).'" alt="'.$alt.'" '
-                                                        .'style="max-width:100%;max-height:70vh;object-fit:contain;border-radius:8px;display:block;cursor:zoom-out;" />'
-                                                        .'</div>'
+                                                        .'style="display:block;max-width:90vw;max-height:80vh;width:auto;height:auto;object-fit:contain;border-radius:8px;margin-top:8px;cursor:zoom-out;" />'
                                                         .'</details>';
                                                 })->implode('');
 
-                                                return '<div style="display:flex;flex-wrap:wrap;gap:16px;">'.$thumbs.'</div>';
+                                                return '<div>'.$thumbs.'</div>';
                                             })
                                             ->html()
                                             ->helperText(__('ui.click_image_to_view_full_size'))
