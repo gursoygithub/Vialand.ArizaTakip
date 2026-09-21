@@ -151,11 +151,11 @@ class ViewTask extends ViewRecord
                                                         .'</div>';
                                                 })->implode('');
 
-                                                return '<style>#task-image-lightbox{padding:0;border:none;border-radius:8px;background:transparent;max-width:95vw;max-height:95vh;}#task-image-lightbox::backdrop{background:rgba(0,0,0,.85);}</style>'
+                                                return '<style>#task-image-lightbox{margin:0;padding:24px;border:none;width:100vw;height:100vh;max-width:100vw;max-height:100vh;background:rgba(0,0,0,.9);box-sizing:border-box;}#task-image-lightbox[open]{display:flex;align-items:center;justify-content:center;}</style>'
                                                     .'<div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:center;">'.$thumbs.'</div>'
                                                     .'<dialog id="task-image-lightbox" onclick="this.close()">'
                                                     .'<img id="task-image-lightbox-img" src="" alt="" onclick="event.stopPropagation()" '
-                                                    .'style="display:block;max-width:95vw;max-height:95vh;object-fit:contain;border-radius:8px;cursor:zoom-out;" />'
+                                                    .'style="display:block;max-width:100%;max-height:100%;object-fit:contain;border-radius:8px;cursor:zoom-out;" />'
                                                     .'</dialog>';
                                             })
                                             ->html()
