@@ -164,6 +164,7 @@ class ViewTask extends ViewRecord
                                                         ->height('auto')
                                                         ->square(! $isSingle)
                                                         ->alignCenter()
+                                                        ->extraEntryWrapperAttributes(['style' => 'display:flex;justify-content:center;'])
                                                         ->columnSpan($span)
                                                         ->extraImgAttributes(['style' => $imgStyle, 'loading' => 'lazy'])
                                                         ->action(
