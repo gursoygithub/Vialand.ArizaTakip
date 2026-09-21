@@ -253,7 +253,6 @@ class TaskResource extends Resource
                                             ->image()
                                             //->required()
                                             ->acceptedFileTypes(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])
-                                            ->maxSize(1024 * 5) // Maksimum 5MB örnek
                                             ->validationMessages([
                                                 //'required' => __('ui.required'),
                                                 'accepted_file_types' => __('ui.invalid_file_type'),
