@@ -170,7 +170,16 @@ class ViewTask extends ViewRecord
                                             ->size('sm')
                                             ->columnSpanFull(),
                                     ])
-                                    ->columns(['default' => 3, 'sm' => 4, 'md' => 5, 'lg' => 6]),
+                                    ->columns(function ($record) {
+                                        $count = max(1, $record->getMedia('task_attachments')->count());
+
+                                        return [
+                                            'default' => min(3, $count),
+                                            'sm' => min(4, $count),
+                                            'md' => min(5, $count),
+                                            'lg' => min(6, $count),
+                                        ];
+                                    }),
                                 //->stacked() // Alt alta sıralamak için (opsiyonel)
                                 Infolists\Components\Fieldset::make(__('ui.record_info'))
                                     ->schema([
