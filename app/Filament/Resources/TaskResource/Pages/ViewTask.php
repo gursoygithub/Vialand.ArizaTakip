@@ -144,19 +144,23 @@ class ViewTask extends ViewRecord
                                                 $thumbs = $record->getMedia('task_attachments')->map(function ($media) {
                                                     $url = $media->getUrl();
                                                     $alt = e($media->file_name ?? '');
+                                                    $jsUrl = json_encode($url);
                                                     return '<div style="width:150px;">'
                                                         .'<img src="'.e($url).'" alt="'.$alt.'" loading="lazy" '
                                                         .'style="width:100%;height:150px;object-fit:cover;cursor:zoom-in;border-radius:8px;display:block;" '
-                                                        .'onclick="var d=document.getElementById(\'task-image-lightbox\');document.getElementById(\'task-image-lightbox-img\').src=this.src;if(d.showModal){d.showModal();}else{d.setAttribute(\'open\',\'\');}" />'
+                                                        .'@click=\'lightboxSrc = '.$jsUrl.'\' />'
                                                         .'</div>';
                                                 })->implode('');
 
-                                                return '<style>#task-image-lightbox{margin:0;padding:24px;border:none;width:100vw;height:100vh;max-width:100vw;max-height:100vh;background:rgba(0,0,0,.9);box-sizing:border-box;}#task-image-lightbox[open]{display:flex;align-items:center;justify-content:center;}</style>'
+                                                return '<div x-data="{ lightboxSrc: null }">'
                                                     .'<div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:center;">'.$thumbs.'</div>'
-                                                    .'<dialog id="task-image-lightbox" onclick="this.close()">'
-                                                    .'<img id="task-image-lightbox-img" src="" alt="" onclick="event.stopPropagation()" '
-                                                    .'style="display:block;max-width:100%;max-height:100%;object-fit:contain;border-radius:8px;cursor:zoom-out;" />'
-                                                    .'</dialog>';
+                                                    .'<template x-teleport="body">'
+                                                    .'<div x-show="lightboxSrc" @click="lightboxSrc = null" style="display:flex;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.9);align-items:center;justify-content:center;padding:24px;cursor:zoom-out;">'
+                                                    .'<img :src="lightboxSrc" @click.stop '
+                                                    .'style="max-width:95vw;max-height:95vh;object-fit:contain;border-radius:8px;cursor:default;" />'
+                                                    .'</div>'
+                                                    .'</template>'
+                                                    .'</div>';
                                             })
                                             ->html()
                                             ->helperText(__('ui.click_image_to_view_full_size'))
