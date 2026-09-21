@@ -144,11 +144,11 @@ class ViewTask extends ViewRecord
                                                 $thumbs = $record->getMedia('task_attachments')->map(function ($media) {
                                                     $url = $media->getUrl();
                                                     $alt = e($media->file_name ?? '');
-                                                    $jsUrl = json_encode($url);
+                                                    $jsArgs = json_encode(['url' => $url]);
                                                     return '<div style="width:150px;">'
                                                         .'<img src="'.e($url).'" alt="'.$alt.'" loading="lazy" '
                                                         .'style="width:100%;height:150px;object-fit:cover;cursor:zoom-in;border-radius:8px;display:block;" '
-                                                        .'x-on:click=\'$wire.mountAction("viewImage", { url: '.$jsUrl.' })\' />'
+                                                        .'wire:click=\'mountAction("viewImage", '.$jsArgs.')\' />'
                                                         .'</div>';
                                                 })->implode('');
 
