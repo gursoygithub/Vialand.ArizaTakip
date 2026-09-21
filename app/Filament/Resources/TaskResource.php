@@ -247,6 +247,7 @@ class TaskResource extends Resource
                                             ->visibility('public')
                                             ->downloadable()
                                             ->openable()
+                                            ->multiple()
                                             ->maxFiles(10)
                                             ->maxSize(10240) // 10 MB
                                             ->image()
