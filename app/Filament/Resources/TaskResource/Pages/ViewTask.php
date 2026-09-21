@@ -145,13 +145,13 @@ class ViewTask extends ViewRecord
                                                     $url = $media->getUrl();
                                                     $alt = e($media->file_name ?? '');
                                                     return '<details style="display:inline-block;vertical-align:top;margin:0 8px 8px 0;">'
-                                                        .'<summary style="position:relative;z-index:10000;display:block;cursor:zoom-in;list-style:none;">'
+                                                        .'<summary style="display:block;cursor:zoom-in;list-style:none;">'
                                                         .'<img src="'.e($url).'" alt="'.$alt.'" loading="lazy" '
-                                                        .'style="width:120px;height:120px;object-fit:cover;border-radius:8px;display:block;box-shadow:0 0 0 2px #fff, 0 1px 4px rgba(0,0,0,.4);" />'
+                                                        .'style="width:120px;height:120px;object-fit:cover;border-radius:8px;display:block;" />'
                                                         .'</summary>'
-                                                        .'<div style="position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.9);display:flex;align-items:center;justify-content:center;padding:24px;">'
+                                                        .'<div style="display:inline-block;margin-top:8px;padding:16px;background:rgba(0,0,0,.85);border-radius:12px;">'
                                                         .'<img src="'.e($url).'" alt="'.$alt.'" '
-                                                        .'style="display:block;max-width:90vw;max-height:90vh;object-fit:contain;border-radius:8px;cursor:zoom-out;" />'
+                                                        .'style="display:block;max-width:min(90vw,900px);max-height:80vh;width:auto;height:auto;object-fit:contain;border-radius:8px;cursor:zoom-out;" />'
                                                         .'</div>'
                                                         .'</details>';
                                                 })->implode('');
