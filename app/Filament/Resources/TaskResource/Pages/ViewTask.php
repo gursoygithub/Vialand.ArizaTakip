@@ -152,7 +152,7 @@ class ViewTask extends ViewRecord
                                                     ->extraImgAttributes(['style' => 'aspect-ratio:1;object-fit:cover;cursor:zoom-in;box-shadow:0 0 0 1px rgba(0,0,0,.15);', 'loading' => 'lazy'])
                                                     ->action(
                                                         Infolists\Components\Actions\Action::make('viewImage_'.$media->id)
-                                                            ->modalHeading($alt !== '' ? $alt : __('ui.image'))
+                                                            ->modalHeading(__('ui.image'))
                                                             ->modalContent(fn () => new \Illuminate\Support\HtmlString(
                                                                 '<img src="'.e($url).'" alt="'.$alt.'" style="max-width:100%;max-height:75vh;object-fit:contain;display:block;margin:0 auto;border-radius:8px;" />'
                                                             ))
