@@ -159,7 +159,7 @@ class ViewTask extends ViewRecord
                                                         ->height('auto')
                                                         ->square()
                                                         ->columnSpan($span)
-                                                        ->extraImgAttributes(['style' => 'aspect-ratio:1;object-fit:cover;cursor:zoom-in;box-shadow:0 0 0 1px rgba(0,0,0,.15);', 'loading' => 'lazy'])
+                                                        ->extraImgAttributes(['style' => 'aspect-ratio:1;object-fit:cover;cursor:zoom-in;box-shadow:0 0 0 1px rgba(0,0,0,.15);max-width:220px;', 'loading' => 'lazy'])
                                                         ->action(
                                                             Infolists\Components\Actions\Action::make('viewImage_'.$media->id)
                                                                 ->modalHeading(__('ui.image'))
