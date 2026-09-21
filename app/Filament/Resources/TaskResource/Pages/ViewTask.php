@@ -147,15 +147,16 @@ class ViewTask extends ViewRecord
                                                     return '<div style="width:150px;">'
                                                         .'<img src="'.e($url).'" alt="'.$alt.'" loading="lazy" '
                                                         .'style="width:100%;height:150px;object-fit:cover;cursor:zoom-in;border-radius:8px;display:block;" '
-                                                        .'onclick="document.getElementById(\'task-image-lightbox\').style.display=\'flex\';document.getElementById(\'task-image-lightbox-img\').src=this.src;" />'
+                                                        .'onclick="var d=document.getElementById(\'task-image-lightbox\');document.getElementById(\'task-image-lightbox-img\').src=this.src;if(d.showModal){d.showModal();}else{d.setAttribute(\'open\',\'\');}" />'
                                                         .'</div>';
                                                 })->implode('');
 
-                                                return '<div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:center;">'.$thumbs.'</div>'
-                                                    .'<div id="task-image-lightbox" onclick="this.style.display=\'none\'" '
-                                                    .'style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.85);align-items:center;justify-content:center;padding:24px;cursor:zoom-out;">'
-                                                    .'<img id="task-image-lightbox-img" src="" alt="" style="max-width:90vw;max-height:90vh;object-fit:contain;border-radius:8px;" />'
-                                                    .'</div>';
+                                                return '<style>#task-image-lightbox{padding:0;border:none;border-radius:8px;background:transparent;max-width:95vw;max-height:95vh;}#task-image-lightbox::backdrop{background:rgba(0,0,0,.85);}</style>'
+                                                    .'<div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:center;">'.$thumbs.'</div>'
+                                                    .'<dialog id="task-image-lightbox" onclick="this.close()">'
+                                                    .'<img id="task-image-lightbox-img" src="" alt="" onclick="event.stopPropagation()" '
+                                                    .'style="display:block;max-width:95vw;max-height:95vh;object-fit:contain;border-radius:8px;cursor:zoom-out;" />'
+                                                    .'</dialog>';
                                             })
                                             ->html()
                                             ->helperText(__('ui.click_image_to_view_full_size'))
