@@ -146,9 +146,10 @@ class ViewTask extends ViewRecord
                                                 return Infolists\Components\ImageEntry::make('task_image_'.$media->id)
                                                     ->hiddenLabel()
                                                     ->state($url)
-                                                    ->size(120)
+                                                    ->width('100%')
+                                                    ->height('auto')
                                                     ->square()
-                                                    ->extraImgAttributes(['style' => 'cursor:zoom-in;box-shadow:0 0 0 1px rgba(0,0,0,.15);transition:transform .1s;', 'loading' => 'lazy'])
+                                                    ->extraImgAttributes(['style' => 'aspect-ratio:1;object-fit:cover;cursor:zoom-in;box-shadow:0 0 0 1px rgba(0,0,0,.15);', 'loading' => 'lazy'])
                                                     ->action(
                                                         Infolists\Components\Actions\Action::make('viewImage_'.$media->id)
                                                             ->modalHeading($alt !== '' ? $alt : __('ui.image'))
