@@ -137,49 +137,51 @@ class ViewTask extends ViewRecord
                                     ]),
                                 Infolists\Components\Fieldset::make(__('ui.image'))
                                     ->visible(fn ($record) => $record->hasMedia('task_attachments'))
-                                    ->schema(fn ($record) => [
-                                        ...$record->getMedia('task_attachments')
-                                            ->map(function ($media) {
-                                                $url = $media->getUrl();
-                                                $alt = e($media->file_name ?? '');
-
-                                                return Infolists\Components\ImageEntry::make('task_image_'.$media->id)
-                                                    ->hiddenLabel()
-                                                    ->state($url)
-                                                    ->width('100%')
-                                                    ->height('auto')
-                                                    ->square()
-                                                    ->extraImgAttributes(['style' => 'aspect-ratio:1;object-fit:cover;cursor:zoom-in;box-shadow:0 0 0 1px rgba(0,0,0,.15);', 'loading' => 'lazy'])
-                                                    ->action(
-                                                        Infolists\Components\Actions\Action::make('viewImage_'.$media->id)
-                                                            ->modalHeading(__('ui.image'))
-                                                            ->modalContent(fn () => new \Illuminate\Support\HtmlString(
-                                                                '<img src="'.e($url).'" alt="'.$alt.'" style="max-width:100%;max-height:75vh;object-fit:contain;display:block;margin:0 auto;border-radius:8px;" />'
-                                                            ))
-                                                            ->modalSubmitAction(false)
-                                                            ->modalCancelAction(false)
-                                                            ->modalWidth('4xl')
-                                                    );
-                                            })
-                                            ->values()
-                                            ->all(),
-                                        Infolists\Components\TextEntry::make('task_images_hint')
-                                            ->hiddenLabel()
-                                            ->state(__('ui.click_image_to_view_full_size'))
-                                            ->color('gray')
-                                            ->size('sm')
-                                            ->columnSpanFull(),
-                                    ])
-                                    ->columns(function ($record) {
+                                    ->schema(function ($record) {
                                         $count = max(1, $record->getMedia('task_attachments')->count());
+                                        $span = [
+                                            'default' => (int) ceil(3 / min(3, $count)),
+                                            'sm' => (int) ceil(4 / min(4, $count)),
+                                            'md' => (int) ceil(5 / min(5, $count)),
+                                            'lg' => (int) ceil(6 / min(6, $count)),
+                                        ];
 
                                         return [
-                                            'default' => min(3, $count),
-                                            'sm' => min(4, $count),
-                                            'md' => min(5, $count),
-                                            'lg' => min(6, $count),
+                                            ...$record->getMedia('task_attachments')
+                                                ->map(function ($media) use ($span) {
+                                                    $url = $media->getUrl();
+                                                    $alt = e($media->file_name ?? '');
+
+                                                    return Infolists\Components\ImageEntry::make('task_image_'.$media->id)
+                                                        ->hiddenLabel()
+                                                        ->state($url)
+                                                        ->width('100%')
+                                                        ->height('auto')
+                                                        ->square()
+                                                        ->columnSpan($span)
+                                                        ->extraImgAttributes(['style' => 'aspect-ratio:1;object-fit:cover;cursor:zoom-in;box-shadow:0 0 0 1px rgba(0,0,0,.15);', 'loading' => 'lazy'])
+                                                        ->action(
+                                                            Infolists\Components\Actions\Action::make('viewImage_'.$media->id)
+                                                                ->modalHeading(__('ui.image'))
+                                                                ->modalContent(fn () => new \Illuminate\Support\HtmlString(
+                                                                    '<img src="'.e($url).'" alt="'.$alt.'" style="max-width:100%;max-height:75vh;object-fit:contain;display:block;margin:0 auto;border-radius:8px;" />'
+                                                                ))
+                                                                ->modalSubmitAction(false)
+                                                                ->modalCancelAction(false)
+                                                                ->modalWidth('4xl')
+                                                        );
+                                                })
+                                                ->values()
+                                                ->all(),
+                                            Infolists\Components\TextEntry::make('task_images_hint')
+                                                ->hiddenLabel()
+                                                ->state(__('ui.click_image_to_view_full_size'))
+                                                ->color('gray')
+                                                ->size('sm')
+                                                ->columnSpanFull(),
                                         ];
-                                    }),
+                                    })
+                                    ->columns(['default' => 3, 'sm' => 4, 'md' => 5, 'lg' => 6]),
                                 //->stacked() // Alt alta sıralamak için (opsiyonel)
                                 Infolists\Components\Fieldset::make(__('ui.record_info'))
                                     ->schema([
