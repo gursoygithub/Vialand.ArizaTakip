@@ -144,15 +144,24 @@ class ViewTask extends ViewRecord
                                                 $thumbs = $record->getMedia('task_attachments')->map(function ($media) {
                                                     $url = $media->getUrl();
                                                     $alt = e($media->file_name ?? '');
-                                                    $jsArgs = json_encode(['url' => $url]);
-                                                    return '<div style="width:150px;">'
+                                                    $id = 'task-lightbox-'.$media->id;
+                                                    return '<a href="#'.$id.'" style="display:block;width:150px;">'
                                                         .'<img src="'.e($url).'" alt="'.$alt.'" loading="lazy" '
-                                                        .'style="width:100%;height:150px;object-fit:cover;cursor:zoom-in;border-radius:8px;display:block;" '
-                                                        .'wire:click=\'mountAction("viewImage", '.$jsArgs.')\' />'
+                                                        .'style="width:100%;height:150px;object-fit:cover;cursor:zoom-in;border-radius:8px;display:block;" />'
+                                                        .'</a>'
+                                                        .'<div id="'.$id.'" class="task-lightbox">'
+                                                        .'<a href="#" class="task-lightbox-close" aria-label="close"></a>'
+                                                        .'<img src="'.e($url).'" alt="'.$alt.'" class="task-lightbox-img" />'
                                                         .'</div>';
                                                 })->implode('');
 
-                                                return '<div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:center;">'.$thumbs.'</div>';
+                                                return '<style>'
+                                                    .'.task-lightbox{display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.9);align-items:center;justify-content:center;padding:24px;}'
+                                                    .'.task-lightbox:target{display:flex;}'
+                                                    .'.task-lightbox-close{position:absolute;inset:0;cursor:zoom-out;}'
+                                                    .'.task-lightbox-img{position:relative;max-width:95vw;max-height:95vh;object-fit:contain;border-radius:8px;}'
+                                                    .'</style>'
+                                                    .'<div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:center;">'.$thumbs.'</div>';
                                             })
                                             ->html()
                                             ->helperText(__('ui.click_image_to_view_full_size'))
@@ -213,18 +222,5 @@ class ViewTask extends ViewRecord
                             ])->columns(3),
                     ]),
             ]);
-    }
-
-    public function viewImageAction(): Actions\Action
-    {
-        return Actions\Action::make('viewImage')
-            ->modalHeading(__('ui.images'))
-            ->modalContent(fn (array $arguments) => new \Illuminate\Support\HtmlString(
-                '<img src="'.e($arguments['url'] ?? '').'" alt="" '
-                .'style="max-width:100%;max-height:75vh;object-fit:contain;display:block;margin:0 auto;border-radius:8px;" />'
-            ))
-            ->modalSubmitAction(false)
-            ->modalCancelAction(false)
-            ->modalWidth('4xl');
     }
 }
