@@ -147,7 +147,7 @@ class ViewTask extends ViewRecord
                                                 ->state($url)
                                                 ->size(120)
                                                 ->square()
-                                                ->extraImgAttributes(['style' => 'cursor:zoom-in;', 'loading' => 'lazy'])
+                                                ->extraImgAttributes(['style' => 'cursor:zoom-in;box-shadow:0 0 0 1px rgba(0,0,0,.15);transition:transform .1s;', 'loading' => 'lazy'])
                                                 ->action(
                                                     Infolists\Components\Actions\Action::make('viewImage_'.$media->id)
                                                         ->modalHeading($alt !== '' ? $alt : __('ui.image'))
