@@ -322,7 +322,10 @@ class TaskResource extends Resource
                     ->label(__('ui.images'))
                     ->collection('task_attachments')
                     ->square()
-                    ->size(50),
+                    ->size(40)
+                    ->stacked()
+                    ->limit(3)
+                    ->limitedRemainingText(),
                 Tables\Columns\TextColumn::make('type_id')
                     ->label(__('ui.type'))
                     ->badge()

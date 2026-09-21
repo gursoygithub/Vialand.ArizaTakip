@@ -140,14 +140,23 @@ class ViewTask extends ViewRecord
                                         Infolists\Components\TextEntry::make('media.task_attachments')
                                             ->hiddenLabel()
                                             ->visible(fn ($record) => $record->hasMedia('task_attachments'))
-                                            ->getStateUsing(fn ($record) =>
-                                            $record->getMedia('task_attachments')->map(function ($media) {
-                                                $url = $media->getUrl();
-                                                return '<a href="'.e($url).'" target="_blank" rel="noopener noreferrer">'
-                                                    .'<img src="'.e($url).'" alt="'.e($media->file_name ?? '').'" style="width:480px;height:320px;object-fit:cover;cursor:pointer;border-radius:8px;margin:12px;" onclick="window.open(this.src)" />'
-                                                    .'</a>';
-                                            })->implode('')
-                                            )
+                                            ->getStateUsing(function ($record) {
+                                                $thumbs = $record->getMedia('task_attachments')->map(function ($media) {
+                                                    $url = $media->getUrl();
+                                                    $alt = e($media->file_name ?? '');
+                                                    return '<div style="width:150px;">'
+                                                        .'<img src="'.e($url).'" alt="'.$alt.'" loading="lazy" '
+                                                        .'style="width:100%;height:150px;object-fit:cover;cursor:zoom-in;border-radius:8px;display:block;" '
+                                                        .'onclick="document.getElementById(\'task-image-lightbox\').style.display=\'flex\';document.getElementById(\'task-image-lightbox-img\').src=this.src;" />'
+                                                        .'</div>';
+                                                })->implode('');
+
+                                                return '<div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:center;">'.$thumbs.'</div>'
+                                                    .'<div id="task-image-lightbox" onclick="this.style.display=\'none\'" '
+                                                    .'style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.85);align-items:center;justify-content:center;padding:24px;cursor:zoom-out;">'
+                                                    .'<img id="task-image-lightbox-img" src="" alt="" style="max-width:90vw;max-height:90vh;object-fit:contain;border-radius:8px;" />'
+                                                    .'</div>';
+                                            })
                                             ->html()
                                             ->helperText(__('ui.click_image_to_view_full_size'))
                                             ->alignCenter()
