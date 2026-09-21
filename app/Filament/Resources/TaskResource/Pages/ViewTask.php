@@ -144,24 +144,19 @@ class ViewTask extends ViewRecord
                                                 $thumbs = $record->getMedia('task_attachments')->map(function ($media) {
                                                     $url = $media->getUrl();
                                                     $alt = e($media->file_name ?? '');
-                                                    $id = 'task-lightbox-'.$media->id;
-                                                    return '<a href="#'.$id.'" style="display:block;width:150px;">'
+                                                    return '<details style="width:150px;">'
+                                                        .'<summary style="display:block;cursor:zoom-in;width:150px;height:150px;">'
                                                         .'<img src="'.e($url).'" alt="'.$alt.'" loading="lazy" '
-                                                        .'style="width:100%;height:150px;object-fit:cover;cursor:zoom-in;border-radius:8px;display:block;" />'
-                                                        .'</a>'
-                                                        .'<div id="'.$id.'" class="task-lightbox">'
-                                                        .'<a href="#" class="task-lightbox-close" aria-label="close"></a>'
-                                                        .'<img src="'.e($url).'" alt="'.$alt.'" class="task-lightbox-img" />'
-                                                        .'</div>';
+                                                        .'style="width:150px;height:150px;object-fit:cover;border-radius:8px;display:block;" />'
+                                                        .'</summary>'
+                                                        .'<div style="margin-top:8px;">'
+                                                        .'<img src="'.e($url).'" alt="'.$alt.'" '
+                                                        .'style="max-width:100%;max-height:70vh;object-fit:contain;border-radius:8px;display:block;cursor:zoom-out;" />'
+                                                        .'</div>'
+                                                        .'</details>';
                                                 })->implode('');
 
-                                                return '<style>'
-                                                    .'.task-lightbox{display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.9);align-items:center;justify-content:center;padding:24px;}'
-                                                    .'.task-lightbox:target{display:flex;}'
-                                                    .'.task-lightbox-close{position:absolute;inset:0;cursor:zoom-out;}'
-                                                    .'.task-lightbox-img{position:relative;max-width:95vw;max-height:95vh;object-fit:contain;border-radius:8px;}'
-                                                    .'</style>'
-                                                    .'<div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:center;">'.$thumbs.'</div>';
+                                                return '<div style="display:flex;flex-wrap:wrap;gap:16px;">'.$thumbs.'</div>';
                                             })
                                             ->html()
                                             ->helperText(__('ui.click_image_to_view_full_size'))
