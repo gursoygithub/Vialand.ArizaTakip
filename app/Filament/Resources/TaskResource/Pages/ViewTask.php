@@ -146,20 +146,26 @@ class ViewTask extends ViewRecord
                                             'lg' => (int) ceil(6 / min(6, $count)),
                                         ];
 
+                                        $isSingle = $count === 1;
+                                        $imgStyle = $isSingle
+                                            ? 'width:auto;height:auto;max-width:100%;max-height:420px;object-fit:contain;display:block;margin:0 auto;cursor:zoom-in;box-shadow:0 0 0 1px rgba(0,0,0,.15);'
+                                            : 'aspect-ratio:1;object-fit:cover;cursor:zoom-in;box-shadow:0 0 0 1px rgba(0,0,0,.15);max-width:220px;';
+
                                         return [
                                             ...$record->getMedia('task_attachments')
-                                                ->map(function ($media) use ($span) {
+                                                ->map(function ($media) use ($span, $isSingle, $imgStyle) {
                                                     $url = $media->getUrl();
                                                     $alt = e($media->file_name ?? '');
 
                                                     return Infolists\Components\ImageEntry::make('task_image_'.$media->id)
                                                         ->hiddenLabel()
                                                         ->state($url)
-                                                        ->width('100%')
+                                                        ->width($isSingle ? null : '100%')
                                                         ->height('auto')
-                                                        ->square()
+                                                        ->square(! $isSingle)
+                                                        ->alignCenter()
                                                         ->columnSpan($span)
-                                                        ->extraImgAttributes(['style' => 'aspect-ratio:1;object-fit:cover;cursor:zoom-in;box-shadow:0 0 0 1px rgba(0,0,0,.15);max-width:220px;', 'loading' => 'lazy'])
+                                                        ->extraImgAttributes(['style' => $imgStyle, 'loading' => 'lazy'])
                                                         ->action(
                                                             Infolists\Components\Actions\Action::make('viewImage_'.$media->id)
                                                                 ->modalHeading(__('ui.image'))
