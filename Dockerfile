@@ -70,6 +70,11 @@ RUN curl -sS https://getcomposer.org/installer | php && \
 COPY ./.docker/start.sh /start.sh
 COPY ./.docker/nginx.conf /etc/nginx/nginx.conf
 
+# Apply repo's PHP upload limits (post_max_size / upload_max_filesize) to FPM and CLI,
+# overriding Ubuntu's stock 2M/8M defaults which silently reject larger uploads.
+COPY ./php.ini /etc/php/8.4/fpm/conf.d/99-custom.ini
+COPY ./php.ini /etc/php/8.4/cli/conf.d/99-custom.ini
+
 # Set working directory
 WORKDIR /var/www
 RUN rm -rf *
