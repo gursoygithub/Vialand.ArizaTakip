@@ -247,12 +247,12 @@ class TaskResource extends Resource
                                             ->visibility('public')
                                             ->downloadable()
                                             ->openable()
+                                            ->multiple()
                                             ->maxFiles(10)
                                             ->maxSize(10240) // 10 MB
                                             ->image()
                                             //->required()
                                             ->acceptedFileTypes(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])
-                                            ->maxSize(1024 * 5) // Maksimum 5MB örnek
                                             ->validationMessages([
                                                 //'required' => __('ui.required'),
                                                 'accepted_file_types' => __('ui.invalid_file_type'),
@@ -321,7 +321,10 @@ class TaskResource extends Resource
                     ->label(__('ui.images'))
                     ->collection('task_attachments')
                     ->square()
-                    ->size(50),
+                    ->size(40)
+                    ->stacked()
+                    ->limit(3)
+                    ->limitedRemainingText(),
                 Tables\Columns\TextColumn::make('type_id')
                     ->label(__('ui.type'))
                     ->badge()

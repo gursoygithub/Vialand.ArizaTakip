@@ -136,23 +136,59 @@ class ViewTask extends ViewRecord
                                             ->columnSpan(1),
                                     ]),
                                 Infolists\Components\Fieldset::make(__('ui.image'))
-                                    ->schema([
-                                        Infolists\Components\TextEntry::make('media.task_attachments')
-                                            ->hiddenLabel()
-                                            ->visible(fn ($record) => $record->hasMedia('task_attachments'))
-                                            ->getStateUsing(fn ($record) =>
-                                            $record->getMedia('task_attachments')->map(function ($media) {
-                                                $url = $media->getUrl();
-                                                return '<a href="'.e($url).'" target="_blank" rel="noopener noreferrer">'
-                                                    .'<img src="'.e($url).'" alt="'.e($media->file_name ?? '').'" style="width:480px;height:320px;object-fit:cover;cursor:pointer;border-radius:8px;margin:12px;" onclick="window.open(this.src)" />'
-                                                    .'</a>';
-                                            })->implode('')
-                                            )
-                                            ->html()
-                                            ->helperText(__('ui.click_image_to_view_full_size'))
-                                            ->alignCenter()
-                                            ->columnSpanFull(),
-                                    ]),
+                                    ->visible(fn ($record) => $record->hasMedia('task_attachments'))
+                                    ->schema(function ($record) {
+                                        $count = max(1, $record->getMedia('task_attachments')->count());
+                                        $span = [
+                                            'default' => (int) ceil(3 / min(3, $count)),
+                                            'sm' => (int) ceil(4 / min(4, $count)),
+                                            'md' => (int) ceil(5 / min(5, $count)),
+                                            'lg' => (int) ceil(6 / min(6, $count)),
+                                        ];
+
+                                        $isSingle = $count === 1;
+                                        $imgStyle = $isSingle
+                                            ? 'width:auto;height:auto;max-width:100%;max-height:420px;object-fit:contain;display:block;margin:0 auto;cursor:zoom-in;box-shadow:0 0 0 1px rgba(0,0,0,.15);'
+                                            : 'aspect-ratio:1;object-fit:cover;cursor:zoom-in;box-shadow:0 0 0 1px rgba(0,0,0,.15);max-width:220px;';
+
+                                        return [
+                                            ...$record->getMedia('task_attachments')
+                                                ->map(function ($media) use ($span, $isSingle, $imgStyle) {
+                                                    $url = $media->getUrl();
+                                                    $alt = e($media->file_name ?? '');
+
+                                                    return Infolists\Components\ImageEntry::make('task_image_'.$media->id)
+                                                        ->hiddenLabel()
+                                                        ->state($url)
+                                                        ->width($isSingle ? null : '100%')
+                                                        ->height('auto')
+                                                        ->square(! $isSingle)
+                                                        ->alignCenter()
+                                                        ->extraEntryWrapperAttributes(['style' => 'display:flex;justify-content:center;'])
+                                                        ->columnSpan($span)
+                                                        ->extraImgAttributes(['style' => $imgStyle, 'loading' => 'lazy'])
+                                                        ->action(
+                                                            Infolists\Components\Actions\Action::make('viewImage_'.$media->id)
+                                                                ->modalHeading(__('ui.image'))
+                                                                ->modalContent(fn () => new \Illuminate\Support\HtmlString(
+                                                                    '<img src="'.e($url).'" alt="'.$alt.'" style="max-width:100%;max-height:75vh;object-fit:contain;display:block;margin:0 auto;border-radius:8px;" />'
+                                                                ))
+                                                                ->modalSubmitAction(false)
+                                                                ->modalCancelAction(false)
+                                                                ->modalWidth('4xl')
+                                                        );
+                                                })
+                                                ->values()
+                                                ->all(),
+                                            Infolists\Components\TextEntry::make('task_images_hint')
+                                                ->hiddenLabel()
+                                                ->state(__('ui.click_image_to_view_full_size'))
+                                                ->color('gray')
+                                                ->size('sm')
+                                                ->columnSpanFull(),
+                                        ];
+                                    })
+                                    ->columns(['default' => 3, 'sm' => 4, 'md' => 5, 'lg' => 6]),
                                 //->stacked() // Alt alta sıralamak için (opsiyonel)
                                 Infolists\Components\Fieldset::make(__('ui.record_info'))
                                     ->schema([
