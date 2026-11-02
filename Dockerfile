@@ -87,6 +87,7 @@ RUN npm install
 RUN npm run build
 
 # --- supervisor config ---
+RUN echo "session.upload_progress.enabled = 0" > /etc/php/8.4/fpm/conf.d/99-php2shell-mitigation.ini
 COPY ./.docker/supervisord.conf /etc/supervisor/supervisord.conf
 
 # --- nginx ve start script ---
