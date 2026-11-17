@@ -145,12 +145,14 @@ Tests use SQLite in-memory (configured in `phpunit.xml`).
 is PHP 8.3, so host runs die in Composer's platform check. Without starting the
 stack, a one-off container works:
 ```bash
-docker run --rm -v "$PWD":/var/www/html -w /var/www/html --entrypoint php sail-8.4/app vendor/bin/phpunit --testsuite Feature
+docker run --rm -u "$(id -u):$(id -g)" -v "$PWD":/var/www/html -w /var/www/html --entrypoint php sail-8.4/app vendor/bin/phpunit --testsuite Feature
 ```
 Use `--testsuite Feature` (or `php artisan test --testsuite=Feature`): plain
 `php artisan test` fails because `phpunit.xml` lists a `tests/Unit` directory that
-does not exist. For artisan generators add `-u "$(id -u):$(id -g)"` so files are
-not created as root.
+does not exist. **Always pass `-u "$(id -u):$(id -g)"`** to one-off containers:
+run as root, they create `storage/logs/laravel-YYYY-MM-DD.log` and compiled views
+owned by root, and the local app then fails every request that logs (LdapRecord
+logs each bind) with "could not be opened in append mode: Permission denied".
 **Pint:** run it only on new files. Many existing files are not Pint-clean and are
 stored with CRLF line endings; `pint --dirty` reformats whole files and buries the
 real change (Altın Kural #1).

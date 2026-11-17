@@ -8,7 +8,8 @@ Tests use **SQLite in-memory** (configured via `phpunit.xml`).
 ## Running
 - 32 feature test files / 198 test methods in `tests/Feature/` (all green on `faz-0-acil`, 2026-11-17)
 - Needs PHP 8.4 (host CLI is 8.3 → Composer platform check aborts). One-off container, no stack needed:
-  `docker run --rm -v "$PWD":/var/www/html -w /var/www/html --entrypoint php sail-8.4/app vendor/bin/phpunit --testsuite Feature`
+  `docker run --rm -u "$(id -u):$(id -g)" -v "$PWD":/var/www/html -w /var/www/html --entrypoint php sail-8.4/app vendor/bin/phpunit --testsuite Feature`
+  (`-u` is required — run as root it leaves root-owned log/view files that break the local app)
 - Always pass `--testsuite Feature`: `phpunit.xml` also lists `tests/Unit`, which does not exist, so a plain run errors out
 - Filter: append `--filter=TicketReassignTest`
 - `define_via_gate = false` → a `super_admin` test user gets 403 on resources whose Shield permission (`view_any_X`, …) was not created. `PermissionSeeder` does not create Shield resource permissions; create/grant them in the test (`Permission::findOrCreate`)
