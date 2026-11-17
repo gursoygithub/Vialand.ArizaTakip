@@ -7,6 +7,7 @@ use App\Enums\TaskPriorityEnum;
 use App\Filament\Resources\TeamResource\Pages;
 use App\Models\Employee;
 use App\Models\Team;
+use Closure;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -72,6 +73,24 @@ class TeamResource extends Resource
         return $query->with('company')->where('status', ActiveStatusEnum::ACTIVE);
     }
 
+    /**
+     * Team people are reached by e-mail and log in through the account that
+     * shares their e-mail, so someone without one would silently get nothing.
+     */
+    private static function requireEmail(): Closure
+    {
+        return fn (): Closure => function (string $attribute, mixed $value, Closure $fail): void {
+            $names = Employee::query()
+                ->whereKey((array) $value)
+                ->where(fn (Builder $query) => $query->whereNull('email')->orWhere('email', ''))
+                ->pluck('name');
+
+            if ($names->isNotEmpty()) {
+                $fail(__('ui.team_people_need_email', ['names' => $names->implode(', ')]));
+            }
+        };
+    }
+
     public static function form(Form $form): Form
     {
         return $form
@@ -108,6 +127,7 @@ class TeamResource extends Resource
                             ->getOptionLabelFromRecordUsing(fn (Employee $record): string => self::employeeLabel($record))
                             ->searchable(['name', 'email'])
                             ->required()
+                            ->rule(self::requireEmail())
                             ->validationMessages(['required' => __('ui.required')]),
 
                         Forms\Components\Select::make('work_calendar_id')
@@ -131,6 +151,7 @@ class TeamResource extends Resource
                             ->getOptionLabelFromRecordUsing(fn (Employee $record): string => self::employeeLabel($record))
                             ->multiple()
                             ->searchable(['name', 'email'])
+                            ->rule(self::requireEmail())
                             ->columnSpanFull(),
 
                         Forms\Components\Textarea::make('description')
@@ -207,7 +228,11 @@ class TeamResource extends Resource
         return $table
             ->modifyQueryUsing(fn (Builder $query) => $query
                 ->with(['ticketType', 'supervisor.company', 'workCalendar'])
-                ->withCount('members'))
+                ->withCount([
+                    'members',
+                    'members as members_without_email_count' => fn (Builder $query) => $query
+                        ->where(fn (Builder $query) => $query->whereNull('email')->orWhere('email', '')),
+                ]))
             ->defaultSort('name')
             ->columns([
                 Tables\Columns\TextColumn::make('name')
@@ -229,6 +254,11 @@ class TeamResource extends Resource
                 Tables\Columns\TextColumn::make('members_count')
                     ->label(__('ui.members_count'))
                     ->badge()
+                    ->color(fn (Team $record): string => self::peopleWithoutEmail($record) > 0 ? 'danger' : 'primary')
+                    ->icon(fn (Team $record): ?string => self::peopleWithoutEmail($record) > 0 ? 'heroicon-m-exclamation-triangle' : null)
+                    ->tooltip(fn (Team $record): ?string => self::peopleWithoutEmail($record) > 0
+                        ? __('ui.team_people_without_email', ['count' => self::peopleWithoutEmail($record)])
+                        : null)
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('workCalendar.name')
@@ -254,6 +284,16 @@ class TeamResource extends Resource
                     Tables\Actions\DeleteAction::make(),
                 ]),
             ]);
+    }
+
+    /**
+     * Supervisor plus members who have no e-mail (list rows carry the member
+     * count from withCount, the supervisor is already eager loaded).
+     */
+    private static function peopleWithoutEmail(Team $team): int
+    {
+        return (int) ($team->members_without_email_count ?? 0)
+            + ($team->supervisor && blank($team->supervisor->email) ? 1 : 0);
     }
 
     /**

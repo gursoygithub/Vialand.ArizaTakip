@@ -23,6 +23,7 @@ use App\Services\TicketWorkflowService;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 use Mockery\MockInterface;
 use Spatie\Permission\Models\Permission;
@@ -180,6 +181,21 @@ class TeamTicketNotificationsTest extends TestCase
 
         $this->assertNotified($this->requester, TeamTicketEventEnum::Resolved, ['database', 'mail']);
         $this->assertContains($this->requester->id, $this->pushed);
+    }
+
+    public function test_requester_without_email_gets_the_bell_and_the_skip_is_logged(): void
+    {
+        $this->requester->update(['email' => '']);
+        Log::spy();
+
+        $ticket = $this->workflow()->resolve($this->started(), $this->tech);
+
+        $this->assertNotified($this->requester, TeamTicketEventEnum::Resolved, ['database']);
+        Log::shouldHaveReceived('warning')
+            ->withArgs(fn (string $message, array $context): bool => str_contains($message, 'Mail skipped')
+                && $context['ticket_no'] === $ticket->ticket_no
+                && $context['user_id'] === $this->requester->id)
+            ->once();
     }
 
     public function test_rejected_resolution_goes_back_to_the_assignee(): void

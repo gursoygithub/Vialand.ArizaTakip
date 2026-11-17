@@ -195,4 +195,46 @@ class TeamManagementTest extends TestCase
 
         $this->get(TeamResource::getUrl('index'))->assertForbidden();
     }
+
+    public function test_member_without_email_cannot_be_added_to_a_team(): void
+    {
+        $supervisor = Employee::factory()->create();
+        $withEmail = Employee::factory()->create();
+        $withoutEmail = Employee::factory()->create(['name' => 'MAİLSİZ KİŞİ', 'email' => '']);
+
+        Livewire::test(CreateTeam::class)
+            ->fillForm([
+                'ticket_type_id' => $this->type->id,
+                'name' => 'Elektrik Ekibi',
+                'supervisor_employee_id' => $supervisor->id,
+                'members' => [$withEmail->id, $withoutEmail->id],
+            ])
+            ->call('create')
+            ->assertHasFormErrors(['members'])
+            ->assertSee('MAİLSİZ KİŞİ');
+
+        $this->assertDatabaseMissing(Team::class, ['name' => 'Elektrik Ekibi']);
+    }
+
+    public function test_supervisor_without_email_is_rejected_on_edit(): void
+    {
+        $team = Team::factory()->create(['ticket_type_id' => $this->type->id]);
+        $withoutEmail = Employee::factory()->create(['email' => '']);
+
+        Livewire::test(EditTeam::class, ['record' => $team->getRouteKey()])
+            ->fillForm(['supervisor_employee_id' => $withoutEmail->id])
+            ->call('save')
+            ->assertHasFormErrors(['supervisor_employee_id']);
+    }
+
+    public function test_team_list_warns_about_people_without_email(): void
+    {
+        $team = Team::factory()->create(['ticket_type_id' => $this->type->id]);
+        $team->members()->attach(Employee::factory()->create(['email' => ''])->id);
+        $team->members()->attach(Employee::factory()->create()->id);
+
+        $tooltip = trim(json_encode(__('ui.team_people_without_email', ['count' => 1])), '"');
+
+        Livewire::test(ListTeams::class)->assertSeeHtml($tooltip);
+    }
 }

@@ -12,6 +12,7 @@ use App\Models\TicketSlaCycle;
 use App\Models\User;
 use App\Notifications\TeamTicketNotification;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 use Spatie\Permission\Models\Permission;
 
 /**
@@ -174,8 +175,16 @@ class TeamTicketNotifier
 
             $channels = $level === 'info' ? ['database'] : ['database', 'mail'];
 
-            if (blank($user->email)) {
+            if (blank($user->email) && in_array('mail', $channels, true)) {
                 $channels = ['database'];
+
+                Log::warning('Mail skipped: recipient has no e-mail address.', [
+                    'notification' => TeamTicketNotification::class,
+                    'event' => $event->value,
+                    'ticket_no' => $ticket->ticket_no,
+                    'user_id' => $user->id,
+                    'name' => $user->name,
+                ]);
             }
 
             $user->notify(new TeamTicketNotification($ticket, $event, $channels, $actorName, $note));
