@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\TeamTicketResource\Pages;
 
 use App\Enums\ActiveStatusEnum;
+use App\Enums\ExemptionReasonEnum;
 use App\Enums\HoldReasonEnum;
 use App\Enums\RejectionReasonEnum;
 use App\Enums\TaskPriorityEnum;
@@ -14,6 +15,7 @@ use App\Models\Employee;
 use App\Models\Team;
 use App\Models\Ticket;
 use App\Models\TicketSlaCycle;
+use App\Services\SlaExemptionService;
 use App\Services\TicketService;
 use App\Services\TicketWorkflowService;
 use Filament\Actions\Action;
@@ -177,9 +179,28 @@ class ViewTeamTicket extends ViewRecord
                 ->icon('heroicon-o-hand-thumb-up')
                 ->color('success')
                 ->visible(fn (): bool => $this->isRequester() && $this->is(TaskStatusEnum::RESOLVED))
-                ->requiresConfirmation()
                 ->modalDescription(__('ui.action_confirm_description'))
-                ->action(fn () => $this->run(fn ($wf, $user) => $wf->confirm($ticket, $user), __('ui.action_done'))),
+                ->form([
+                    Forms\Components\ToggleButtons::make('satisfaction')
+                        ->label(__('ui.satisfaction_question'))
+                        ->options([1 => '1', 2 => '2', 3 => '3', 4 => '4', 5 => '5'])
+                        ->inline()
+                        ->live()
+                        ->helperText(__('ui.satisfaction_help')),
+                    Forms\Components\Textarea::make('comment')
+                        ->label(__('ui.satisfaction_comment'))
+                        ->rows(2)
+                        ->required(fn (Forms\Get $get): bool => filled($get('satisfaction')) && (int) $get('satisfaction') <= 2),
+                ])
+                ->action(fn (array $data) => $this->run(
+                    fn ($wf, $user) => $wf->confirm(
+                        $ticket,
+                        $user,
+                        filled($data['satisfaction'] ?? null) ? (int) $data['satisfaction'] : null,
+                        $data['comment'] ?? null,
+                    ),
+                    __('ui.action_done'),
+                )),
 
             Action::make('rejectResolution')
                 ->label(__('ui.action_reject_resolution'))
@@ -267,6 +288,27 @@ class ViewTeamTicket extends ViewRecord
                         fn ($wf, $user) => $wf->reject($ticket, $user, RejectionReasonEnum::from($data['reason']), $data['note'] ?? null),
                         __('ui.action_done'),
                     )),
+
+                Action::make('requestExemption')
+                    ->label(__('ui.exemption_request'))
+                    ->icon('heroicon-o-scale')
+                    ->visible(fn (): bool => ($cycle = $this->cycle()) !== null
+                        && app(SlaExemptionService::class)->canRequest($cycle, auth()->user()))
+                    ->form([
+                        Forms\Components\Select::make('reason')
+                            ->label(__('ui.exemption_reason'))
+                            ->options(ExemptionReasonEnum::class)
+                            ->required(),
+                        $this->reasonField('note')->helperText(__('ui.exemption_note_help')),
+                    ])
+                    ->action(function (array $data): void {
+                        try {
+                            app(SlaExemptionService::class)->request($this->cycle(), auth()->user(), ExemptionReasonEnum::from($data['reason']), $data['note']);
+                            Notification::make()->title(__('ui.exemption_requested'))->success()->send();
+                        } catch (TicketWorkflowException $exception) {
+                            Notification::make()->title($exception->getMessage())->danger()->send();
+                        }
+                    }),
 
                 Action::make('cancel')
                     ->label(__('ui.action_cancel'))
@@ -474,6 +516,19 @@ class ViewTeamTicket extends ViewRecord
                 ->helperText($cycle->paused_minutes > 0
                     ? __('ui.sla_paused_total', ['time' => TeamTicketResource::humanMinutes($cycle->paused_minutes)])
                     : ($cycle->cycle_no > 1 ? __('ui.sla_cycle_no', ['no' => $cycle->cycle_no]) : null)),
+
+            Infolists\Components\TextEntry::make('sla_exemption')
+                ->label(__('ui.exemption'))
+                ->visible($cycle->exemptions()->exists())
+                ->state(fn (): ?string => $cycle->exemptions()->latest()->first()?->status->getLabel())
+                ->badge()
+                ->color(fn (): string => $cycle->exemptions()->latest()->first()?->status->getColor() ?? 'gray'),
+
+            Infolists\Components\TextEntry::make('sla_satisfaction')
+                ->label(__('ui.report_satisfaction'))
+                ->visible($cycle->satisfaction_score !== null)
+                ->state($cycle->satisfaction_score !== null ? str_repeat('★', $cycle->satisfaction_score).str_repeat('☆', 5 - $cycle->satisfaction_score) : null)
+                ->helperText($cycle->satisfaction_comment),
         ];
     }
 

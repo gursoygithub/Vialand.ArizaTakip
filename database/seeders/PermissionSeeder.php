@@ -57,6 +57,8 @@ class PermissionSeeder extends Seeder
         'ticket.view.company',
         // Receives escalations of team tickets still open X hours after an SLA breach.
         'ticket.sla.escalation',
+        // Decides SLA exemption requests (never for the approver's own team).
+        'sla.exemption.approve',
 
         // Ticket actions
         'ticket.assign',
@@ -102,6 +104,7 @@ class PermissionSeeder extends Seeder
         'page_ManageGeneralSettings',
         'page_CompanySetupWizard',
         'page_NotificationPreferences',
+        'page_TeamPerformanceReport',
     ];
 
     private const ROLES = [

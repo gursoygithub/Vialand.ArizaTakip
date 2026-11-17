@@ -163,3 +163,8 @@ When writing new code: never use any of the above.
 - **List** (`ListTeamTickets`): tabs Bana Atananlar / Ekibimin Talepleri / Yönettiğim Ekipler (active statuses only) / Açtıklarım / Tümü; default tab = assigned (employees), all (super_admin / view.all), else created. SLA badge from the current cycle (`slaLabel` / `slaColor`), polls 60 s
 - **View** (`ViewTeamTicket`): header actions mapped 1:1 to the workflow service (Üzerime Al, Ata/Devret, İşleme Al, Beklet, Devam Et, Çözüldü, Onayla, Çözülmedi, Yeniden Aç, Not Ekle; "Diğer İşlemler": öncelik, aktar, reddet, iptal). Visibility = UX only; the service re-checks. Infolist: request, people (with companies), SLA panel (response, resolution, state, breach owner, targets/calendar/paused), attachments, history (`filament.partials.team-ticket-timeline`, inline styles)
 - Not Ekle reuses `TicketService::addComment` (legacy comment notification to participants)
+
+## Phase 5 screens
+- `Pages/TeamPerformanceReport` (Raporlar): date range (default this month), teams, type filters; summary cards, team / people / type / company tables; CSV export (`ticket.export`). View `filament.pages.team-performance-report` uses inline styles
+- `SlaExemptionResource` (Raporlar, `/sla-exemptions`): list only (no create/edit/delete); approvers see all (pending by default, badge = pending count) and get Approve / Reject row actions where `canDecide`; others see their own requests
+- `ViewTeamTicket`: "Onayla ve Kapat" asks for an optional 1–5 score; "Diğer İşlemler › SLA Muafiyeti İste" when `canRequest`; SLA panel shows exemption status and the score

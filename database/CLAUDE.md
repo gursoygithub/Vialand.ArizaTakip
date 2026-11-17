@@ -82,3 +82,5 @@ Settings migration `database/settings/2026_11_17_200006`: `general.auto_close_da
 `TaskStatusEnum::REJECTED = 17` added (terminal, excluded from performance).
 
 Phase 4: `ticket_sla_cycles.escalated_at`; settings `general.sla_escalation_hours` = 4.
+
+Phase 5 (`2026_11_17_230001`): `ticket_sla_cycles.satisfaction_score`, `satisfaction_comment`, `rated_at`, `exempted`; table `sla_exemptions` (ticket_sla_cycle_id, ticket_id, requested_by, reason, note, status pending/approved/rejected, decided_by, decided_at, decision_note).

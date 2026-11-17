@@ -22,6 +22,8 @@ enum TeamTicketEventEnum: string
     case SlaWarning = 'sla_warning';
     case SlaBreached = 'sla_breached';
     case SlaEscalated = 'sla_escalated';
+    case ExemptionRequested = 'exemption_requested';
+    case ExemptionDecided = 'exemption_decided';
 
     public function title(): string
     {
@@ -39,6 +41,7 @@ enum TeamTicketEventEnum: string
             self::Resolved, self::Closed => '#198754',
             self::SlaWarning, self::Held, self::PriorityChanged => '#d97706',
             self::SlaBreached, self::SlaEscalated, self::ResolutionRejected, self::Cancelled, self::Rejected => '#dc3545',
+            self::ExemptionRequested, self::ExemptionDecided => '#6f42c1',
             default => '#0d6efd',
         };
     }
@@ -70,6 +73,7 @@ enum TeamTicketEventEnum: string
             self::PriorityChanged => 'heroicon-o-arrows-up-down',
             self::SlaWarning => 'heroicon-o-exclamation-triangle',
             self::SlaBreached, self::SlaEscalated => 'heroicon-o-fire',
+            self::ExemptionRequested, self::ExemptionDecided => 'heroicon-o-scale',
         };
     }
 }

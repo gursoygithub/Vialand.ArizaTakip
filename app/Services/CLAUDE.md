@@ -170,3 +170,15 @@ prerequisites before allowing creation.
 - Violations throw `App\Exceptions\TicketWorkflowException` with a Turkish user message
 - Every action writes `ticket_status_histories` and mirrors `sla_deadline` / `sla_breached` on the ticket; saves run with `TicketObserver::$skipReassignNotification` so the legacy assignment notification does not fire
 - `flagResolutionBreach` / `flagResponseBreach` / `elapsedRatio` are the scheduler entry points
+
+## TeamPerformanceService (Phase 5)
+- `report($from, $to, User $viewer, ['team_ids' => [...], 'ticket_type_id' => ?])` → `summary`, `teams`, `types`, `people`, `companies`
+- Cycles are selected by `ended_at` in range and limited to `teamsVisibleTo($viewer)`
+- **Counts** only `on_time` / `breached` cycles with `exempted = false`; cancelled / rejected / transferred / exempted never count (exempted and "cancelled after breach" are listed separately)
+- **Person**: denominator = cycles they resolved (last assignment of the cycle) ∪ cycles whose breach is charged to them (`breach_attribution = person`); compliance = 1 − charged / denominator. Handover and dispatch breaches are team-only
+- Quality: `reopened` (a next cycle on the same team exists) and `resolution_rejections` go to the resolver; satisfaction to the resolver and team; resolution time = working minutes `started_at → resolved_at` minus `paused_minutes`
+
+## SlaExemptionService (Phase 5)
+- `canRequest(cycle, user)`: breached, not exempted, no pending/approved request; user = charged employee, team supervisor or super_admin
+- `canDecide(exemption, user)`: pending; has `sla.exemption.approve` (or super_admin); not requester / charged employee / team supervisor / team member
+- `approve` (sets `cycle.exempted`) / `reject` (note required); notifies approvers on request and the requester on decision (`TeamTicketNotifier`)

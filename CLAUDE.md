@@ -370,6 +370,23 @@ tickets keep using `TicketService`. Details: `app/Services/CLAUDE.md`.
 - Local dev: `MAIL_HOST=mailpit` — start it with the app container
   (`docker compose up -d --no-deps mailpit`); inbox at http://localhost:8025.
   Without it every notifying action fails (queue is `sync` locally).
+
+## Reports, Exemptions, Satisfaction — Phase 5 (branch `faz-5-raporlar`)
+- **Satisfaction**: `TicketWorkflowService::confirm($ticket, $user, ?int $score, ?string $comment)`
+  — optional 1–5, comment required for 1–2; stored on the cycle (`satisfaction_score`,
+  `satisfaction_comment`, `rated_at`).
+- **SLA exemption** (`SlaExemptionService`, table `sla_exemptions`): requested from the
+  ticket page by the person charged or the team supervisor, with an
+  `ExemptionReasonEnum` + note; decided by a holder of `sla.exemption.approve` who is
+  **not** the requester, the charged person, the supervisor or a team member. Approval
+  sets `ticket_sla_cycles.exempted` → the cycle leaves every performance figure.
+  List/decide at "Raporlar › SLA Muafiyetleri" (`SlaExemptionResource`, `/sla-exemptions`).
+- **Report**: `TeamPerformanceService` + page `TeamPerformanceReport`
+  (`page_TeamPerformanceReport`; supervisors see their teams, super_admin /
+  `ticket.view.all` see all; CSV with `ticket.export`). Rules in `app/Services/CLAUDE.md`.
+- The legacy `PerformanceDashboard` still reports legacy tickets only.
+- Deploy note: run `migrate` together with the code — Filament navigation queries the
+  new tables on every page.
 ## Dead / Leftover Code (do not build on it)
 Verified unused on `gg-ticket` @ `b92c364` (audit 2026-11-17). Leftovers from
 other projects or from the pre-Reform Task system:

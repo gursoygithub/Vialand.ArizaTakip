@@ -249,12 +249,27 @@ class TicketWorkflowService
      * Requester confirms the resolution: the cycle is sealed and the
      * ticket closes.
      */
-    public function confirm(Ticket $ticket, User $actor): Ticket
+    public function confirm(Ticket $ticket, User $actor, ?int $satisfaction = null, ?string $comment = null): Ticket
     {
         $this->ensureRequester($ticket, $actor);
         $this->ensureStatus($ticket, [TaskStatusEnum::RESOLVED]);
 
-        return $this->close($ticket, $actor, null);
+        if ($satisfaction !== null && ($satisfaction < 1 || $satisfaction > 5)) {
+            throw TicketWorkflowException::notAllowed();
+        }
+
+        // A low score must say why (agreement §6).
+        if ($satisfaction !== null && $satisfaction <= 2 && blank($comment)) {
+            throw TicketWorkflowException::reasonRequired();
+        }
+
+        $rating = $satisfaction === null ? [] : [
+            'satisfaction_score' => $satisfaction,
+            'satisfaction_comment' => filled($comment) ? $comment : null,
+            'rated_at' => CarbonImmutable::now(),
+        ];
+
+        return $this->close($ticket, $actor, null, $rating);
     }
 
     /**
@@ -593,11 +608,15 @@ class TicketWorkflowService
             ->update(['ended_at' => $at, 'end_reason' => $reason, 'updated_at' => $at]);
     }
 
-    private function close(Ticket $ticket, ?User $actor, ?string $note): Ticket
+    /**
+     * @param  array<string, mixed>  $rating  satisfaction columns for the cycle
+     */
+    private function close(Ticket $ticket, ?User $actor, ?string $note, array $rating = []): Ticket
     {
-        return DB::transaction(function () use ($ticket, $actor, $note): Ticket {
+        return DB::transaction(function () use ($ticket, $actor, $note, $rating): Ticket {
             $now = CarbonImmutable::now();
             $cycle = $this->cycle($ticket);
+            $cycle->fill($rating);
 
             $cycle->paused_since = null;
             $cycle->pause_kind = null;

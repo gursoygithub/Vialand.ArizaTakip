@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\HoldReasonEnum;
 use App\Enums\TeamTicketEventEnum;
 use App\Models\Employee;
+use App\Models\SlaExemption;
 use App\Models\Team;
 use App\Models\Ticket;
 use App\Models\TicketSlaCycle;
@@ -100,6 +101,12 @@ class TeamTicketNotifier
             TeamTicketEventEnum::SlaEscalated => $this->escalationRecipients()
                 ->map(fn (User $user): array => [$user, 'important', false])
                 ->all(),
+            TeamTicketEventEnum::ExemptionRequested => collect($context['recipients'] ?? [])
+                ->map(fn (User $user): array => [$user, 'important', false])
+                ->all(),
+            TeamTicketEventEnum::ExemptionDecided => [
+                [$context['requester'] ?? null, 'important', false],
+            ],
         };
 
         // The requester's "talebiniz alındı" confirmation is the one notice
@@ -107,6 +114,25 @@ class TeamTicketNotifier
         $excludeActor = $event !== TeamTicketEventEnum::Opened;
 
         $this->deliver($event, $ticket, $actor, $plan, $context['note'] ?? null, $excludeActor);
+    }
+
+    /**
+     * @param  Collection<int, User>  $approvers
+     */
+    public function exemptionRequested(SlaExemption $exemption, Collection $approvers): void
+    {
+        $this->dispatch(TeamTicketEventEnum::ExemptionRequested, $exemption->ticket, $exemption->requestedBy, [
+            'recipients' => $approvers->all(),
+            'note' => $exemption->reason->getLabel().': '.$exemption->note,
+        ]);
+    }
+
+    public function exemptionDecided(SlaExemption $exemption): void
+    {
+        $this->dispatch(TeamTicketEventEnum::ExemptionDecided, $exemption->ticket, $exemption->decidedBy, [
+            'requester' => $exemption->requestedBy,
+            'note' => $exemption->status->getLabel().($exemption->decision_note ? ': '.$exemption->decision_note : ''),
+        ]);
     }
 
     public function slaWarning(TicketSlaCycle $cycle): void

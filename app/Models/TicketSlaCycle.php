@@ -32,6 +32,7 @@ class TicketSlaCycle extends Model
         'paused_minutes' => 0,
         'resolution_rejections' => 0,
         'success_threshold' => 80,
+        'exempted' => false,
     ];
 
     protected $fillable = [
@@ -49,6 +50,9 @@ class TicketSlaCycle extends Model
         'responded_at',
         'resolved_at',
         'resolution_rejections',
+        'satisfaction_score',
+        'satisfaction_comment',
+        'rated_at',
         'paused_since',
         'pause_kind',
         'paused_minutes',
@@ -57,6 +61,7 @@ class TicketSlaCycle extends Model
         'breached_at',
         'breach_attribution',
         'breach_employee_id',
+        'exempted',
         'warning_sent_at',
         'breach_notified_at',
         'escalated_at',
@@ -78,6 +83,9 @@ class TicketSlaCycle extends Model
             'warning_sent_at' => 'immutable_datetime',
             'breach_notified_at' => 'immutable_datetime',
             'escalated_at' => 'immutable_datetime',
+            'rated_at' => 'immutable_datetime',
+            'exempted' => 'boolean',
+            'satisfaction_score' => 'integer',
             'ended_at' => 'immutable_datetime',
             'response_breached' => 'boolean',
             'resolution_breached' => 'boolean',
@@ -111,6 +119,20 @@ class TicketSlaCycle extends Model
     public function assignments(): HasMany
     {
         return $this->hasMany(TicketAssignment::class)->orderBy('started_at');
+    }
+
+    public function exemptions(): HasMany
+    {
+        return $this->hasMany(SlaExemption::class);
+    }
+
+    /**
+     * Sealed (on time / breached) and not exempted: the cycles that count
+     * for performance.
+     */
+    public function scopeCountsForPerformance(Builder $query): Builder
+    {
+        return $query->whereIn('outcome', ['on_time', 'breached'])->where('exempted', false);
     }
 
     public function isPaused(): bool
