@@ -119,7 +119,7 @@ class CheckSlaBreaches implements ShouldQueue
             $recipients,
             $ticket->ticket_no . ' • ⚠️ SLA Uyarısı',
             'SLA süresi dolmak üzere.',
-            url('/tickets/' . $ticket->id),
+            $ticket->panelUrl(),
         );
     }
 
@@ -138,7 +138,7 @@ class CheckSlaBreaches implements ShouldQueue
             $recipients,
             $ticket->ticket_no . ' • 🚨 SLA İhlali',
             'SLA süresi doldu, acil müdahale gerekli.',
-            url('/tickets/' . $ticket->id),
+            $ticket->panelUrl(),
         );
     }
 

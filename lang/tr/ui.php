@@ -1132,4 +1132,6 @@ return [
     'dashboard_last_30_days' => 'Son 30 günde açılan talepler',
     'dashboard_type_chart' => 'Türe Göre Açık Talepler',
     'dashboard_type_chart_desc' => 'Şu an açık olan taleplerin türlere dağılımı',
+    'sla_target_response' => 'Yanıt: :time',
+    'sla_target_resolution' => 'Çözüm: :time',
 ];

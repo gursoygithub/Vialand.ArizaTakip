@@ -40,7 +40,7 @@ class TeamTicketNotification extends Notification implements ShouldQueue
 
     public static function urlFor(Ticket $ticket): string
     {
-        return url('/requests/'.$ticket->id);
+        return $ticket->panelUrl();
     }
 
     public function body(): string

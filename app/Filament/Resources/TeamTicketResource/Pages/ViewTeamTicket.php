@@ -18,6 +18,7 @@ use App\Models\TicketSlaCycle;
 use App\Services\SlaExemptionService;
 use App\Services\TicketService;
 use App\Services\TicketWorkflowService;
+use Carbon\CarbonInterface;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Forms;
@@ -413,21 +414,21 @@ class ViewTeamTicket extends ViewRecord
                     ->icon('heroicon-o-users')
                     ->columnSpan(1)
                     ->schema([
-                        Infolists\Components\TextEntry::make('requester')
-                            ->label(__('ui.requester'))
-                            ->state($ticket->createdBy?->employee
-                                ? TeamResource::employeeLabel($ticket->createdBy->employee)
-                                : $ticket->createdBy?->name),
-                        Infolists\Components\TextEntry::make('team_name')
-                            ->label(__('ui.team'))
-                            ->state($ticket->team?->name),
-                        Infolists\Components\TextEntry::make('supervisor')
-                            ->label(__('ui.supervisor'))
-                            ->state($ticket->team?->supervisor ? TeamResource::employeeLabel($ticket->team->supervisor) : null),
-                        Infolists\Components\TextEntry::make('assignee')
-                            ->label(__('ui.assigned_employee'))
-                            ->state($ticket->employee ? TeamResource::employeeLabel($ticket->employee) : null)
-                            ->placeholder(__('ui.request_in_pool')),
+                        // Name stands out, company sits underneath in small print.
+                        $this->personEntry('requester', __('ui.requester'), 'heroicon-o-user',
+                            $ticket->createdBy?->employee?->name ?? $ticket->createdBy?->name,
+                            $this->companyOf($ticket->createdBy?->employee)),
+                        $this->personEntry('team_name', __('ui.team'), 'heroicon-o-user-group',
+                            $ticket->team?->name,
+                            $ticket->ticketType?->name),
+                        $this->personEntry('supervisor', __('ui.supervisor'), 'heroicon-o-shield-check',
+                            $ticket->team?->supervisor?->name,
+                            $this->companyOf($ticket->team?->supervisor)),
+                        $this->personEntry('assignee', __('ui.assigned_employee'), 'heroicon-o-wrench-screwdriver',
+                            $ticket->employee?->name,
+                            $this->companyOf($ticket->employee))
+                            ->placeholder(__('ui.request_in_pool'))
+                            ->color($ticket->employee ? 'primary' : 'warning'),
                     ]),
 
                 Infolists\Components\Section::make(__('ui.sla'))
@@ -485,7 +486,7 @@ class ViewTeamTicket extends ViewRecord
                 ->label(__('ui.sla_resolution'))
                 ->state(__('ui.sla_due_at', ['time' => $cycle->resolution_due_at->translatedFormat('d M H:i')]))
                 ->helperText($running && ! $cycle->isPaused() && ! $cycle->resolution_breached
-                    ? __('ui.sla_due', ['time' => $cycle->resolution_due_at->diffForHumans(['syntax' => \Carbon\CarbonInterface::DIFF_ABSOLUTE, 'parts' => 2, 'short' => true])])
+                    ? __('ui.sla_due', ['time' => $cycle->resolution_due_at->diffForHumans(['syntax' => CarbonInterface::DIFF_ABSOLUTE, 'parts' => 2, 'short' => true])])
                     : null)
                 ->badge()
                 ->color($cycle->resolution_breached ? 'danger' : ($ratio !== null && $ratio >= TicketWorkflowService::WARNING_RATIO ? 'warning' : 'success')),
@@ -508,14 +509,17 @@ class ViewTeamTicket extends ViewRecord
 
             Infolists\Components\TextEntry::make('sla_meta')
                 ->label(__('ui.sla_targets'))
-                ->state(__('ui.sla_meta', [
-                    'response' => TeamTicketResource::humanMinutes($cycle->response_minutes),
-                    'resolution' => TeamTicketResource::humanMinutes($cycle->resolution_minutes),
-                    'calendar' => $cycle->workCalendar?->name ?? __('ui.around_the_clock'),
-                ]))
-                ->helperText($cycle->paused_minutes > 0
-                    ? __('ui.sla_paused_total', ['time' => TeamTicketResource::humanMinutes($cycle->paused_minutes)])
-                    : ($cycle->cycle_no > 1 ? __('ui.sla_cycle_no', ['no' => $cycle->cycle_no]) : null)),
+                ->state([
+                    __('ui.sla_target_response', ['time' => TeamTicketResource::humanMinutes($cycle->response_minutes)]),
+                    __('ui.sla_target_resolution', ['time' => TeamTicketResource::humanMinutes($cycle->resolution_minutes)]),
+                ])
+                ->badge()
+                ->color('gray')
+                ->helperText(collect([
+                    ($cycle->workCalendar?->name ?? __('ui.around_the_clock')),
+                    $cycle->paused_minutes > 0 ? __('ui.sla_paused_total', ['time' => TeamTicketResource::humanMinutes($cycle->paused_minutes)]) : null,
+                    $cycle->cycle_no > 1 ? __('ui.sla_cycle_no', ['no' => $cycle->cycle_no]) : null,
+                ])->filter()->implode(' · ')),
 
             Infolists\Components\TextEntry::make('sla_exemption')
                 ->label(__('ui.exemption'))
@@ -530,6 +534,24 @@ class ViewTeamTicket extends ViewRecord
                 ->state($cycle->satisfaction_score !== null ? str_repeat('★', $cycle->satisfaction_score).str_repeat('☆', 5 - $cycle->satisfaction_score) : null)
                 ->helperText($cycle->satisfaction_comment),
         ];
+    }
+
+    /**
+     * A person (or team) line: bold name with an icon, company underneath.
+     */
+    private function personEntry(string $name, string $label, string $icon, ?string $value, ?string $sub): Infolists\Components\TextEntry
+    {
+        return Infolists\Components\TextEntry::make($name)
+            ->label($label)
+            ->state($value)
+            ->icon($icon)
+            ->weight('bold')
+            ->helperText($sub);
+    }
+
+    private function companyOf(?Employee $employee): ?string
+    {
+        return $employee?->company?->name ?? $employee?->company_name;
     }
 
     private function customFieldsHtml(Ticket $ticket): HtmlString

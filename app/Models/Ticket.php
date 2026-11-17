@@ -119,6 +119,16 @@ class Ticket extends Model implements HasMedia
      * Created through the type/team model (as opposed to the legacy
      * area/unit/group flow driven by TicketService and TicketObserver).
      */
+    /**
+     * Absolute link to the ticket's page in the panel: "Talepler" for team
+     * tickets, the legacy "Arıza Talepleri" screen otherwise. Use this in every
+     * notification, mail and push instead of building the path by hand.
+     */
+    public function panelUrl(): string
+    {
+        return url(($this->usesTeamWorkflow() ? '/requests/' : '/tickets/').$this->id);
+    }
+
     public function usesTeamWorkflow(): bool
     {
         return $this->team_id !== null;

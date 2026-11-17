@@ -61,7 +61,7 @@ class TicketResolvedNotification extends Notification implements ShouldQueue
             ->actions([
                 Action::make('view')
                     ->label('Talebi Aç')
-                    ->url(url('/tickets/' . $this->ticket->id))
+                    ->url($this->ticket->panelUrl())
                     ->markAsRead(),
             ])
             ->getDatabaseMessage();

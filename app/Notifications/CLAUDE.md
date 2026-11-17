@@ -76,3 +76,6 @@ Levels: **action** = bell + mail (+ push where marked), ignores preferences and 
 | SlaEscalated (once per cycle) | users with `ticket.sla.escalation`: important |
 
 Mail uses `mail.ticket-event` with `ticketUrl` (→ `/requests/{id}`) and a "Tür / Ekip" row; the template falls back to `/tickets/{id}` for legacy notifications. "Not Ekle" on team tickets still uses the legacy `TicketCommentNotification` via `TicketService::addComment`.
+
+## Links
+Always link to a ticket with `$ticket->panelUrl()` (team tickets → `/requests/{id}`, legacy → `/tickets/{id}`) in bell actions, mails and FCM pushes. Never build the path by hand — the legacy comment notification once sent team-ticket readers to a 404.

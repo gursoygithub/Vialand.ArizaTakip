@@ -19,6 +19,7 @@ use App\Models\Team;
 use App\Models\Ticket;
 use App\Models\TicketType;
 use App\Models\User;
+use App\Notifications\TicketCommentNotification;
 use App\Services\TicketWorkflowService;
 use Carbon\CarbonImmutable;
 use Database\Seeders\PermissionSeeder;
@@ -336,6 +337,30 @@ class TeamTicketScreensTest extends TestCase
         $this->assertStringEndsWith(__('ui.sla_due', ['time' => '']), $label.'');
         $this->assertStringNotContainsString('sonra', $label);
         $this->assertStringNotContainsString('önce', $label);
+    }
+
+    public function test_links_point_to_the_right_screen(): void
+    {
+        $ticket = $this->openTicket();
+
+        $this->assertSame(url('/requests/'.$ticket->id), $ticket->panelUrl());
+
+        $legacy = Ticket::factory()->create();
+        $this->assertSame(url('/tickets/'.$legacy->id), $legacy->panelUrl());
+
+        $data = (new TicketCommentNotification($ticket, $this->requester, 'Not'))->toDatabase($this->tech);
+        $this->assertSame(url('/requests/'.$ticket->id), $data['actions'][0]['url']);
+    }
+
+    public function test_people_show_name_and_company_and_sla_targets_as_badges(): void
+    {
+        $ticket = $this->openTicket();
+
+        $this->get(TeamTicketResource::getUrl('view', ['record' => $ticket]))
+            ->assertOk()
+            ->assertSee($this->team->supervisor->name)
+            ->assertSee(__('ui.sla_target_response', ['time' => TeamTicketResource::humanMinutes(60)]))
+            ->assertSee(__('ui.sla_target_resolution', ['time' => TeamTicketResource::humanMinutes(480)]));
     }
 
     public function test_detail_page_shows_sla_and_custom_fields(): void

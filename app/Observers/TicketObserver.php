@@ -201,7 +201,7 @@ class TicketObserver
                 $supervisor,
                 $ticket->ticket_no . ' • Grubunuza Atandı',
                 $actorName . ' tarafından oluşturuldu — ' . $area . ' / ' . $priority,
-                url('/tickets/' . $ticket->id),
+                $ticket->panelUrl(),
             );
         }
     }
@@ -241,7 +241,7 @@ class TicketObserver
                 $assignedUser,
                 $ticket->ticket_no . ' • Size Atandı',
                 $actorName . ' tarafından atandı — ' . $area . ' / ' . $priority,
-                url('/tickets/' . $ticket->id),
+                $ticket->panelUrl(),
             );
         }
     }

@@ -229,7 +229,7 @@ class TicketService
                         $supervisor,
                         $ticket->ticket_no . ' • Beklemede',
                         "{$actorName}: {$fromLabel} → Beklemede",
-                        url('/tickets/' . $ticket->id),
+                        $ticket->panelUrl(),
                     );
                 }
             }
@@ -274,7 +274,7 @@ class TicketService
             $creator,
             $ticket->ticket_no . ' • Talep Çözüldü',
             $this->actorDisplayName($actor) . ' talebi çözdü',
-            url('/tickets/' . $ticket->id),
+            $ticket->panelUrl(),
         );
 
         // Also notify the group supervisor, unless they are already the
@@ -312,7 +312,7 @@ class TicketService
             $assignee,
             $ticket->ticket_no . ' • Talep İptal Edildi',
             $this->actorDisplayName($actor) . ' talebi iptal etti',
-            url('/tickets/' . $ticket->id),
+            $ticket->panelUrl(),
         );
     }
 
@@ -350,7 +350,7 @@ class TicketService
                 $user,
                 $ticket->ticket_no . ' • Talep Yeniden Açıldı',
                 $actorName . ' talebi yeniden açtı',
-                url('/tickets/' . $ticket->id),
+                $ticket->panelUrl(),
             );
         }
     }
@@ -472,7 +472,7 @@ class TicketService
             $fcmRecipients,
             $fcmTitle,
             $fcmBody,
-            url('/tickets/' . $ticket->id),
+            $ticket->panelUrl(),
             $actor->id,
         );
     }
@@ -659,7 +659,7 @@ class TicketService
                 $creator,
                 $ticket->ticket_no . ' • Personel Değişikliği',
                 $actorName . ' tarafından yeniden atandı',
-                url('/tickets/' . $ticket->id),
+                $ticket->panelUrl(),
             );
         }
     }
@@ -714,7 +714,7 @@ class TicketService
             $assignee,
             $ticket->ticket_no . ' • Size Atandı',
             $actorName . ' tarafından atandı — ' . $area . ' / ' . $priority,
-            url('/tickets/' . $ticket->id),
+            $ticket->panelUrl(),
         );
     }
 

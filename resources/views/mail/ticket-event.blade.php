@@ -134,7 +134,7 @@
 
                         {{-- CTA --}}
                         <div style="text-align: center; margin-top: 24px; margin-bottom: 8px;">
-                            <a href="{{ $ticketUrl ?? url('/tickets/' . $ticket->id) }}" target="_blank"
+                            <a href="{{ $ticketUrl ?? $ticket->panelUrl() }}" target="_blank"
                                style="display: inline-block; padding: 12px 32px; font-size: 14px; font-weight: 700; color: #ffffff; background-color: {{ $headerColor }}; border-radius: 6px; text-decoration: none;">
                                 Talebi Görüntüle →
                             </a>

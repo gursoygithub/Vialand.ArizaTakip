@@ -57,7 +57,7 @@ class TicketCancelledNotification extends Notification implements ShouldQueue
             ->actions([
                 Action::make('view')
                     ->label(__('ui.ticket_detail'))
-                    ->url(url('/tickets/' . $this->ticket->id))
+                    ->url($this->ticket->panelUrl())
                     ->markAsRead(),
             ])
             ->getDatabaseMessage();
