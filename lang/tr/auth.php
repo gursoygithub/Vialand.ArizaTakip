@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 return [
-    'failed'   => 'Ces identifiants ne correspondent pas à nos enregistrements.',
-    'password' => 'Le mot de passe est incorrect',
-    'throttle' => 'Tentatives de connexion trop nombreuses. Veuillez essayer de nouveau dans :seconds secondes.',
+    'failed'   => 'Bu kimlik bilgileri kayıtlarımızla eşleşmiyor.',
+    'password' => 'Parola hatalı.',
+    'throttle' => 'Çok fazla giriş denemesi yapıldı. Lütfen :seconds saniye sonra tekrar deneyin.',
 ];

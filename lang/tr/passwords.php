@@ -3,9 +3,9 @@
 declare(strict_types=1);
 
 return [
-    'reset'     => 'Votre mot de passe a été réinitialisé !',
-    'sent'      => 'Nous vous avons envoyé par email le lien de réinitialisation du mot de passe !',
-    'throttled' => 'Veuillez patienter avant de réessayer.',
-    'token'     => 'Ce jeton de réinitialisation du mot de passe n\'est pas valide.',
-    'user'      => 'Aucun utilisateur n\'a été trouvé avec cette adresse email.',
+    'reset'     => 'Parolanız sıfırlandı!',
+    'sent'      => 'Parola sıfırlama bağlantınız e-posta ile gönderildi!',
+    'throttled' => 'Lütfen tekrar denemeden önce bekleyin.',
+    'token'     => 'Parola sıfırlama anahtarı geçersiz.',
+    'user'      => 'Bu e-posta adresine sahip bir kullanıcı bulunamadı.',
 ];
