@@ -21,6 +21,7 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class GroupResource extends Resource
 {
+    use \App\Filament\Concerns\BelongsToLegacyFlow;
     use ScopedByVisibility;
 
     protected static string $viewAllPermission = 'view_all_groups';

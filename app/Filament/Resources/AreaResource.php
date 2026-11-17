@@ -27,6 +27,8 @@ class AreaResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-map';
 
+    protected static ?int $navigationSort = 50;
+
     public static function getModelLabel(): string
     {
         return __('ui.area');
@@ -39,7 +41,7 @@ class AreaResource extends Resource
 
     public static function getNavigationGroup(): ?string
     {
-        return __('ui.panel_management');
+        return __('ui.request_settings');
     }
 
     public static function getNavigationBadge(): ?string

@@ -20,6 +20,7 @@ use Illuminate\Support\Facades\Auth;
 
 class UnitResource extends Resource
 {
+    use \App\Filament\Concerns\BelongsToLegacyFlow;
     use ScopedByVisibility;
 
     protected static string $viewAllPermission = 'view_all_units';

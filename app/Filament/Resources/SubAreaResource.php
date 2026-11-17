@@ -26,6 +26,8 @@ class SubAreaResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-map-pin';
 
+    protected static ?int $navigationSort = 60;
+
     //protected static bool $shouldRegisterNavigation = false;
 
     public static function getModelLabel(): string
@@ -45,7 +47,7 @@ class SubAreaResource extends Resource
 
     public static function getNavigationGroup(): ?string
     {
-        return __('ui.panel_management');
+        return __('ui.request_settings');
     }
 
     public static function getNavigationBadge(): ?string

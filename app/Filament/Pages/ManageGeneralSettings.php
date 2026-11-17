@@ -13,7 +13,7 @@ class ManageGeneralSettings extends SettingsPage
 
     protected static ?string $navigationIcon = 'heroicon-o-cog-6-tooth';
 
-    protected static ?int $navigationSort = 1;
+    protected static ?int $navigationSort = 10;
 
     // Ayar sınıfımızı buraya bağlıyoruz
     protected static string $settings = GeneralSettings::class;

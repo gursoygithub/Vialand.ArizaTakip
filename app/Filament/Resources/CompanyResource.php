@@ -26,7 +26,7 @@ class CompanyResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-building-library';
 
-    protected static ?int $navigationSort = -99;
+    protected static ?int $navigationSort = 30;
 
     public static function getModelLabel(): string
     {
@@ -40,7 +40,7 @@ class CompanyResource extends Resource
 
     public static function getNavigationGroup(): ?string
     {
-        return __('ui.panel_management');
+        return __('ui.user_management');
     }
 
     public static function getNavigationBadge(): ?string

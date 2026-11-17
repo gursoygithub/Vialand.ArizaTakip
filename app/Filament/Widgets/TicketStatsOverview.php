@@ -127,6 +127,11 @@ class TicketStatsOverview extends BaseWidget
 
     public static function canView(): bool
     {
+        // Legacy-flow widget: hidden unless config('legacy.enabled').
+        if (! config('legacy.enabled')) {
+            return false;
+        }
+
         $user = auth()->user();
         if (!$user) {
             return false;

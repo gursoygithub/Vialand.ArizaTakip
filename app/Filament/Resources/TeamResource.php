@@ -21,7 +21,7 @@ class TeamResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-user-group';
 
-    protected static ?int $navigationSort = -890;
+    protected static ?int $navigationSort = 20;
 
     public static function getModelLabel(): string
     {
@@ -35,7 +35,7 @@ class TeamResource extends Resource
 
     public static function getNavigationGroup(): ?string
     {
-        return __('ui.panel_management');
+        return __('ui.request_settings');
     }
 
     /**

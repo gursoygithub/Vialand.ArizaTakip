@@ -36,7 +36,7 @@ class TeamTicketResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-inbox-stack';
 
-    protected static ?int $navigationSort = -2000;
+    protected static ?int $navigationSort = 10;
 
     protected static ?string $recordTitleAttribute = 'ticket_no';
 

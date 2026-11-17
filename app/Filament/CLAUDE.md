@@ -168,3 +168,8 @@ When writing new code: never use any of the above.
 - `Pages/TeamPerformanceReport` (Raporlar): date range (default this month), teams, type filters; summary cards, team / people / type / company tables; CSV export (`ticket.export`). View `filament.pages.team-performance-report` uses inline styles
 - `SlaExemptionResource` (Raporlar, `/sla-exemptions`): list only (no create/edit/delete); approvers see all (pending by default, badge = pending count) and get Approve / Reject row actions where `canDecide`; others see their own requests
 - `ViewTeamTicket`: "Onayla ve Kapat" asks for an optional 1–5 score; "Diğer İşlemler › SLA Muafiyeti İste" when `canRequest`; SLA panel shows exemption status and the score
+
+## Panel layout (faz-6)
+- Legacy-flow resources use `Concerns\BelongsToLegacyFlow` (`canAccess()` = `config('legacy.enabled') && parent::canAccess()`); legacy pages and widgets check the same flag in `canAccess()` / `canView()`
+- New resources go into one of the groups listed in `DashboardPanelProvider::navigationGroups()`; keep `$navigationSort` in steps of 10
+- Dashboard: `Widgets/RequestOverviewStats`, `MyRequestQueue`, `RequestsByStatusChart`, `OpenRequestsByTypeChart` — data scoped per viewer, so they are not Shield-gated

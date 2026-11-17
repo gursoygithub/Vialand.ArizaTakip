@@ -28,6 +28,8 @@ use Illuminate\Support\Carbon;
 
 class TicketResource extends Resource
 {
+    use \App\Filament\Concerns\BelongsToLegacyFlow;
+
     protected static ?string $model = Ticket::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-ticket';

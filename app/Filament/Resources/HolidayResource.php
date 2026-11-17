@@ -17,7 +17,7 @@ class HolidayResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-sun';
 
-    protected static ?int $navigationSort = -870;
+    protected static ?int $navigationSort = 40;
 
     public static function getModelLabel(): string
     {
@@ -31,7 +31,7 @@ class HolidayResource extends Resource
 
     public static function getNavigationGroup(): ?string
     {
-        return __('ui.panel_management');
+        return __('ui.request_settings');
     }
 
     public static function form(Form $form): Form

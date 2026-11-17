@@ -59,7 +59,7 @@ class PerformanceDashboard extends Page implements HasForms, HasTable
 
     public static function canAccess(): bool
     {
-        return auth()->user()?->can('page_PerformanceDashboard') ?? false;
+        return config('legacy.enabled') && (auth()->user()?->can('page_PerformanceDashboard') ?? false);
     }
 
     public function mount(): void

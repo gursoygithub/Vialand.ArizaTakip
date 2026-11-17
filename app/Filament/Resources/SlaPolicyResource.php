@@ -26,6 +26,7 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class SlaPolicyResource extends Resource
 {
+    use \App\Filament\Concerns\BelongsToLegacyFlow;
     use ScopedByVisibility;
 
     protected static string $viewAllPermission = 'view_all_sla_policies';

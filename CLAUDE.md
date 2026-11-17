@@ -387,6 +387,24 @@ tickets keep using `TicketService`. Details: `app/Services/CLAUDE.md`.
 - The legacy `PerformanceDashboard` still reports legacy tickets only.
 - Deploy note: run `migrate` together with the code — Filament navigation queries the
   new tables on every page.
+
+## Panel Layout — branch `faz-6-panel-duzeni`
+- **Legacy switch** `config('legacy.enabled')` (`LEGACY_TICKETS_ENABLED`, default **false**):
+  hides and 403s Arıza Talepleri (`TicketResource`), Performans Paneli, Birimler,
+  SLA Politikaları, Gruplar (via `App\Filament\Concerns\BelongsToLegacyFlow`),
+  Şirket Kurulumu, and the five old dashboard widgets. Code and data are kept.
+  `phpunit.xml` sets it to true so the legacy tests still run; `PanelLayoutTest`
+  checks the off state.
+- **Navigation** (DashboardPanelProvider order): Talepler → Raporlar (Ekip Performans
+  Raporu, SLA Muafiyetleri) → Talep Ayarları (`ui.request_settings`: Talep Tipleri,
+  Ekipler, Çalışma Takvimleri, Resmi Tatiller, Bölgeler, Lokasyonlar) → Kullanıcı
+  Yönetimi (Kullanıcılar, Personeller, Şirketler, Roller — Shield's group label is
+  overridden in `lang/vendor/filament-shield/tr`) → Sistem (Sistem Ayarları,
+  Bildirim Tercihlerim). Sort values step by 10 inside each group.
+- **Dashboard** widgets (all scoped by `visibleInTeamWorkflow`, no Shield gate):
+  `RequestOverviewStats`, `MyRequestQueue` (assigned to me / my teams' pool /
+  waiting for my confirmation), `RequestsByStatusChart` (30 days),
+  `OpenRequestsByTypeChart`.
 ## Dead / Leftover Code (do not build on it)
 Verified unused on `gg-ticket` @ `b92c364` (audit 2026-11-17). Leftovers from
 other projects or from the pre-Reform Task system:

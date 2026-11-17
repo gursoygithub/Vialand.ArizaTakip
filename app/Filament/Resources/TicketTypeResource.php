@@ -22,7 +22,7 @@ class TicketTypeResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
 
-    protected static ?int $navigationSort = -900;
+    protected static ?int $navigationSort = 10;
 
     /**
      * Icons offered for a ticket type (shown on the type picker cards).
@@ -66,7 +66,7 @@ class TicketTypeResource extends Resource
 
     public static function getNavigationGroup(): ?string
     {
-        return __('ui.panel_management');
+        return __('ui.request_settings');
     }
 
     public static function form(Form $form): Form

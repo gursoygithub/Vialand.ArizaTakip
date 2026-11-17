@@ -18,7 +18,7 @@ class NotificationPreferences extends Page implements HasForms
 
     protected static ?string $navigationIcon = 'heroicon-o-bell';
 
-    protected static ?int $navigationSort = 2;
+    protected static ?int $navigationSort = 20;
 
     protected static string $view = 'filament.pages.notification-preferences';
 

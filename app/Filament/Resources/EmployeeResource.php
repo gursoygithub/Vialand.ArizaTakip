@@ -27,6 +27,8 @@ class EmployeeResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-users';
 
+    protected static ?int $navigationSort = 20;
+
     public static function getModelLabel(): string
     {
         return __('ui.employee');

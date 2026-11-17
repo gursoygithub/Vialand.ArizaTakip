@@ -18,7 +18,7 @@ class WorkCalendarResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-calendar-days';
 
-    protected static ?int $navigationSort = -880;
+    protected static ?int $navigationSort = 30;
 
     /**
      * ISO weekday => translation key.
@@ -47,7 +47,7 @@ class WorkCalendarResource extends Resource
 
     public static function getNavigationGroup(): ?string
     {
-        return __('ui.panel_management');
+        return __('ui.request_settings');
     }
 
     /**
