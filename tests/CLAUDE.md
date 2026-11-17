@@ -6,9 +6,12 @@ Tests use **SQLite in-memory** (configured via `phpunit.xml`).
 - Production uses MySQL; SQLite is test-only
 
 ## Running
-- 29 feature test files / ~180 test methods in `tests/Feature/`
-- Run **inside the app container** (`./vendor/bin/sail artisan test` or `docker exec <container> php artisan test`). The WSL host has PHP 8.3; `composer.lock` needs ≥ 8.4, so host runs abort in Composer's platform check
-- Filter: `php artisan test --filter=TicketReassignTest`
+- 32 feature test files / 198 test methods in `tests/Feature/` (all green on `faz-0-acil`, 2026-11-17)
+- Needs PHP 8.4 (host CLI is 8.3 → Composer platform check aborts). One-off container, no stack needed:
+  `docker run --rm -v "$PWD":/var/www/html -w /var/www/html --entrypoint php sail-8.4/app vendor/bin/phpunit --testsuite Feature`
+- Always pass `--testsuite Feature`: `phpunit.xml` also lists `tests/Unit`, which does not exist, so a plain run errors out
+- Filter: append `--filter=TicketReassignTest`
+- `define_via_gate = false` → a `super_admin` test user gets 403 on resources whose Shield permission (`view_any_X`, …) was not created. `PermissionSeeder` does not create Shield resource permissions; create/grant them in the test (`Permission::findOrCreate`)
 
 ## Rule
 Feature test required for every business rule. Use `RefreshDatabase` on all feature tests.

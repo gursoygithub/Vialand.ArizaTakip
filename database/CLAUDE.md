@@ -30,6 +30,7 @@ Examples:
 | reopen_reason | VARCHAR(255) NULL | Optional note on reopen |
 | reopened_by | FK users NULL | User who reopened the ticket |
 | reopened_at | DATETIME NULL | Timestamp of last reopen |
+| sla_warning_sent_at | TIMESTAMP NULL | Last 80% SLA warning; `CheckSlaBreaches` sends at most one per calendar day (`2026_11_17_174453`) |
 
 Composite index `tickets_sla_status_idx (sla_breached, status)` backs the
 "breached" tab, the navigation badge color, and `Ticket::scopeSlaBreached`.

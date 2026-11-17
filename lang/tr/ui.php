@@ -513,6 +513,7 @@ return [
     'username' => 'Kullanıcı Adı',
     'username_regex' => 'Kullanıcı adı sadece harfler, rakamlar, alt çizgi (_) ve nokta (.) içerebilir',
     'invalid_credentials' => 'Geçersiz kimlik bilgileri',
+    'login_throttled' => 'Çok fazla başarısız giriş denemesi. Lütfen :minutes dakika sonra tekrar deneyin.',
     'banned' => 'Yasaklı',
     'suspended' => 'Askıya Alındı',
     'login_success' => 'Başarıyla giriş yapıldı',

@@ -58,6 +58,7 @@ class Ticket extends Model implements HasMedia
     protected $casts = [
         'task_date'    => 'date',
         'sla_deadline' => 'datetime',
+        'sla_warning_sent_at' => 'datetime',
         'assigned_at'  => 'datetime',
         'resolved_at'  => 'datetime',
         'closed_at'    => 'datetime',

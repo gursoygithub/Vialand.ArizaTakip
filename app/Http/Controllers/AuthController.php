@@ -20,13 +20,19 @@ class AuthController extends Controller
 
     public function login(AuthRequest $request): RedirectResponse
     {
+        $request->ensureIsNotRateLimited();
+
         $result = $this->authService->login($request->validated());
 
         if (!$result['success']) {
+            $request->recordFailedAttempt();
+
             return back()
                 ->withInput($request->only('username'))
                 ->withErrors(['username' => $result['message']]);
         }
+
+        $request->clearFailedAttempts();
 
         $request->session()->regenerate();
 

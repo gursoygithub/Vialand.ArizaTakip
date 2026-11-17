@@ -9,6 +9,10 @@
 - `Widgets/` — `TicketStatsOverview`, `RecentTicketsTable`, `SlaComplianceTrendChart`, `TicketsByPriorityChart`, `TicketsByStatusChart`
 - `Exports/` — Filament export classes (`TaskExporter.php` — legacy name, exports tickets)
 
+## EmployeeResource
+- List: name, email, **company** (`company.name` — searchable, sortable, toggleable, `—` when empty), active / breached ticket counts, SLA score + threshold. Filter: **company** (multi-select via `Employee::company()`)
+- View page identity section (4 columns): name, email, phone, **company**
+
 ## Single Responsibility
 - One Resource per model; one Widget per chart/metric
 - Business logic stays in `app/Services/` — never inline in Resources
@@ -19,7 +23,7 @@ All non-Ticket Resources use the `ScopedByVisibility` trait
 - Default `getEloquentQuery()` scoped to `created_by = auth()->id()`
 - Override with `protected static string $viewAllPermission = 'view_all_X'` to
   allow users with that permission to see all records
-- `super_admin` bypasses unconditionally via Spatie's Gate::before
+- `super_admin` bypasses the scope via an explicit `hasRole('super_admin')` check in the trait. There is **no** Gate::before bypass (`define_via_gate = false`) — reaching a resource still needs its Shield permission (see root CLAUDE.md)
 - To add extra WHERE clauses on top of the scope, override `getEloquentQuery()`,
   call `static::applyVisibilityScope(parent::getEloquentQuery())`, then chain
   (see `UserResource` for example)

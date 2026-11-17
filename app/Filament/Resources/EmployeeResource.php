@@ -72,6 +72,13 @@ class EmployeeResource extends Resource
                     ->label(__('ui.email'))
                     ->searchable()
                     ->sortable(),
+                Tables\Columns\TextColumn::make('company.name')
+                    ->label(__('ui.company'))
+                    ->icon('heroicon-o-building-office-2')
+                    ->placeholder('—')
+                    ->searchable()
+                    ->sortable()
+                    ->toggleable(),
 
                 // Active workload — currently on this person's plate.
                 Tables\Columns\TextColumn::make('active_tickets_count')
@@ -129,7 +136,12 @@ class EmployeeResource extends Resource
                     ->sortable(),
             ])
             ->filters([
-                //
+                Tables\Filters\SelectFilter::make('company_id')
+                    ->label(__('ui.company'))
+                    ->relationship('company', 'name')
+                    ->multiple()
+                    ->searchable()
+                    ->preload(),
             ])
             ->actions([
                 Tables\Actions\ViewAction::make(),

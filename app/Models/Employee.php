@@ -43,6 +43,11 @@ class Employee extends Model
             ->whereNull('deleted_at');
     }
 
+    public function company(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(Company::class);
+    }
+
     // İlişkilerdeki ->with() kısımlarını temizledik.
     // Bunları ihtiyacın olan Resource (EmployeeResource) içinde çağırmak sistemi yormaz.
     public function managedGroups()

@@ -95,10 +95,17 @@ class CheckSlaBreaches implements ShouldQueue
             return;
         }
 
-        // Daily de-dupe: don't repeat the same notification type for the same ticket today.
-        if ($this->alreadySentToday($ticket, SlaWarningNotification::class)) {
+        // Daily de-dupe on the ticket itself. Not via the notifications table:
+        // no row is written there when every recipient turned the bell off,
+        // which used to resend mail + FCM on every 5-minute run.
+        if ($ticket->sla_warning_sent_at?->isToday()) {
             return;
         }
+
+        // Stamp before sending so a failure mid-fan-out cannot cause a
+        // resend loop. saveQuietly() skips the observer and activity log —
+        // this is bookkeeping, not a user-visible change.
+        $ticket->forceFill(['sla_warning_sent_at' => now()])->saveQuietly();
 
         $recipients = $this->slaRecipients($ticket);
         foreach ($recipients as $user) {

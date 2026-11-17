@@ -48,9 +48,8 @@ All ticket mails (7 classes + `TicketOnHoldMail`) render `resources/views/mail/t
 - Accessible to every logged-in user (`canAccess()` = authenticated, no `page_` permission)
 
 ## Daily De-dupe (in CheckSlaBreaches)
-- `alreadySentToday(Ticket, NotificationClass)` reads today's `notifications` rows of that class and inspects `data.actions[*].url` for `/tickets/{id}`
-- Portable across MySQL/SQLite (no JSON-extract SQL); loads all of today's rows of that class per ticket
-- ⚠️ Depends on a **database** row existing. If every recipient disabled the `sla_warning` bell, nothing is written and mail + FCM repeat every 5 minutes (root CLAUDE.md "Known Issues" #3)
+- **SLA warning:** one per ticket per calendar day via `tickets.sla_warning_sent_at`, independent of bell preferences (Phase 0 fix)
+- **SLA breach:** `alreadySentToday(Ticket, SlaBreachedNotification::class)` reads today's `notifications` rows of that class and inspects `data.actions[*].url` for `/tickets/{id}`; portable across MySQL/SQLite, loads all of today's rows of that class per ticket
 
 ## Date Formatting
 - Use `translatedFormat('d F Y H:i')` in `mail.ticket-event` for Turkish month names (Carbon locale is `tr`)

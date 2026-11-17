@@ -39,7 +39,7 @@
 - **TicketMute**: ticket, user (composite-unique on `(ticket_id, user_id)`)
 - **Group**: company, area, unit, manager (Employee), members (GroupMember has employee)
 - **SlaPolicy**: area, subArea, unit
-- **Employee**: tickets, groupMemberships, managedGroups, user, slaPolicies (BelongsToMany via `employee_sla_policies`)
+- **Employee**: tickets, groupMemberships, managedGroups, user, company (`company_id`, added in Phase 0), slaPolicies (BelongsToMany via `employee_sla_policies`)
 
 ## Other Models (not primary domain)
 - **Technician**: legacy model from external sync (`TechnicianService`); separate from Employee

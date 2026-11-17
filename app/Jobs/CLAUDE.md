@@ -24,9 +24,8 @@
 - **Dedup recalc**: collects `$affectedEmployeeIds` during the breach sweep chunk loop; after all chunks complete, deduplicates and calls `refreshPerformanceMetrics()` once per unique employee_id
 
 ### De-dupe
-- `alreadySentToday(Ticket, NotificationClass)` reads today's `notifications` rows and inspects `data.actions[*].url` for `/tickets/{id}` — portable across MySQL/SQLite (no JSON-extract SQL)
-- Survives the Observer flipping `sla_breached` mid-window — the database/push channels won't double-send even if the job picks up a row twice
-- ⚠️ Relies on a `notifications` **database** row. Notifications are queued, and `sla_warning` is not in `ALWAYS_ON_DATABASE`: if no recipient keeps the bell on, no row is written and the warning (mail + FCM) repeats every run (Known Issue #3)
+- **Warning:** `tickets.sla_warning_sent_at` — skipped when it is today; stamped with `forceFill()->saveQuietly()` (no observer, no activity log) **before** the fan-out, so one warning per ticket per calendar day regardless of bell preferences (Phase 0 fix; test `SlaWarningDedupTest`)
+- **Breach:** `alreadySentToday(Ticket, SlaBreachedNotification::class)` reads today's `notifications` rows and inspects `data.actions[*].url` for `/tickets/{id}` — portable across MySQL/SQLite. Safe here because the breach flips once and `sla_breach` is always-on in the bell
 
 ### Recipients
 - `slaRecipients()` returns assignee (`$ticket->employee->user`) + creator (`User::find($ticket->created_by)`) + **group supervisor** (when `employee_id` is null but `group_id` is set — ensures the responsible supervisor is alerted before individual assignment)

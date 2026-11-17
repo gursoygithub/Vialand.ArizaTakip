@@ -58,7 +58,15 @@ tab. `canAccess()` and `shouldRegisterNavigation()` both check `page_X` — cons
 not a custom domain permission.
 
 **Layer 3 — Shield Widgets**: `widget_X`. For widget classes. `canView()` checks
-`widget_X` on every widget. super_admin bypass is automatic via Spatie's Gate::before.
+`widget_X` on every widget.
+
+**super_admin has NO gate bypass.** `config/filament-shield.php` sets
+`super_admin.define_via_gate = false`, so super_admin can do only what its
+permission rows allow. It holds every permission because `PermissionSeeder`
+(and Shield's role UI) syncs them — a **newly added permission must be synced to
+super_admin** or super_admin gets 403. Code that checks `hasRole('super_admin')`
+explicitly (`ScopedByVisibility`, `TicketPolicy`, ticket actions) is separate from this.
+In tests, grant the needed permissions explicitly (see `EmployeeCompanyDisplayTest`).
 
 **Custom permissions (action-level + scope-bypass)**:
 
@@ -101,7 +109,7 @@ All non-Ticket resources use the `ScopedByVisibility` trait
 - Default scope: `where('created_by', auth()->id())`
 - Bypassed by per-resource `view_all_X` permission (set
   `protected static string $viewAllPermission`)
-- super_admin bypasses unconditionally (Spatie Gate::before)
+- super_admin bypasses via an explicit `hasRole('super_admin')` check in the trait
 - For resources needing additional WHERE clauses, override `getEloquentQuery()`
   and call `static::applyVisibilityScope(parent::getEloquentQuery())`, then chain
   extra clauses (see `UserResource` for example)
@@ -133,9 +141,19 @@ The `sail` binary lives at `./vendor/bin/sail` (NOT in PATH). Use it directly:
 ```
 Container name depends on the compose project directory — confirm with `docker ps`.
 Tests use SQLite in-memory (configured in `phpunit.xml`).
-**Run tests inside the container.** `composer.lock` requires PHP ≥ 8.4; the WSL
-host CLI is PHP 8.3, so `php artisan test` on the host dies in Composer's
-platform check before any test runs.
+**Run tests with PHP 8.4.** `composer.lock` requires PHP ≥ 8.4; the WSL host CLI
+is PHP 8.3, so host runs die in Composer's platform check. Without starting the
+stack, a one-off container works:
+```bash
+docker run --rm -v "$PWD":/var/www/html -w /var/www/html --entrypoint php sail-8.4/app vendor/bin/phpunit --testsuite Feature
+```
+Use `--testsuite Feature` (or `php artisan test --testsuite=Feature`): plain
+`php artisan test` fails because `phpunit.xml` lists a `tests/Unit` directory that
+does not exist. For artisan generators add `-u "$(id -u):$(id -g)"` so files are
+not created as root.
+**Pint:** run it only on new files. Many existing files are not Pint-clean and are
+stored with CRLF line endings; `pint --dirty` reformats whole files and buries the
+real change (Altın Kural #1).
 
 ## Branches & Production
 - **`gg-ticket` = production.** Live server: `~/ticket/gg-ticket` on `vkiosktest`
@@ -306,19 +324,22 @@ other projects or from the pre-Reform Task system:
 - `lang/fr`, `lang/ar` cover ~150 of 839 `ui` keys; the language-switch plugin is
   installed but not registered on the panel.
 
-## Known Issues (audit 2026-11-17 — reported, NOT fixed)
-Each item needs an explicit prompt before it is touched (Altın Kural #4).
-1. **Login has no rate limiting** (`routes/web.php` `auth` group) — brute force
-   against AD can also lock out real domain accounts.
+## Known Issues (audit 2026-11-17)
+Each open item needs an explicit prompt before it is touched (Altın Kural #4).
+1. ✅ **Fixed in Phase 0** — login rate limiting. `AuthRequest` limits failed
+   attempts per username+IP (5 / 60 s) and per username across all IPs
+   (10 / 15 min, below AD lockout). Checked in `AuthController::login` before
+   LDAP is contacted; cleared on success. Tests: `LoginRateLimitTest`.
 2. **`TicketService::reassign` bypasses the transition matrix** — forces
    `ASSIGNED` from any status (incl. `IN_PROGRESS`, `ON_HOLD`), rebases
    `sla_deadline` from `now()` and clears `sla_breached`. The current assignee
    (with `ticket.assign`) can reassign a breaching ticket and reset its SLA.
    Leaving `ON_HOLD` this way also drops the hold time (not added to
    `total_on_hold_minutes`).
-3. **SLA warning spam**: `CheckSlaBreaches::alreadySentToday` dedups by looking for
-   a `notifications` DB row. If every recipient turned off the `sla_warning` bell,
-   no row is written → mail + FCM repeat every 5 minutes.
+3. ✅ **Fixed in Phase 0** — SLA warning spam. The warning de-dupe now uses
+   `tickets.sla_warning_sent_at` (once per ticket per calendar day), stamped
+   before sending. Tests: `SlaWarningDedupTest`. The breach path still uses
+   `alreadySentToday` (it flips once, and `sla_breach` is always-on in the bell).
 4. **SLA warning fires immediately after reassign/reopen** — the 80% ratio is
    measured from `created_at`, but those paths rebase `sla_deadline` from `now()`.
 5. **Performance dashboard**: every query filters `whereBetween('resolved_at', …)`,

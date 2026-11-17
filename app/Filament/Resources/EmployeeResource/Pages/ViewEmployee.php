@@ -109,7 +109,7 @@ class ViewEmployee extends ViewRecord
                 // 1. Personel kimliği
                 Section::make(__('ui.employee'))
                     ->icon('heroicon-o-user-circle')
-                    ->columns(3)
+                    ->columns(4)
                     ->compact()
                     ->schema([
                         TextEntry::make('name')
@@ -125,6 +125,11 @@ class ViewEmployee extends ViewRecord
                         TextEntry::make('phone')
                             ->label(__('ui.phone'))
                             ->icon('heroicon-o-phone'),
+
+                        TextEntry::make('company.name')
+                            ->label(__('ui.company'))
+                            ->icon('heroicon-o-building-office-2')
+                            ->placeholder('—'),
                     ]),
 
                 // 3. SLA Performans Analizi — sla_breached based, matches
