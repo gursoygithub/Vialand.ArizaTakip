@@ -100,6 +100,25 @@
 
 **Nullability rule**: `performance_score = null` / `current_threshold = null` means "no data yet". A score of `0.0` is a real score (all breached). UI code must guard `is_null($score)` before rendering, and show gray/empty state rather than "0%".
 
+Caveat: the `current_threshold` unit set is selected with `sla_breached = true OR (sla_breached = false AND resolved_at NOT NULL)` — it also includes **active** breached and **cancelled** tickets, and averages `success_threshold` over all SLA rows of those units (any area). Slightly wider than the score cohort.
+
+## User ↔ Employee link
+- `User::employee()` = `hasOne(Employee, 'email', 'email')`; `Employee::user()` = `belongsTo(User, 'email', 'email')` restricted to `status = ACTIVE`, `username NOT NULL`, not soft-deleted. Changing an email on either side breaks the link
+- `users.employee_id` is a separate column holding `employees.employee_id` (personnel number), not used by these relations
+
+## `query()` overrides (gotchas)
+- `User::query()` always adds `where('username', '!=', env('APP_ADMIN_USERNAME', 'sa'))` — hides the local admin **and every user with `username IS NULL`**. Only explicit `User::query()` calls are affected; `User::find()` / `User::where()` are not
+- `SubArea::query()` applies its own `created_by` scope and dereferences `auth()->user()` — **throws when unauthenticated** (queue / CLI). Only explicit `SubArea::query()` calls are affected
+
+## Hard-coded eager loads
+Several relations always eager-load: `Ticket::area` (+company, subAreas), `Ticket::group` (+company, area, unit, manager, members), `Group::company` (+areas), `Group::area` (+subAreas), `Company::areas` (+subAreas, createdBy, updatedBy, deletedBy), `SlaPolicy::groups`, `Unit::groups`, `GroupMember::group` (+manager), **`GroupMember::employee` (+all tickets)**. Touching these in loops cascades. Prefer `->without(...)` or a dedicated query.
+
+## Unused helpers
+`Ticket::getTargetDateAttribute` (`target_date`), `Employee::getUnitPerformanceStats`, `Employee::accessibleAreaIds`, `Area::scopeAccessibleByUser`, `User::scopedCompanyId()` — no callers. Cache keys `dashboard_stats_overview` / `emp_perf_{id}` are forgotten but never written.
+
+## ticket_no generation
+`Ticket::booted()` creating: `TKT-{year}-{count(withTrashed, this year) + 1}` zero-padded to 5. Not concurrency-safe; collides if rows are force-deleted.
+
 ## Media
 - Collection `task_attachments` on `Ticket` — disk `s3`, **multi-file** (no `singleFile()`); the create form caps at 5 files via `maxFiles(5)`
 

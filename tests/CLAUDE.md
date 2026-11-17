@@ -5,6 +5,11 @@ Tests use **SQLite in-memory** (configured via `phpunit.xml`).
 - `DB_CONNECTION=sqlite`, `DB_DATABASE=:memory:`
 - Production uses MySQL; SQLite is test-only
 
+## Running
+- 29 feature test files / ~180 test methods in `tests/Feature/`
+- Run **inside the app container** (`./vendor/bin/sail artisan test` or `docker exec <container> php artisan test`). The WSL host has PHP 8.3; `composer.lock` needs ≥ 8.4, so host runs abort in Composer's platform check
+- Filter: `php artisan test --filter=TicketReassignTest`
+
 ## Rule
 Feature test required for every business rule. Use `RefreshDatabase` on all feature tests.
 

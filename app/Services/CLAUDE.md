@@ -19,7 +19,7 @@ Widgets, or Observers (observers trigger services, they don't contain logic).
 
 ## TicketService (`App\Services\TicketService`)
 - `transition(Ticket, TaskStatusEnum $to, User $by, ?string $note = null): Ticket` — validates against transition matrix, stamps timestamps, writes `TicketStatusHistory`, dispatches `TicketStatusChanged` event, fans out notifications via `dispatchTransitionNotifications`
-- `reassign(Ticket, int $employeeId, User $by, ?string $note = null): Ticket` — sets `TicketObserver::$skipReassignNotification` around the update to avoid double-fire; auto-clears mute for new assignee BEFORE update; notifies creator (unless creator is actor/new assignee)
+- `reassign(Ticket, int $employeeId, User $by, ?string $note = null): Ticket` — sets `TicketObserver::$skipReassignNotification` around the update to avoid double-fire; auto-clears mute for new assignee BEFORE update; recalculates `refreshPerformanceMetrics()` on the old employee. Then a **unified post-reassign block for every pre-status**: `status = ASSIGNED`, `assigned_at = now()`, `on_hold_since = null` (hold time is **not** added to `total_on_hold_minutes`), `sla_deadline = now() + policy.deadline_minutes` (no on-hold credit), `sla_breached = false`. It does **not** go through `isAllowed()` — IN_PROGRESS / ON_HOLD tickets drop back to ASSIGNED. Writes a `from→ASSIGNED` history row only when status changed, plus a `REASSIGN_NOTE_PREFIX` row. Notifies: new assignee (`TicketAssignedNotification` + FCM), creator (`TicketReassignedNotification` + FCM, unless creator is actor/new assignee; **ignores mutes**), group supervisor (`TicketReassignedNotification`, mail + bell, no FCM; skipped if actor / new assignee / creator). See root CLAUDE.md "Known Issues" #2
 - `addComment(Ticket, User, string $note): TicketStatusHistory` — from==to row + `TicketCommentNotification` to participants
 - `notifyPriorityChange(Ticket, TaskPriorityEnum $old, TaskPriorityEnum $new, User $actor): void` — bell + FCM only (uses `TicketCommentNotification` whose `via()` returns `['database']`); never sends mail. Body: `"{actor} önceliği {old} → {new} olarak değiştirdi"`
 - `canEditComment(TicketStatusHistory, User): bool` / `updateComment(...)` / `deleteComment(...)` — author + 10-min window + must be from==to AND not a `REASSIGN_NOTE_PREFIX` row. `updateComment` also fans out a "Not güncellendi" notification via notifyParticipants
@@ -39,12 +39,14 @@ Widgets, or Observers (observers trigger services, they don't contain logic).
 `dispatchTransitionNotifications` was refactored to send to narrower recipient sets for key events:
 - **OPEN → ASSIGNED** → `TicketAssignedNotification` to assignee only (mail + panel + FCM)
 - **terminal → ASSIGNED (reopen)** → `TicketReopenedNotification` to assignee + creator (mail + panel + FCM); via `notifyReopened()`
-- **→ RESOLVED** → `TicketResolvedNotification` to creator (mail + panel + FCM) + group supervisor (panel only); via `notifyResolved()`
+- **→ RESOLVED** → `TicketResolvedNotification` to creator (mail + panel + FCM) + group supervisor (mail + panel, **no FCM**; supervisor path does not check mutes); via `notifyResolved()`
 - **→ CANCELLED** → `TicketCancelledNotification` to current assignee only (mail + panel + FCM); via `notifyCancelled()`
 - **→ ON_HOLD** → `TicketStatusChangedNotification` to full participant set (bell + FCM); **additionally** notifies group supervisor (if not already a participant) with bell + mail (`TicketOnHoldMail`) + FCM
 - **all other transitions** → `TicketStatusChangedNotification` to full participant set (bell + FCM)
 
-Private helpers: `notifyResolved(Ticket, User)` (also notifies group supervisor with bell only), `notifyCancelled(Ticket, User)`, `notifyReopened(Ticket, User)` — all check mute, skip actor, then notify and fire FCM directly.
+Private helpers: `notifyResolved(Ticket, User)` (also notifies group supervisor — mail + bell), `notifyCancelled(Ticket, User)`, `notifyReopened(Ticket, User)` — all skip actor and **skip muted recipients entirely (no mail either)**, then notify and fire FCM directly.
+
+All of the above run **inside** the `DB::transaction` of `transition()` / `reassign()`; FCM is a synchronous HTTP call there (notifications themselves are `ShouldQueue`).
 
 ## FcmService (`App\Services\FcmService`)
 - `sendToUser(User, string $title, string $body, ?string $url): void` / `sendToUsers(Collection, …)` — fans out to each user's `fcm_tokens` rows
@@ -61,12 +63,16 @@ Private helpers: `notifyResolved(Ticket, User)` (also notifies group supervisor 
   - `total_assigned`, `closed_on_time`, `closed_breached` (legacy name — same as total_breached), `total_breached` (canonical headline; same value as `closed_breached`, both count `sla_breached=true` after cancelled-rejection), `at_risk` (active tickets with `sla_deadline ≤ now()+2h`, not yet flipped, `status NOT IN [RESOLVED,CLOSED,ON_HOLD]`), `currently_open`, `currently_on_hold`, `avg_resolution_minutes`, `sla_compliance_rate`, `avg_response_time_minutes`.
   - `sla_compliance_rate` **excludes tickets with no SLA policy** (`sla_deadline IS NULL`) from both numerator and denominator — tickets without SLA should not dilute the compliance rate.
   - Plus 7 backward-compat aliases: `total`, `closed`, `on_time`, `breach_count`, `compliance_rate`, `open`, `breached`.
+  - ⚠️ Because every caller pre-filters `whereBetween('resolved_at', …)`, the input cohort only holds resolved tickets (reopen clears `resolved_at`). `currently_open`, `currently_on_hold` and `at_risk` are therefore **effectively always 0** on the dashboard. Known issue — not fixed.
 - Dashboard blade (`resources/views/filament/pages/performance-dashboard.blade.php`) consumes `total_breached` (card "Toplam İhlal"), `priority_breakdown` (compact table), `reopen_rate` + `reopen_count` (card "Yeniden Açılma" — green <5%, orange <15%, red ≥15%), `at_risk` (card "Risk Altında" — green=0, orange>0, red>5), and mounts `\App\Filament\Widgets\SlaComplianceTrendChart` via `@livewire(...)` (the chart's window is hard-coded to the last 30 days and does NOT honour the page's date filter).
 
-## Repository Pattern
+## Repository Pattern (unused)
 - Contracts: `App\Repositories\Contracts\TicketRepositoryInterface`
 - Implementations: `App\Repositories\TicketRepository`
-- Bound in `AppServiceProvider::register()`
+- Bound in `AppServiceProvider::register()` but **never resolved anywhere** — services and Filament query Eloquent directly. Do not route new code through it without a decision to revive it.
+
+## SlaService — unused methods
+`checkBreach()` and `percentElapsed()` have no callers (breach state is the `sla_breached` column; widgets use `getElapsedPercentage()`).
 
 ## Async / Scheduled Work
 - `App\Jobs\CheckSlaBreaches` — see `app/Jobs/CLAUDE.md`. The job is one of three writers of the `sla_breached` column; the other two are `TicketObserver::saving` and the `TicketService` terminal-state markers
@@ -76,15 +82,14 @@ Private helpers: `notifyResolved(Ticket, User)` (also notifies group supervisor 
 
 These services handle external data synchronization and are scheduled or called from Artisan commands:
 
-- `AuthService` — LDAP authentication; delegates user create/update to `UserService`; also handles local admin bypass login
-- `UserService` — syncs user from LDAP `ActiveDirectory\User` to local `users` table (create or update); maps LDAP attributes
+- `AuthService` — LDAP authentication (bind with the user's DN + password); delegates user create/update to `UserService`; also handles a local admin bypass login (`APP_ADMIN_USERNAME` / `APP_ADMIN_PASSWORD`, plain `===` compare, creates the user + `super_admin` role on first use). It reads these with `env()` at runtime — under `config:cache` (prod) they resolve to `null` unless set as real container env vars. Entry point is `AuthController` (`/auth`), **not** `Filament\Pages\Auth\LoginPage` (the panel's `->login()` is commented out). No login throttling.
+- `UserService` — syncs user from LDAP `ActiveDirectory\User` to local `users` table (create or update, matched by `ldap_guid` OR `username`); maps LDAP attributes; new users get the `default` role. Writes `users.password = Hash::make(<AD password>)` on every login. Writes `users.employee_id = employees.employee_id` (the external personnel number / `UNIQUE_ID`, **not** `employees.id`). The Eloquent `User::employee()` relation joins on **email**, not on this column.
 - `EmployeeService` — syncs employees from SQL Server `sqlsrv2` connection (`_TGRY_PERSONEL` table); batched upsert.
   - **Split upsert**: `processBatch()` splits buffer into `$withEmail` and `$withoutEmail` groups. Blank/null email rows upsert WITHOUT updating the email column — preserves existing admin-entered or previously synced value.
   - **Orphan user relinking**: after all batches complete, queries `User::whereNull('employee_id')` and links each to matching Employee by email. Logs count of relinked users.
   - **Company auto-creation**: `processBatch()` upserts companies via `normalized_name` (UPPER TRIM) before employee upsert — idempotent.
 - `TechnicianService` — syncs technicians from SQL Server `sqlsrv2` connection; same pattern as EmployeeService
-- `DailyReportService` — fetches daily attendance data from SQL Server `sqlsrv` VIEW and upserts into local `daily_reports` table
-- `ReportService` — streams card-reading reports from an internal HTTP API (`/api/zk/cardreadingsall`); batched insert
+- `DailyReportService` / `ReportService` — **dead leftovers** from another project (attendance / card readings). Their target tables `daily_reports` and `reports` do not exist in this schema; the commands calling them (`report:*`, `reports:90days`, `cu-daily-report`) are not scheduled and would fail. `report:stream` is declared by two classes.
 
 ## Notifications (Filament-compatible)
 - All ticket notifications return `FilamentNotification::getDatabaseMessage()` from `toDatabase()` so the panel bell renders title/body/icon/action

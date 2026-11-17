@@ -48,11 +48,14 @@ Composite index `tickets_sla_status_idx (sla_breached, status)` backs the
 Always write a new migration file. Schema changes are additive.
 
 ## Schema Quirks (live data)
-- `tasks` table renamed to `tickets` (2026_04_30_000001) — backward-compat alias `App\Models\Task extends Ticket`
+- `tasks` table renamed to `tickets` (2026_04_30_000001). There is **no** `App\Models\Task` alias any more — use `Ticket`
 - `sla_policies.sub_area_id` is **NULLABLE** — allows area-wide SLA defaults (sub_area IS NULL); `SlaService::resolvePolicy` L2 fallback matches these rows
-- `users.employee_id` is NULLABLE — LDAP-synced users get a value; manually-created admins may have NULL
+- `users.employee_id` is NULLABLE and holds `employees.employee_id` (external personnel number / `UNIQUE_ID`), **not** `employees.id`. LDAP-synced users get a value; manually-created admins may have NULL. `User::employee()` joins on `email`, not on this column
 - `users.created_by` is NULLABLE — system-created users (seeders, LDAP sync) may have NULL
 - The `2026_01_24_170253_update_employees_unique_constraint` migration was patched to be
   idempotent (try/catch) so SQLite test runs do not fail on the duplicate index
 - Tests use SQLite in-memory; production uses MySQL via `.env`
+- **Schema dump**: `database/schema/mysql-schema.sql` (squashed 2026-05-18, 39 tables). The migration files are still in `database/migrations/`; on MySQL `migrate` loads the dump first and then runs only migrations missing from its `migrations` table. SQLite (tests) ignores the dump and runs the migration files
+- Tables referenced by leftover code but **absent** from the schema: `reports`, `daily_reports` (see root CLAUDE.md "Dead / Leftover Code")
+- External connections: `sqlsrv2` (employee / technician sync, `_TGRY_PERSONEL`), `sqlsrv` (used only by the dead `DailyReportService`)
 - `employees.performance_score` and `employees.current_threshold` are **NULLABLE** (`decimal(5,2) NULL`). The original migration added them as `DEFAULT 0`; a follow-up migration (`2026_05_18_*_make_employee_performance_columns_nullable`) backfills all zeros to NULL. **`null` means "no sealed tickets yet"** — not a zero score. UI code must guard `is_null()` before rendering.

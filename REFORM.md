@@ -1,5 +1,11 @@
 # 🎫 Ticket System Reform Document
-> Reference document for Claude Code — read this before touching any code.
+> ⚠️ **HISTORICAL — the reform is complete (April–May 2026).** This file is the
+> original plan, kept for context only. Do **not** follow §10 or the priority
+> order in §8; several items here were later changed (e.g. `report.view` →
+> `ticket.export`, `group.manage` removed, notifications table is Laravel's own,
+> no `ticket_sla_snapshots` / `performance_cache` tables, Filament 3 not plain
+> Livewire). The current source of truth is `CLAUDE.md` and the per-directory
+> `CLAUDE.md` files.
 
 ---
 

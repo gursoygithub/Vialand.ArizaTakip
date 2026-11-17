@@ -16,8 +16,10 @@
 - Business logic stays in `app/Services/` — never inline in Resources
 
 ## SLA Auto-Resolution
-When `area_id` changes in ticket forms, use `->live()->afterStateUpdated()` on the Select
-to call SlaService and show a preview of the resolved SLA deadline.
+The ticket form's `area_id` / `sub_area_id` / `unit_id` / `priority` fields are `->live()`;
+their `afterStateUpdated()` hooks only reset downstream fields. The SLA preview is a
+reactive `Placeholder::make('sla_preview')` whose `content()` calls
+`SlaService::resolvePolicy()` on each re-render (see `TicketResource::form`).
 
 ## Validation Patterns
 ```php

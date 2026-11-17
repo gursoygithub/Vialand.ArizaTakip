@@ -131,8 +131,41 @@ The `sail` binary lives at `./vendor/bin/sail` (NOT in PATH). Use it directly:
 ./vendor/bin/sail composer require .. # install packages
 ./vendor/bin/sail artisan queue:work  # start queue worker
 ```
-Container: `ariza-takip-paneli-laravel.test-1` (use `docker ps` to confirm).
+Container name depends on the compose project directory — confirm with `docker ps`.
 Tests use SQLite in-memory (configured in `phpunit.xml`).
+**Run tests inside the container.** `composer.lock` requires PHP ≥ 8.4; the WSL
+host CLI is PHP 8.3, so `php artisan test` on the host dies in Composer's
+platform check before any test runs.
+
+## Branches & Production
+- **`gg-ticket` = production.** Live server: `~/ticket/gg-ticket` on `vkiosktest`
+  (checked out on `gg-ticket`). The live state is the baseline — keep local
+  `gg-ticket` identical to `origin/gg-ticket` and to the server.
+- **Development happens on `gg-ticket-dev`** (branched from `gg-ticket` @ `b92c364`,
+  2026-11-17). Merge back into `gg-ticket` only after review.
+- `main`, `dev`, `gg-ticket-perm-reform` are fully merged into `gg-ticket` (stale).
+- `origin/production-stable` / `production-stable-test` diverged from `gg-ticket`
+  on 2025-12-16 and carry 25 commits that are **not** in production (image gallery
+  rewrite, upload-limit fixes, `.gitattributes`, php.ini wiring). Evaluate before
+  porting — do not merge blindly (384 commits apart).
+
+## Infrastructure (production)
+- `docker-compose.prod.yml` bind-mounts the repo: `.:/var/www`. The image's
+  `COPY`, `composer install` and `npm run build` are shadowed by the host
+  checkout — host `vendor/` and `public/build` are what actually run.
+  Changes under `/etc/php/...` (e.g. the `Dockerfile` php2shell mitigation
+  `99-php2shell-mitigation.ini`) only take effect after an **image rebuild**.
+- The repo's `php.ini` is **not** wired into the image on `gg-ticket`.
+- `.docker/start.sh` runs `php artisan config:cache` on every start. With a cached
+  config, `env()` called outside `config/` returns `null` (unless the variable is a
+  real process env var). Affected: `AuthService::login` (local admin bypass via
+  `APP_ADMIN_USERNAME`/`APP_ADMIN_PASSWORD`) and `User::query()` (hides the
+  `APP_ADMIN_USERNAME` user, falls back to `'sa'`).
+- Supervisor (`.docker/supervisord.conf`) runs php-fpm, nginx, `schedule:work`
+  and 2× `queue:work` — scheduler and workers run as **root**, php-fpm as
+  `www-data` (why the 23:55 schedule pre-creates tomorrow's log with `chmod 0777`).
+- `.env.example` is a template from another project (fr locale, `Africa/Ndjamena`,
+  DigitalOcean bucket) — it does not describe this app's real variables.
 
 ## Job Dispatching
 - All async work via Jobs: `MyJob::dispatch()` — never `sync` driver for production
@@ -198,8 +231,8 @@ Usage rules:
 ## Locale & Notifications
 - Carbon locale is `tr` (set in `AppServiceProvider::boot`); use `translatedFormat('d F Y H:i')` for Turkish month names in custom output. Filament tables/infolists already format via `Table::$defaultDateTimeDisplayFormat = 'd F Y - H:i'`
 - Bell uses Filament `databaseNotifications`; mail is opt-in (`config/notifications.php` → `mail_enabled`) but the 8 targeted events always send mail regardless; FCM web-push tokens live in `fcm_tokens` (`user_id`, `token`, `is_active`, `token_hash`), dispatched via `App\Services\FcmService`
-- Per-user `UserNotificationPreference` toggles channels (`mail_enabled`, `database_enabled`) per event type — no separate `push` column (FCM follows `database_enabled`)
-- Per-ticket mute: `ticket_mutes` (UNIQUE on `ticket_id, user_id`); `Ticket::isMutedBy(User)` short-circuits sender paths
+- Per-user `UserNotificationPreference` toggles channels (`mail_enabled`, `database_enabled`) per event type — no separate `push` column (FCM follows `database_enabled`). **Only `database_enabled` is honoured**; the stored `mail_enabled` flag is never read by any notification.
+- Per-ticket mute: `ticket_mutes` (UNIQUE on `ticket_id, user_id`); `Ticket::isMutedBy(User)` short-circuits most sender paths (muted users get **no mail either** on those paths). Exceptions that ignore mutes: SLA warning/breach (`CheckSlaBreaches`), `notifyCreatorOfReassignment`, supervisor copies on resolve/reassign.
 
 ## Gotchas
 
@@ -249,3 +282,64 @@ A 9-phase refactor that established the current permission architecture:
   `ticket.reopen`, `can_close_task`, `can_assign_task`, `can_reopen_task`,
   `widget_DailyTaskPerformance`
 - DB migration: `2026_05_10_221815_permission_reform_cleanup.php`
+
+## Dead / Leftover Code (do not build on it)
+Verified unused on `gg-ticket` @ `b92c364` (audit 2026-11-17). Leftovers from
+other projects or from the pre-Reform Task system:
+- `app/Console/Commands/{StreamReports,ReportStreamCommand,ReportDailyCommand,Reports90DaysCommand,CreateOrUpdateDailyReport}`
+  + `ReportService` / `DailyReportService` — write to `reports` / `daily_reports`,
+  tables that **do not exist** in the schema. `report:stream` is declared twice.
+- `ReservationController` + `ReservationRequest` + `/reservation-form/*` routes + `forms/reservation.blade.php`.
+- Policies with no model/resource: `Card`, `Manager`, `Report`, `Staff`, `Vehicle`, `VisitorCard`, `Visitor`.
+  (`RolePolicy` is **live** — Shield's role resource uses it via auto-discovery.)
+- Enums `CardStatus`, `Gender`, `VehicleStatus`, `VehicleType`, `VisitorStatus` — no references.
+- `TicketRepository` (+ interface) — bound in `AppServiceProvider`, never resolved.
+- `App\Support\NotificationChannels` — never called (see Notifications guide: mail toggles are inert).
+- Events `TicketStatusChanged`, `TicketSlaBreached` — dispatched, no listeners.
+- `Ticket::getTargetDateAttribute`, `Employee::getUnitPerformanceStats`,
+  `Employee::accessibleAreaIds`, `Area::scopeAccessibleByUser`,
+  `SlaService::checkBreach` / `percentElapsed`, `User::scopedCompanyId()` — no callers.
+- Cache keys `dashboard_stats_overview` and `emp_perf_{id}` are `forget()`-ed but never `remember()`-ed.
+- Stray tracked file in repo root: `Employee::find(164)->refreshPerformanceMetrics();`.
+- `Dockerfile_old`, `Dockerfile_old_v1`, `.docker/start_old.sh`, root `supervisord.conf`,
+  `docker-compose(original).yml` — not used by the prod compose file.
+- `lang/fr`, `lang/ar` cover ~150 of 839 `ui` keys; the language-switch plugin is
+  installed but not registered on the panel.
+
+## Known Issues (audit 2026-11-17 — reported, NOT fixed)
+Each item needs an explicit prompt before it is touched (Altın Kural #4).
+1. **Login has no rate limiting** (`routes/web.php` `auth` group) — brute force
+   against AD can also lock out real domain accounts.
+2. **`TicketService::reassign` bypasses the transition matrix** — forces
+   `ASSIGNED` from any status (incl. `IN_PROGRESS`, `ON_HOLD`), rebases
+   `sla_deadline` from `now()` and clears `sla_breached`. The current assignee
+   (with `ticket.assign`) can reassign a breaching ticket and reset its SLA.
+   Leaving `ON_HOLD` this way also drops the hold time (not added to
+   `total_on_hold_minutes`).
+3. **SLA warning spam**: `CheckSlaBreaches::alreadySentToday` dedups by looking for
+   a `notifications` DB row. If every recipient turned off the `sla_warning` bell,
+   no row is written → mail + FCM repeat every 5 minutes.
+4. **SLA warning fires immediately after reassign/reopen** — the 80% ratio is
+   measured from `created_at`, but those paths rebase `sla_deadline` from `now()`.
+5. **Performance dashboard**: every query filters `whereBetween('resolved_at', …)`,
+   so `currently_open`, `currently_on_hold` and `at_risk` are effectively always 0.
+6. **Notification preferences UI is partly inert**: mail toggles have no effect
+   (targeted events always mail); `ticket_closed` row matches no notification;
+   `ticket_resolved` / `ticket_cancelled` are not configurable.
+7. `SubArea::query()` override dereferences `auth()->user()` — throws in
+   CLI/queue context if called there.
+8. `User::query()` override also hides users whose `username` is `NULL`
+   (`NULL != 'sa'` is not true in SQL).
+9. Relations with hard-coded `->with()` (`Ticket::area/group`, `Group::company/area`,
+   `Company::areas`, `GroupMember::employee` → **all tickets**) cascade large
+   eager loads wherever they are touched.
+10. `ListTickets` renders 9 tab badges + 2 nav-badge counts, each running
+    `visibleBy()` (4–5 queries), re-polled every 60 s; bell polls every 5 s.
+11. `ticket_no` = yearly `count()+1` — race-prone under concurrent creates
+    (UNIQUE violation), and breaks if rows are ever force-deleted.
+12. `UserService::syncFromLdap` stores a bcrypt hash of the user's **AD password**
+    in `users.password` on every login.
+13. `notifyCreatorOfReassignment` ignores `ticket_mutes` (other targeted rules honour it).
+14. `TicketService::transition` sends FCM HTTP calls inside the DB transaction.
+15. 18 `__('ui.*')` keys used in code are missing from `lang/tr/ui.php`
+    (e.g. `password_min_length`, `phone_numeric`, `unknown`, `email_invalid`).

@@ -45,10 +45,16 @@ with its own 4-branch logic. See root CLAUDE.md § "Ticket Visibility".
   feedback for mixed selections. Removing the `->bulkActions(...)` block
   also removes the auto-rendered selection checkbox column.
 - Form: `task_date` and `description` paired in `Grid(2)` with `task_date->maxDate(today)` and `description->required()->minLength(10)`; attachments use multi-file upload (max 5, 10 MB each, jpeg/png/webp/pdf)
-- Filters (in `->filters([...])` on the list table):
-  - `area_id`, `status`, `priority`, `employee_id` — all `->multiple()` so users can slice across multiple values at once. `area_id` and `employee_id` are relationship-driven (`->relationship(...)` + `->searchable()->preload()`); `status` and `priority` build options from their respective enum cases.
-  - `created_at` — custom `Filter::make` with `from`/`to` `DatePicker`s, `whereDate('created_at', '>=', from)` / `whereDate('created_at', '<=', to)`. Day-granularity, each bound independent.
-  - `sla_status` — column-backed only: options are `breached` (→ `Ticket::scopeSlaBreached`) and `no_sla` (→ `whereNull('sla_deadline')`). The previous `on_time` / `warning` options were dropped because their raw `TIMESTAMPDIFF` SQL was MySQL-only (broken on the SQLite test path) and ignored the on-hold pause + `total_on_hold_minutes` credit, leaving them inconsistent with the per-row live label. **Use `Ticket::getSlaStatusLabel()` for live elapsed/warning display per row; this filter is for the persisted breach/no-policy axis only.**
+- Form assignment chain: `area_id` → `sub_area_id` (required) → `unit_id` (only units with an SLA row for the area) → `group_id` (area + unit + user's companies/memberships) → `employee_id` (active members of the group). Area/sub-area/unit/group/employee are `disabled()` + `dehydrated(false)` on Edit. **`employee_id` on Create is not gated by `ticket.assign`** — any creator can pick an assignee. A reactive `sla_preview` Placeholder shows the resolved SLA. `type_id` is a hidden field pinned to `TaskTypeEnum::OPERATION`.
+- Filters (in `->filters([...])` on the list table) — all `SelectFilter`s are `->multiple()`:
+  - `company_id` (via `area.company_id`) — visible only to `super_admin` / `ticket.view.all`
+  - `area_id`, `sub_area_id`, `unit_id` — relationship-driven, `->searchable()->preload()`. Options list **all** rows (not scoped to the viewer)
+  - `status`, `priority` — enum-driven
+  - `employee_id` — hidden for users without `ticket.view.group` / `ticket.view.all` / `super_admin`
+  - `created_at` and `task_date` — `from` / `to|until` `DatePicker`s, `whereDate` bounds
+  - **There is no `sla_status` filter.** Breached tickets are reached via the `breached` tab on `ListTickets` (`Ticket::scopeSlaBreached`).
+- SLA badge column: label from `Ticket::getSlaStatusLabel()` (prefixed `✓`/`⚠` while counting down), color from private `TicketResource::slaColor()`.
+- List page cost: 9 tab badges (`ListTickets::getTabs`) + nav badge + nav badge color each run `visibleBy()`; the page polls every 60 s.
 
 ### View page (`Pages/ViewTicket`)
 - Lifecycle strip (`filament.partials.ticket-lifecycle-strip`) at top: 5 numbered steps — Açıldı / Atandı / İşleme Alındı / Çözüldü / Kapatıldı. Step "done" sources: `created_at`, `assigned_at`, first IN_PROGRESS `ticket_status_histories` row **scoped to `created_at >= assigned_at`** (the scope makes the strip reflect the *current* assignment cycle after a reopen), `resolved_at`, `closed_at`
@@ -59,8 +65,8 @@ with its own 4-branch logic. See root CLAUDE.md § "Ticket Visibility".
   - `İşleme Al` / `Çözüldü` / **`Beklet`** (label is a verb, not the noun "Beklemede") → assigned employee's user OR `super_admin`
   - `İptal Et` / `Kapat` → creator OR `super_admin`
   - `Yeniden Aç` (CLOSED/RESOLVED/COMPLETED → **ASSIGNED**) → creator OR `super_admin` (`TicketPolicy::reopen`). Rendered by `buildTransitionActions` when `$to === ASSIGNED && $from ∈ terminal-set`; the OPEN → ASSIGNED case is still skipped in favor of the dedicated `Ata` action. Server-side gate enforced via `->before(fn () => Gate::authorize('reopen', $ticket))` so a forged mountAction call is rejected with 403 even if `visible()` is bypassed. The legacy `ticket.reopen` Spatie permission is no longer consulted
-  - `Ata` / `Yeniden Ata` → `ticket.assign` AND **(creator OR current assignee's user OR group supervisor)**, not terminal (reopen is a separate button)
-  - `Düzenle` / `Sil` → creator OR `super_admin`
+  - `Ata` / `Yeniden Ata` → `ticket.assign` AND **(creator OR current assignee's user OR group supervisor)**, not terminal (reopen is a separate button). Calls `TicketService::reassign`, which forces status back to ASSIGNED and resets the SLA window from any non-terminal status (see `app/Services/CLAUDE.md`)
+  - `Düzenle` / `Sil` → creator OR `super_admin`. Unlike the list row actions these header buttons are **not** hidden on terminal statuses; `TicketPolicy` then refuses (403 / no-op)
   - `Not Ekle` / `Sesi Kapat`/`Sesi Aç` → any participant (creator / current assignee / anyone in `ticket_status_histories.changed_by`)
 - Assign action options: prefer active group members (when `group_id` set), fall back to active employees in same company, capped at 500
 
@@ -84,7 +90,15 @@ with its own 4-branch logic. See root CLAUDE.md § "Ticket Visibility".
 
 ## CompanySetupWizard
 - Hard-blocks each step until prerequisites pass — see Setup Chain Rules in `app/Services/CLAUDE.md`
-- `shield:generate --all` rewrites three policies; restore them from git after running (warning is in the project root `CLAUDE.md`)
+- `shield:generate --all` rewrites three policies unless `--ignore-existing-policies` is passed (see project root `CLAUDE.md`)
+
+## Page access exceptions
+- `PerformanceDashboard`, `CompanySetupWizard`, `ManageGeneralSettings` → `page_{Class}` (Shield)
+- `NotificationPreferences` → **any authenticated user** (deliberate — personal settings page, no `page_` permission)
+
+## Login
+- The panel's `->login()` is commented out; users log in through `AuthController` at `/auth` (`resources/views/auth/login.blade.php`). `Pages/Auth/LoginPage` and `Pages/Auth/EditProfile` exist but are not wired via `->login()` / `->profile()` (both calls are commented out in `DashboardPanelProvider`)
+- Bell: `databaseNotifications()` + `databaseNotificationsPolling('5s')`
 
 ## DashboardPanelProvider
 - `->databaseNotifications()` enabled — bell auto-renders our `FilamentNotification` payloads
@@ -94,7 +108,7 @@ with its own 4-branch logic. See root CLAUDE.md § "Ticket Visibility".
 - Field labels via `__('ui.*')` keys — `ui.task_date` resolves to "Arıza Tarihi"
 - Section icons use `heroicon-o-*` outlines
 - For per-row SLA badges, prefer `Ticket::getSlaStatusLabel()` and the live `now()` comparison; the `sla_breached` column is for **filtering**, not display
-- **CANCELLED SLA badge is always `gray`** — `TicketResource::getRowSlaColor()` (and all surfaces: `RecentTicketsTable`, Relation Managers) explicitly returns `'gray'` for CANCELLED before falling through to the terminal-outcome branch. Note: `TaskStatusEnum::CANCELLED->getColor()` returns `'danger'` (the status badge color); the gray behavior is specific to the SLA badge, not the status badge.
+- **CANCELLED SLA badge is always `gray`** — `TicketResource::slaColor()` (and all surfaces: `RecentTicketsTable`, Relation Managers) explicitly returns `'gray'` for CANCELLED before falling through to the terminal-outcome branch. Note: `TaskStatusEnum::CANCELLED->getColor()` returns `'danger'` (the status badge color); the gray behavior is specific to the SLA badge, not the status badge.
 - List row actions: wrap them in `Tables\Actions\ActionGroup::make([...])`
   for the compact three-dot menu, with `ViewAction`, `EditAction`,
   `DeleteAction` in that order. Apply per-action `->visible(...)` gates
