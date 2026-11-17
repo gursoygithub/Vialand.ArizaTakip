@@ -485,7 +485,7 @@ class ViewTeamTicket extends ViewRecord
                 ->label(__('ui.sla_resolution'))
                 ->state(__('ui.sla_due_at', ['time' => $cycle->resolution_due_at->translatedFormat('d M H:i')]))
                 ->helperText($running && ! $cycle->isPaused() && ! $cycle->resolution_breached
-                    ? __('ui.sla_due', ['time' => $cycle->resolution_due_at->diffForHumans(['parts' => 2, 'short' => true])])
+                    ? __('ui.sla_due', ['time' => $cycle->resolution_due_at->diffForHumans(['syntax' => \Carbon\CarbonInterface::DIFF_ABSOLUTE, 'parts' => 2, 'short' => true])])
                     : null)
                 ->badge()
                 ->color($cycle->resolution_breached ? 'danger' : ($ratio !== null && $ratio >= TicketWorkflowService::WARNING_RATIO ? 'warning' : 'success')),

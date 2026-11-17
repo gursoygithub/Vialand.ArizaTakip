@@ -327,6 +327,17 @@ class TeamTicketScreensTest extends TestCase
         $this->assertSame(TaskStatusEnum::IN_PROGRESS, $ticket->fresh()->status);
     }
 
+    public function test_sla_label_reads_as_time_left(): void
+    {
+        $ticket = $this->openTicket()->load('currentCycle');
+
+        $label = TeamTicketResource::slaLabel($ticket);
+
+        $this->assertStringEndsWith(__('ui.sla_due', ['time' => '']), $label.'');
+        $this->assertStringNotContainsString('sonra', $label);
+        $this->assertStringNotContainsString('önce', $label);
+    }
+
     public function test_detail_page_shows_sla_and_custom_fields(): void
     {
         $ticket = $this->openTicket();

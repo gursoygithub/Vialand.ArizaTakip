@@ -380,7 +380,7 @@ class TeamTicketResource extends Resource
             return __('ui.sla_breached');
         }
 
-        return __('ui.sla_due', ['time' => $cycle->resolution_due_at->diffForHumans(['parts' => 2, 'short' => true])]);
+        return __('ui.sla_due', ['time' => $cycle->resolution_due_at->diffForHumans(['syntax' => \Carbon\CarbonInterface::DIFF_ABSOLUTE, 'parts' => 2, 'short' => true])]);
     }
 
     public static function slaColor(Ticket $ticket): string
