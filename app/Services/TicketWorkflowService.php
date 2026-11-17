@@ -9,6 +9,7 @@ use App\Enums\SlaCycleOutcomeEnum;
 use App\Enums\TaskPriorityEnum;
 use App\Enums\TaskStatusEnum;
 use App\Enums\TaskTypeEnum;
+use App\Enums\TeamTicketEventEnum;
 use App\Exceptions\TicketWorkflowException;
 use App\Models\Employee;
 use App\Models\Team;
@@ -56,6 +57,7 @@ class TicketWorkflowService
     public function __construct(
         private WorkingTimeCalculator $calculator,
         private GeneralSettings $settings,
+        private TeamTicketNotifier $notifier,
     ) {}
 
     // ── Opening ─────────────────────────────────────────────────────────
@@ -83,7 +85,7 @@ class TicketWorkflowService
 
         $this->ensureRequiredCustomFields($team, $customFields);
 
-        return DB::transaction(function () use ($requester, $team, $priority, $description, $customFields, $attributes): Ticket {
+        $ticket = DB::transaction(function () use ($requester, $team, $priority, $description, $customFields, $attributes): Ticket {
             $now = CarbonImmutable::now();
 
             $ticket = $this->quietly(fn (): Ticket => Ticket::create(array_merge($attributes, [
@@ -104,6 +106,10 @@ class TicketWorkflowService
 
             return $ticket->fresh();
         });
+
+        $this->notifier->dispatch(TeamTicketEventEnum::Opened, $ticket, $requester);
+
+        return $ticket;
     }
 
     // ── Assignment ──────────────────────────────────────────────────────
@@ -166,7 +172,7 @@ class TicketWorkflowService
                 $cycle->save();
             }
 
-            return $this->moveTo($ticket, TaskStatusEnum::IN_PROGRESS, $actor, null, $cycle);
+            return $this->moveTo($ticket, TaskStatusEnum::IN_PROGRESS, $actor, null, $cycle, TeamTicketEventEnum::Started);
         });
     }
 
@@ -188,7 +194,8 @@ class TicketWorkflowService
             $ticket->hold_reason = $reason;
             $ticket->on_hold_since = $now;
 
-            return $this->moveTo($ticket, TaskStatusEnum::ON_HOLD, $actor, trim($reason->getLabel().' '.($note ?? '')), $cycle);
+            return $this->moveTo($ticket, TaskStatusEnum::ON_HOLD, $actor, trim($reason->getLabel().' '.($note ?? '')), $cycle,
+                TeamTicketEventEnum::Held, ['hold_reason' => $reason, 'note' => $note]);
         });
     }
 
@@ -232,7 +239,7 @@ class TicketWorkflowService
             $ticket->resolution_notes = $note;
             $ticket->auto_close_at = $now->addDays($this->settings->auto_close_days);
 
-            return $this->moveTo($ticket, TaskStatusEnum::RESOLVED, $actor, $note, $cycle);
+            return $this->moveTo($ticket, TaskStatusEnum::RESOLVED, $actor, $note, $cycle, TeamTicketEventEnum::Resolved, ['note' => $note]);
         });
     }
 
@@ -273,7 +280,7 @@ class TicketWorkflowService
             $ticket->resolved_at = null;
             $ticket->auto_close_at = null;
 
-            return $this->moveTo($ticket, TaskStatusEnum::IN_PROGRESS, $actor, $reason, $cycle);
+            return $this->moveTo($ticket, TaskStatusEnum::IN_PROGRESS, $actor, $reason, $cycle, TeamTicketEventEnum::ResolutionRejected, ['note' => $reason]);
         });
     }
 
@@ -329,10 +336,10 @@ class TicketWorkflowService
                 $ticket->employee_id = $resolver->id;
                 $ticket->assigned_at = $now;
 
-                return $this->moveTo($ticket, TaskStatusEnum::ASSIGNED, $actor, $reason, $cycle);
+                return $this->moveTo($ticket, TaskStatusEnum::ASSIGNED, $actor, $reason, $cycle, TeamTicketEventEnum::Reopened, ['note' => $reason]);
             }
 
-            return $this->moveTo($ticket, TaskStatusEnum::OPEN, $actor, $reason, $cycle);
+            return $this->moveTo($ticket, TaskStatusEnum::OPEN, $actor, $reason, $cycle, TeamTicketEventEnum::Reopened, ['note' => $reason]);
         });
     }
 
@@ -358,7 +365,7 @@ class TicketWorkflowService
             throw TicketWorkflowException::notAllowed();
         }
 
-        return $this->terminate($ticket, $actor, TaskStatusEnum::CANCELLED, SlaCycleOutcomeEnum::Cancelled, 'cancelled', $reason, TicketAssignment::END_CANCELLED);
+        return $this->terminate($ticket, $actor, TaskStatusEnum::CANCELLED, SlaCycleOutcomeEnum::Cancelled, 'cancelled', $reason, TicketAssignment::END_CANCELLED, TeamTicketEventEnum::Cancelled);
     }
 
     /**
@@ -378,6 +385,7 @@ class TicketWorkflowService
             $reason->value,
             trim($reason->getLabel().' '.($note ?? '')),
             TicketAssignment::END_REJECTED,
+            TeamTicketEventEnum::Rejected,
         );
     }
 
@@ -413,7 +421,8 @@ class TicketWorkflowService
             $ticket->employee_id = null;
             $ticket->assigned_at = null;
 
-            return $this->moveTo($ticket, TaskStatusEnum::OPEN, $actor, $reason, $cycle);
+            return $this->moveTo($ticket, TaskStatusEnum::OPEN, $actor, $reason, $cycle,
+                TeamTicketEventEnum::Transferred, ['previous_team_id' => $old->team_id, 'note' => $reason]);
         });
     }
 
@@ -461,6 +470,8 @@ class TicketWorkflowService
                 $actor,
                 ($old?->getLabel() ?? '—').' → '.$priority->getLabel().': '.$reason,
                 $cycle,
+                TeamTicketEventEnum::PriorityChanged,
+                ['note' => ($old?->getLabel() ?? '—').' → '.$priority->getLabel().': '.$reason],
             );
         });
     }
@@ -556,7 +567,8 @@ class TicketWorkflowService
 
             $line = $previous ? "{$previous} → {$employee->name}" : $employee->name;
 
-            return $this->moveTo($ticket, TaskStatusEnum::ASSIGNED, $actor, trim($line.($note ? "\n".$note : '')), $cycle);
+            return $this->moveTo($ticket, TaskStatusEnum::ASSIGNED, $actor, trim($line.($note ? "\n".$note : '')), $cycle,
+                TeamTicketEventEnum::Assigned, ['note' => $note]);
         });
     }
 
@@ -600,7 +612,7 @@ class TicketWorkflowService
             $ticket->auto_close_at = null;
             $ticket->reopen_until = $now->addDays($this->settings->reopen_window_days);
 
-            return $this->moveTo($ticket, TaskStatusEnum::CLOSED, $actor, $note, $cycle);
+            return $this->moveTo($ticket, TaskStatusEnum::CLOSED, $actor, $note, $cycle, TeamTicketEventEnum::Closed);
         });
     }
 
@@ -612,8 +624,9 @@ class TicketWorkflowService
         string $closureReason,
         string $note,
         string $assignmentEnd,
+        TeamTicketEventEnum $event,
     ): Ticket {
-        return DB::transaction(function () use ($ticket, $actor, $status, $outcome, $closureReason, $note, $assignmentEnd): Ticket {
+        return DB::transaction(function () use ($ticket, $actor, $status, $outcome, $closureReason, $note, $assignmentEnd, $event): Ticket {
             $now = CarbonImmutable::now();
             $cycle = $this->cycle($ticket);
 
@@ -632,7 +645,7 @@ class TicketWorkflowService
             $ticket->hold_reason = null;
             $ticket->on_hold_since = null;
 
-            return $this->moveTo($ticket, $status, $actor, $note, $cycle);
+            return $this->moveTo($ticket, $status, $actor, $note, $cycle, $event, ['note' => $note]);
         });
     }
 
@@ -706,8 +719,18 @@ class TicketWorkflowService
         return $minutes;
     }
 
-    private function moveTo(Ticket $ticket, TaskStatusEnum $to, ?User $actor, ?string $note, TicketSlaCycle $cycle): Ticket
-    {
+    /**
+     * @param  array<string, mixed>  $context  passed to TeamTicketNotifier
+     */
+    private function moveTo(
+        Ticket $ticket,
+        TaskStatusEnum $to,
+        ?User $actor,
+        ?string $note,
+        TicketSlaCycle $cycle,
+        ?TeamTicketEventEnum $event = null,
+        array $context = [],
+    ): Ticket {
         $from = $ticket->status;
         $ticket->status = $to;
         $this->mirror($ticket, $cycle, save: false);
@@ -721,7 +744,15 @@ class TicketWorkflowService
             'note' => $note,
         ]);
 
-        return $ticket->fresh();
+        $fresh = $ticket->fresh();
+
+        if ($event !== null) {
+            // Only after the transaction commits: a rolled-back step must
+            // never notify anyone.
+            DB::afterCommit(fn () => $this->notifier->dispatch($event, $fresh, $actor, $context));
+        }
+
+        return $fresh;
     }
 
     /**

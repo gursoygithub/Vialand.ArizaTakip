@@ -59,6 +59,7 @@ class TicketSlaCycle extends Model
         'breach_employee_id',
         'warning_sent_at',
         'breach_notified_at',
+        'escalated_at',
         'outcome',
         'ended_at',
     ];
@@ -76,6 +77,7 @@ class TicketSlaCycle extends Model
             'breached_at' => 'immutable_datetime',
             'warning_sent_at' => 'immutable_datetime',
             'breach_notified_at' => 'immutable_datetime',
+            'escalated_at' => 'immutable_datetime',
             'ended_at' => 'immutable_datetime',
             'response_breached' => 'boolean',
             'resolution_breached' => 'boolean',

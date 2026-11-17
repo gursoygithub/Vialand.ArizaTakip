@@ -41,3 +41,5 @@
 - Scheduled every 5 min (`process-team-ticket-sla`, queued, `withoutOverlapping`)
 - Response breach flag; resolution breach flag + attribution + `TeamTicketSlaBreached` (once, `breach_notified_at`); 80 % warning `TeamTicketSlaWarning` once per cycle (`warning_sent_at`, pauses excluded); auto-close of RESOLVED tickets past `auto_close_at`
 - `CheckSlaBreaches` now filters `whereNull('team_id')`
+
+- (Phase 4) The job now calls `TeamTicketNotifier` for warning / breach and escalates breached, still-open cycles after `general.sla_escalation_hours` (sets `escalated_at`)

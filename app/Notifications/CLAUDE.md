@@ -54,3 +54,25 @@ All ticket mails (7 classes + `TicketOnHoldMail`) render `resources/views/mail/t
 ## Date Formatting
 - Use `translatedFormat('d F Y H:i')` in `mail.ticket-event` for Turkish month names (Carbon locale is `tr`)
 - Use `d.m.Y H:i` in any plain-text context — locale-independent
+
+## Team tickets (Phase 4) — `TeamTicketNotification` + `TeamTicketNotifier`
+Levels: **action** = bell + mail (+ push where marked), ignores preferences and mutes · **important** = bell + mail, ignores preferences and mutes · **info** = bell only, skipped when the ticket is muted or the `ticket_participant` bell preference is off. Actor is never notified (except the requester's own "talebiniz alındı"). One notice per person per event (strongest level wins). Users without an email get the bell only.
+
+| Event (`TeamTicketEventEnum`) | Recipients |
+|---|---|
+| Opened | supervisor: action + push · requester: info |
+| Assigned | assignee: action + push · requester: info |
+| Started | requester: info |
+| Held | requester: action + push if `AwaitingRequester`, else info · supervisor: info |
+| Resolved | requester: action + push |
+| ResolutionRejected ("Çözülmedi") | assignee: action + push · supervisor: info |
+| Closed | assignee: info |
+| Reopened | assignee (or supervisor if none): action + push · supervisor: info |
+| Transferred | new supervisor: action + push · old supervisor, requester: info |
+| Rejected / Cancelled | requester: important · assignee: info |
+| PriorityChanged | assignee, requester: info |
+| SlaWarning (80 %, once per cycle) | assignee, or supervisor if unassigned: important |
+| SlaBreached (once per cycle) | assignee + supervisor: important |
+| SlaEscalated (once per cycle) | users with `ticket.sla.escalation`: important |
+
+Mail uses `mail.ticket-event` with `ticketUrl` (→ `/requests/{id}`) and a "Tür / Ekip" row; the template falls back to `/tickets/{id}` for legacy notifications. "Not Ekle" on team tickets still uses the legacy `TicketCommentNotification` via `TicketService::addComment`.

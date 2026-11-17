@@ -8,7 +8,9 @@ use App\Events\TeamTicketSlaWarning;
 use App\Exceptions\TicketWorkflowException;
 use App\Models\Ticket;
 use App\Models\TicketSlaCycle;
+use App\Services\TeamTicketNotifier;
 use App\Services\TicketWorkflowService;
+use App\Settings\GeneralSettings;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -20,13 +22,15 @@ use Illuminate\Support\Facades\Log;
  *  1. response SLA breaches of tickets nobody has started,
  *  2. resolution SLA breaches (flag + attribution + event, once),
  *  3. the 80% warning (event, once per cycle),
- *  4. auto-closing resolutions the requester never confirmed.
+ *  4. escalation to managers when a breached ticket is still open after
+ *     `general.sla_escalation_hours` (once per cycle, 0 = off),
+ *  5. auto-closing resolutions the requester never confirmed.
  */
 class ProcessTeamTicketSla implements ShouldQueue
 {
     use Queueable;
 
-    public function handle(TicketWorkflowService $workflow): void
+    public function handle(TicketWorkflowService $workflow, TeamTicketNotifier $notifier, GeneralSettings $settings): void
     {
         $now = CarbonImmutable::now();
 
@@ -44,11 +48,12 @@ class ProcessTeamTicketSla implements ShouldQueue
             ->whereNull('paused_since')
             ->where('resolution_breached', false)
             ->where('resolution_due_at', '<', $now)
-            ->chunkById(100, function ($cycles) use ($workflow, $now): void {
+            ->chunkById(100, function ($cycles) use ($workflow, $notifier, $now): void {
                 foreach ($cycles as $cycle) {
                     if ($workflow->flagResolutionBreach($cycle, $now)) {
                         $cycle->forceFill(['breach_notified_at' => $now])->save();
                         event(new TeamTicketSlaBreached($cycle));
+                        $notifier->slaBreached($cycle);
                     }
                 }
             });
@@ -58,14 +63,28 @@ class ProcessTeamTicketSla implements ShouldQueue
             ->whereNull('warning_sent_at')
             ->where('resolution_breached', false)
             ->where('resolution_due_at', '>', $now)
-            ->chunkById(100, function ($cycles) use ($workflow, $now): void {
+            ->chunkById(100, function ($cycles) use ($workflow, $notifier, $now): void {
                 foreach ($cycles as $cycle) {
                     if ($workflow->elapsedRatio($cycle, $now) >= TicketWorkflowService::WARNING_RATIO) {
                         $cycle->forceFill(['warning_sent_at' => $now])->save();
                         event(new TeamTicketSlaWarning($cycle));
+                        $notifier->slaWarning($cycle);
                     }
                 }
             });
+
+        if ($settings->sla_escalation_hours > 0) {
+            $this->runningCycles()
+                ->where('resolution_breached', true)
+                ->whereNull('escalated_at')
+                ->where('breached_at', '<=', $now->subHours($settings->sla_escalation_hours))
+                ->chunkById(100, function ($cycles) use ($notifier, $now): void {
+                    foreach ($cycles as $cycle) {
+                        $cycle->forceFill(['escalated_at' => $now])->save();
+                        $notifier->slaEscalated($cycle);
+                    }
+                });
+        }
 
         Ticket::query()
             ->whereNotNull('team_id')

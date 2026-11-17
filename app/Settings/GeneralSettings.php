@@ -21,6 +21,12 @@ class GeneralSettings extends Settings
      */
     public int $reopen_window_days;
 
+    /**
+     * Hours after an SLA breach before a still-open team ticket is escalated
+     * to users with `ticket.sla.escalation`. 0 = off.
+     */
+    public int $sla_escalation_hours;
+
     public static function group(): string
     {
         return 'general'; // Grubu 'general' yaptık

@@ -74,6 +74,12 @@
                                     </span>
                                 </td>
                             </tr>
+                            @if($ticket->team)
+                            <tr>
+                                <td style="padding: 9px 14px; color: #888; border-bottom: 1px solid #f0f0f0;">Tür / Ekip</td>
+                                <td style="padding: 9px 14px; font-weight: 700; color: #111; border-bottom: 1px solid #f0f0f0;">{{ $ticket->ticketType?->name ?? '-' }} / {{ $ticket->team->name }}</td>
+                            </tr>
+                            @endif
                             <tr>
                                 <td style="padding: 9px 14px; color: #888; border-bottom: 1px solid #f0f0f0;">Bölge / Lokasyon</td>
                                 <td style="padding: 9px 14px; font-weight: 700; color: #111; border-bottom: 1px solid #f0f0f0;">
@@ -128,7 +134,7 @@
 
                         {{-- CTA --}}
                         <div style="text-align: center; margin-top: 24px; margin-bottom: 8px;">
-                            <a href="{{ url('/tickets/' . $ticket->id) }}" target="_blank"
+                            <a href="{{ $ticketUrl ?? url('/tickets/' . $ticket->id) }}" target="_blank"
                                style="display: inline-block; padding: 12px 32px; font-size: 14px; font-weight: 700; color: #ffffff; background-color: {{ $headerColor }}; border-radius: 6px; text-decoration: none;">
                                 Talebi Görüntüle →
                             </a>

@@ -357,6 +357,19 @@ tickets keep using `TicketService`. Details: `app/Services/CLAUDE.md`.
   `ticket.view.company` is created by `PermissionSeeder` (run it after deploy).
 - Uses the Ticket policy (`view_any_ticket`, `view_ticket`, `create_ticket`) — the
   same Shield permissions as the legacy menu.
+
+## Notifications — Phase 4 (branch `faz-4-bildirimler`)
+- Team tickets use one notification class `TeamTicketNotification` and one
+  rule book `App\Services\TeamTicketNotifier` (matrix in `app/Notifications/CLAUDE.md`).
+  The legacy notification classes are not used for team tickets.
+- `TicketWorkflowService::moveTo()` dispatches via `DB::afterCommit` — a rolled-back
+  step never notifies.
+- SLA escalation: still-open breached cycles older than `general.sla_escalation_hours`
+  (default 4, 0 = off) notify users holding `ticket.sla.escalation` (PermissionSeeder;
+  super_admin has it via the seeder sync), once per cycle (`escalated_at`).
+- Local dev: `MAIL_HOST=mailpit` — start it with the app container
+  (`docker compose up -d --no-deps mailpit`); inbox at http://localhost:8025.
+  Without it every notifying action fails (queue is `sync` locally).
 ## Dead / Leftover Code (do not build on it)
 Verified unused on `gg-ticket` @ `b92c364` (audit 2026-11-17). Leftovers from
 other projects or from the pre-Reform Task system:

@@ -73,6 +73,16 @@ class ManageGeneralSettings extends SettingsPage
                             ->suffix(__('ui.days'))
                             ->required()
                             ->helperText(__('ui.reopen_window_days_help')),
+
+                        TextInput::make('sla_escalation_hours')
+                            ->label(__('ui.sla_escalation_hours'))
+                            ->numeric()
+                            ->integer()
+                            ->minValue(0)
+                            ->maxValue(168)
+                            ->suffix(__('ui.hours_short'))
+                            ->required()
+                            ->helperText(__('ui.sla_escalation_hours_help')),
                     ]),
             ]);
     }

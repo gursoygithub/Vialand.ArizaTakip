@@ -80,3 +80,5 @@ Settings migration `database/settings/2026_11_17_200006`: `general.auto_close_da
 | ticket_assignments | ticket_id, ticket_sla_cycle_id, employee_id, assigned_by, self_assigned, started_at, ended_at, end_reason, remaining_ratio_at_start |
 | tickets (+) | hold_reason, closure_reason, auto_close_at, reopen_until; `area_id`, `sub_area_id`, `unit_id` are now NULLABLE (FKs kept) |
 `TaskStatusEnum::REJECTED = 17` added (terminal, excluded from performance).
+
+Phase 4: `ticket_sla_cycles.escalated_at`; settings `general.sla_escalation_hours` = 4.

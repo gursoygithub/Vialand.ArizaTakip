@@ -55,6 +55,8 @@ class PermissionSeeder extends Seeder
         // Team-model tickets: see requests raised or handled by people of
         // the viewer's companies (agreement §7 "Şirket kapsamı").
         'ticket.view.company',
+        // Receives escalations of team tickets still open X hours after an SLA breach.
+        'ticket.sla.escalation',
 
         // Ticket actions
         'ticket.assign',
