@@ -113,4 +113,16 @@ return [
         'name' => env('MAIL_FROM_NAME', 'Example'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Redirect All Mail (test environments)
+    |--------------------------------------------------------------------------
+    |
+    | When set, every outgoing mail goes only to this address and the subject
+    | shows who it was meant for. Leave empty in production.
+    |
+    */
+
+    'always_to' => env('MAIL_ALWAYS_TO'),
+
 ];
