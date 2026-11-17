@@ -144,6 +144,34 @@ class TeamTicketScreensTest extends TestCase
             ->assertHasFormErrors(['custom_fields.asset_no' => 'required']);
     }
 
+    /**
+     * Mirrors the browser: the type is picked first (which resets the custom
+     * fields), then the team, then the type's own fields one by one.
+     */
+    public function test_required_select_custom_field_is_accepted_when_filled_step_by_step(): void
+    {
+        $this->type->update(['form_fields' => [
+            ['key' => 'device_kind', 'label' => 'Konu', 'type' => FormFieldTypeEnum::Select->value, 'options' => ['Bilgisayar', 'Yazıcı'], 'required' => true],
+            ['key' => 'asset_no', 'label' => 'Demirbaş No', 'type' => FormFieldTypeEnum::Text->value, 'required' => false],
+        ]]);
+
+        Livewire::test(CreateTeamTicket::class)
+            ->fillForm(['ticket_type_id' => $this->type->id])
+            ->assertSet('data.custom_fields', ['device_kind' => null, 'asset_no' => null])
+            ->fillForm(['team_id' => $this->team->id])
+            ->set('data.custom_fields.device_kind', 'Bilgisayar')
+            ->set('data.custom_fields.asset_no', 'PC01')
+            ->set('data.description', 'merhaba bu bir testtir.')
+            ->call('create')
+            ->assertHasNoFormErrors()
+            ->assertRedirect();
+
+        $this->assertSame(
+            ['device_kind' => 'Bilgisayar', 'asset_no' => 'PC01'],
+            Ticket::whereNotNull('team_id')->sole()->custom_fields,
+        );
+    }
+
     public function test_team_must_belong_to_the_selected_type(): void
     {
         $otherTeam = Team::factory()->create();

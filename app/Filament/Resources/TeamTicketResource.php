@@ -93,9 +93,9 @@ class TeamTicketResource extends Resource
                             ->inline()
                             ->required()
                             ->live()
-                            ->afterStateUpdated(function (Set $set): void {
+                            ->afterStateUpdated(function (Set $set, mixed $state): void {
                                 $set('team_id', null);
-                                $set('custom_fields', []);
+                                $set('custom_fields', self::blankCustomFields($state));
                                 $set('area_id', null);
                                 $set('sub_area_id', null);
                             })
@@ -224,6 +224,25 @@ class TeamTicketResource extends Resource
             })
             ->filter()
             ->values()
+            ->all();
+    }
+
+    /**
+     * Empty state keyed by the type's field keys. A plain [] reaches the
+     * browser as a JS array, which silently drops string keys like
+     * "device_kind" on the next request, so required fields never arrive.
+     *
+     * @return array<string, mixed>
+     */
+    public static function blankCustomFields(mixed $ticketTypeId): array
+    {
+        $fields = blank($ticketTypeId) ? [] : (TicketType::find($ticketTypeId)?->form_fields ?? []);
+
+        return collect($fields)
+            ->filter(fn (array $field): bool => filled($field['key'] ?? null))
+            ->mapWithKeys(fn (array $field): array => [
+                $field['key'] => ($field['type'] ?? null) === FormFieldTypeEnum::Checkbox->value ? false : null,
+            ])
             ->all();
     }
 
