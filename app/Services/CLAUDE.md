@@ -176,6 +176,7 @@ prerequisites before allowing creation.
 - Cycles are selected by `ended_at` in range and limited to `teamsVisibleTo($viewer)`
 - **Counts** only `on_time` / `breached` cycles with `exempted = false`; cancelled / rejected / transferred / exempted never count (exempted and "cancelled after breach" are listed separately)
 - **Person**: denominator = cycles they resolved (last assignment of the cycle) ∪ cycles whose breach is charged to them (`breach_attribution = person`); compliance = 1 − charged / denominator. Handover and dispatch breaches are team-only
+- `personReport(Employee)` → `summary`, `last30` (by `ended_at`), `teams`, `priorities` — same person rules as `report()`, all teams, no viewer filter (the employee page is already scoped); adds `target` (avg cycle `success_threshold`) and `rated`. `currentWorkload(Employee)` → open team tickets held (`ACTIVE_STATUSES`) and those with `sla_breached`
 - Quality: `reopened` (a next cycle on the same team exists) and `resolution_rejections` go to the resolver; satisfaction to the resolver and team; resolution time = working minutes `started_at → resolved_at` minus `paused_minutes`
 
 ## SlaExemptionService (Phase 5)

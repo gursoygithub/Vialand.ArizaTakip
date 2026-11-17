@@ -4,8 +4,10 @@ namespace App\Services;
 
 use App\Enums\BreachAttributionEnum;
 use App\Enums\SlaCycleOutcomeEnum;
+use App\Enums\TaskStatusEnum;
 use App\Models\Employee;
 use App\Models\Team;
+use App\Models\Ticket;
 use App\Models\TicketSlaCycle;
 use App\Models\User;
 use Carbon\CarbonInterface;
@@ -26,6 +28,18 @@ use Illuminate\Support\Collection;
  */
 class TeamPerformanceService
 {
+    /**
+     * Statuses in which a request is still on its holder's plate.
+     *
+     * @var array<int, TaskStatusEnum>
+     */
+    public const ACTIVE_STATUSES = [
+        TaskStatusEnum::OPEN,
+        TaskStatusEnum::ASSIGNED,
+        TaskStatusEnum::IN_PROGRESS,
+        TaskStatusEnum::ON_HOLD,
+    ];
+
     public function __construct(private WorkingTimeCalculator $calculator) {}
 
     /**
@@ -89,6 +103,94 @@ class TeamPerformanceService
     }
 
     /**
+     * One person's figures across every team they worked in, by the same
+     * rules as the report: only cycles they resolved or whose breach was
+     * charged to them, and only breaches attributed to them count against
+     * them.
+     *
+     * @return array{summary: array<string, mixed>, last30: array<string, mixed>, teams: array<int, array<string, mixed>>, priorities: array<int, array<string, mixed>>}
+     */
+    public function personReport(Employee $employee): array
+    {
+        $cycles = TicketSlaCycle::query()
+            ->whereNotNull('ended_at')
+            ->where(fn (Builder $q) => $q->where('breach_employee_id', $employee->id)
+                ->orWhereHas('assignments', fn (Builder $a) => $a->where('employee_id', $employee->id)))
+            ->with(['team.ticketType', 'workCalendar', 'assignments.employee', 'breachEmployee'])
+            ->get();
+
+        $rows = $cycles
+            ->map(fn (TicketSlaCycle $cycle): array => $this->describe($cycle, $cycles))
+            ->filter(fn (array $row): bool => $row['counts']
+                && ($row['resolver']?->id === $employee->id || $row['charged']?->id === $employee->id))
+            ->values();
+
+        $since = now()->subDays(30);
+
+        return [
+            'summary' => $this->personFigures($rows, $employee),
+            'last30' => $this->personFigures($rows->filter(fn (array $row): bool => $row['ended_at'] >= $since), $employee),
+            'teams' => $rows->groupBy('team_id')
+                ->map(fn (Collection $group): array => [
+                    'name' => $group->first()['team_name'],
+                    'type' => $group->first()['type_name'],
+                ] + $this->personFigures($group, $employee))
+                ->sortBy('name')->values()->all(),
+            'priorities' => $rows->groupBy(fn (array $row): int => $row['priority']->value)
+                ->sortKeysDesc()
+                ->map(fn (Collection $group): array => [
+                    'priority' => $group->first()['priority'],
+                ] + $this->personFigures($group, $employee))
+                ->values()->all(),
+        ];
+    }
+
+    /**
+     * Requests on the person's plate right now (team model only).
+     *
+     * @return array{active: int, breached: int}
+     */
+    public function currentWorkload(Employee $employee): array
+    {
+        $query = Ticket::query()
+            ->whereNotNull('team_id')
+            ->where('employee_id', $employee->id)
+            ->whereIn('status', self::ACTIVE_STATUSES);
+
+        return [
+            'active' => (clone $query)->count(),
+            'breached' => (clone $query)->where('sla_breached', true)->count(),
+        ];
+    }
+
+    /**
+     * @param  Collection<int, array<string, mixed>>  $rows  counted rows involving the person
+     * @return array<string, mixed>
+     */
+    private function personFigures(Collection $rows, Employee $employee): array
+    {
+        $total = $rows->count();
+        $charged = $rows->filter(fn (array $row): bool => $row['charged']?->id === $employee->id)->count();
+        $resolved = $rows->filter(fn (array $row): bool => $row['resolver']?->id === $employee->id);
+        $scores = $resolved->pluck('satisfaction')->filter();
+        $minutes = $resolved->pluck('resolution_minutes')->filter(fn ($m) => $m !== null);
+
+        return [
+            'total' => $total,
+            'on_time' => $total - $charged,
+            'personal_breaches' => $charged,
+            'compliance' => $total > 0 ? round(($total - $charged) / $total * 100, 1) : null,
+            'target' => $total > 0 ? round($rows->avg('threshold'), 1) : null,
+            'resolved' => $resolved->count(),
+            'reopened' => $resolved->where('reopened', true)->count(),
+            'rejections' => $resolved->sum('rejections'),
+            'satisfaction' => $scores->isNotEmpty() ? round($scores->avg(), 2) : null,
+            'rated' => $scores->count(),
+            'avg_resolution_minutes' => $minutes->isNotEmpty() ? (int) round($minutes->avg()) : null,
+        ];
+    }
+
+    /**
      * One flat record per cycle with everything the aggregations need.
      *
      * @param  Collection<int, TicketSlaCycle>  $all
@@ -113,6 +215,9 @@ class TeamPerformanceService
         return [
             'team_id' => $cycle->team_id,
             'team_name' => $cycle->team?->name ?? '—',
+            'priority' => $cycle->priority,
+            'threshold' => $cycle->success_threshold,
+            'ended_at' => $cycle->ended_at,
             'type_name' => $cycle->team?->ticketType?->name ?? '—',
             'counts' => $counts,
             'breached' => $breached,
