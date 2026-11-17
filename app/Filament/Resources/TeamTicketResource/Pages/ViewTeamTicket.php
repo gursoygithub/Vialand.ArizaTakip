@@ -18,7 +18,6 @@ use App\Models\TicketSlaCycle;
 use App\Services\SlaExemptionService;
 use App\Services\TicketService;
 use App\Services\TicketWorkflowService;
-use Carbon\CarbonInterface;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Forms;
@@ -472,6 +471,7 @@ class ViewTeamTicket extends ViewRecord
         $workflow = $this->workflow();
         $running = $cycle->outcome === null;
         $ratio = $running ? $workflow->elapsedRatio($cycle) : null;
+        $remaining = $running ? $workflow->remainingWorkingMinutes($cycle) : 0;
 
         return [
             Infolists\Components\TextEntry::make('sla_response')
@@ -482,14 +482,23 @@ class ViewTeamTicket extends ViewRecord
                 ->badge()
                 ->color($cycle->response_breached ? 'danger' : ($cycle->responded_at ? 'success' : 'gray')),
 
+            // The one number the assignee must notice: working time left.
             Infolists\Components\TextEntry::make('sla_resolution')
                 ->label(__('ui.sla_resolution'))
-                ->state(__('ui.sla_due_at', ['time' => $cycle->resolution_due_at->translatedFormat('d M H:i')]))
-                ->helperText($running && ! $cycle->isPaused() && ! $cycle->resolution_breached
-                    ? __('ui.sla_due', ['time' => $cycle->resolution_due_at->diffForHumans(['syntax' => CarbonInterface::DIFF_ABSOLUTE, 'parts' => 2, 'short' => true])])
-                    : null)
-                ->badge()
-                ->color($cycle->resolution_breached ? 'danger' : ($ratio !== null && $ratio >= TicketWorkflowService::WARNING_RATIO ? 'warning' : 'success')),
+                ->state(match (true) {
+                    ! $running => $cycle->resolved_at
+                        ? __('ui.sla_resolved_at', ['time' => $cycle->resolved_at->translatedFormat('d M H:i')])
+                        : $cycle->outcome->getLabel(),
+                    $cycle->isPaused() => __('ui.sla_paused_left', ['time' => TeamTicketResource::workingDuration(max(0, $remaining))]),
+                    default => TeamTicketResource::remainingLabel($remaining),
+                })
+                ->size(Infolists\Components\TextEntry\TextEntrySize::Large)
+                ->weight('bold')
+                ->icon($running && ! $cycle->isPaused() ? 'heroicon-o-clock' : null)
+                ->color($this->slaTone($cycle, $ratio, $remaining))
+                ->helperText(__($cycle->workCalendar && ! $cycle->workCalendar->is_24_7 ? 'ui.sla_deadline_hint_working' : 'ui.sla_deadline_hint', [
+                    'time' => $cycle->resolution_due_at->translatedFormat('d M Y H:i'),
+                ])),
 
             Infolists\Components\TextEntry::make('sla_state')
                 ->label(__('ui.status'))
@@ -497,7 +506,7 @@ class ViewTeamTicket extends ViewRecord
                     $cycle->outcome !== null => $cycle->outcome->getLabel(),
                     $cycle->isPaused() => '⏸ '.__('ui.sla_paused'),
                     $cycle->resolution_breached => __('ui.sla_breached'),
-                    default => __('ui.sla_running', ['percent' => (int) round(min(1, $ratio) * 100)]),
+                    default => __('ui.sla_running_plain'),
                 })
                 ->helperText($cycle->resolution_breached && $cycle->breach_attribution
                     ? __('ui.sla_breach_owner', [
@@ -521,6 +530,16 @@ class ViewTeamTicket extends ViewRecord
                     $cycle->cycle_no > 1 ? __('ui.sla_cycle_no', ['no' => $cycle->cycle_no]) : null,
                 ])->filter()->implode(' · ')),
 
+            Infolists\Components\ViewEntry::make('sla_progress')
+                ->hiddenLabel()
+                ->visible($running)
+                ->columnSpanFull()
+                ->view('filament.partials.team-ticket-sla-bar', [
+                    'percent' => (int) round(min(1, $ratio ?? 0) * 100),
+                    'tone' => $this->slaTone($cycle, $ratio, $remaining),
+                    'paused' => $cycle->isPaused(),
+                ]),
+
             Infolists\Components\TextEntry::make('sla_exemption')
                 ->label(__('ui.exemption'))
                 ->visible($cycle->exemptions()->exists())
@@ -534,6 +553,26 @@ class ViewTeamTicket extends ViewRecord
                 ->state($cycle->satisfaction_score !== null ? str_repeat('★', $cycle->satisfaction_score).str_repeat('☆', 5 - $cycle->satisfaction_score) : null)
                 ->helperText($cycle->satisfaction_comment),
         ];
+    }
+
+    /**
+     * success → warning at 80 % → danger when overdue; gray while paused or finished.
+     */
+    private function slaTone(TicketSlaCycle $cycle, ?float $ratio, int $remaining): string
+    {
+        if ($cycle->outcome !== null) {
+            return $cycle->resolution_breached ? 'danger' : 'success';
+        }
+
+        if ($cycle->isPaused()) {
+            return 'gray';
+        }
+
+        if ($cycle->resolution_breached || $remaining <= 0) {
+            return 'danger';
+        }
+
+        return ($ratio ?? 0) >= TicketWorkflowService::WARNING_RATIO ? 'warning' : 'success';
     }
 
     /**

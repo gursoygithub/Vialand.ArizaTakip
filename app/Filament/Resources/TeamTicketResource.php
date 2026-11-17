@@ -376,11 +376,32 @@ class TeamTicketResource extends Resource
             return '⏸ '.__('ui.sla_paused');
         }
 
-        if ($cycle->resolution_breached || $cycle->resolution_due_at->isPast()) {
-            return __('ui.sla_breached');
-        }
+        return self::remainingLabel(app(TicketWorkflowService::class)->remainingWorkingMinutes($cycle));
+    }
 
-        return __('ui.sla_due', ['time' => $cycle->resolution_due_at->diffForHumans(['syntax' => \Carbon\CarbonInterface::DIFF_ABSOLUTE, 'parts' => 2, 'short' => true])]);
+    /**
+     * "8 sa 15 dk kaldı" / "2 sa gecikti" — always in working time.
+     */
+    public static function remainingLabel(int $remainingMinutes): string
+    {
+        return $remainingMinutes > 0
+            ? __('ui.sla_due', ['time' => self::workingDuration($remainingMinutes)])
+            : __('ui.sla_overdue', ['time' => self::workingDuration(abs($remainingMinutes))]);
+    }
+
+    /**
+     * Working-time duration as hours and minutes only: "1 gün" would wrongly
+     * suggest 24 hours of work.
+     */
+    public static function workingDuration(int $minutes): string
+    {
+        $hours = intdiv($minutes, 60);
+        $rest = $minutes % 60;
+
+        return collect([
+            $hours ? $hours.' '.__('ui.hours_short') : null,
+            $rest || ! $hours ? $rest.' '.__('ui.minutes_short') : null,
+        ])->filter()->implode(' ');
     }
 
     public static function slaColor(Ticket $ticket): string

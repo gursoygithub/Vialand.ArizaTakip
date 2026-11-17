@@ -12,6 +12,7 @@ use App\Enums\TaskPriorityEnum;
 use App\Enums\TaskStatusEnum;
 use App\Enums\UserStatusEnum;
 use App\Exceptions\TicketWorkflowException;
+use App\Filament\Resources\TeamTicketResource;
 use App\Models\Employee;
 use App\Models\Team;
 use App\Models\Ticket;
@@ -501,6 +502,37 @@ class TicketWorkflowTest extends TestCase
         $ticket->update(['description' => 'Güncellendi']);
 
         $this->assertFalse($ticket->fresh()->sla_breached);
+    }
+
+    public function test_remaining_time_is_working_time_not_wall_clock(): void
+    {
+        $office = WorkCalendar::factory()->create(); // Mon–Fri 08:00–18:00
+        $this->team->update(['work_calendar_id' => $office->id]);
+        $this->travelTo(CarbonImmutable::parse('2026-11-16 19:12:00')); // Monday evening
+        $cycle = $this->cycleOf($this->open()); // Urgent: 120 working minutes
+
+        // Overnight nothing is used, even though the deadline is ~14 hours away.
+        $this->assertSame(120, $this->workflow->remainingWorkingMinutes($cycle));
+
+        $this->travelTo(CarbonImmutable::parse('2026-11-17 09:30:00'));
+        $this->assertSame(30, $this->workflow->remainingWorkingMinutes($cycle));
+
+        $this->travelTo(CarbonImmutable::parse('2026-11-17 10:45:00'));
+        $this->assertSame(-45, $this->workflow->remainingWorkingMinutes($cycle));
+        $this->assertSame('45 dk gecikti', TeamTicketResource::remainingLabel(-45));
+        $this->assertSame('2 sa 5 dk kaldı', TeamTicketResource::remainingLabel(125));
+        $this->assertSame('26 sa kaldı', TeamTicketResource::remainingLabel(1560));
+    }
+
+    public function test_paused_ticket_keeps_its_remaining_time(): void
+    {
+        $ticket = $this->openAssignedAndStarted();
+        $this->travel(30)->minutes();
+        $ticket = $this->workflow->hold($ticket, $this->tech1, HoldReasonEnum::AwaitingParts);
+
+        $this->travel(300)->minutes();
+
+        $this->assertSame(90, $this->workflow->remainingWorkingMinutes($this->cycleOf($ticket)));
     }
 
     public function test_office_hours_team_counts_only_working_time(): void

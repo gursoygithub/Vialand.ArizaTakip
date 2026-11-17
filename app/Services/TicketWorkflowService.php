@@ -536,12 +536,28 @@ class TicketWorkflowService
      */
     public function elapsedRatio(TicketSlaCycle $cycle, ?CarbonImmutable $now = null): float
     {
-        $now ??= CarbonImmutable::now();
-        $until = $cycle->paused_since ?? $now;
-        $used = $this->calculator->workingMinutesBetween($cycle->started_at, $until, $cycle->workCalendar)
-            - $cycle->paused_minutes;
+        $used = $this->usedWorkingMinutes($cycle, $now);
 
         return $cycle->resolution_minutes > 0 ? max(0.0, $used / $cycle->resolution_minutes) : 1.0;
+    }
+
+    /**
+     * Working minutes of the resolution target still left (negative once
+     * overdue). Pauses are excluded and the clock stands still while paused,
+     * so this is what the assignee really has — not the wall-clock gap to
+     * the deadline, which includes nights and weekends.
+     */
+    public function remainingWorkingMinutes(TicketSlaCycle $cycle, ?CarbonImmutable $now = null): int
+    {
+        return $cycle->resolution_minutes - $this->usedWorkingMinutes($cycle, $now);
+    }
+
+    private function usedWorkingMinutes(TicketSlaCycle $cycle, ?CarbonImmutable $now = null): int
+    {
+        $until = $cycle->paused_since ?? ($now ?? CarbonImmutable::now());
+
+        return max(0, $this->calculator->workingMinutesBetween($cycle->started_at, $until, $cycle->workCalendar)
+            - $cycle->paused_minutes);
     }
 
     // ── Internals ───────────────────────────────────────────────────────

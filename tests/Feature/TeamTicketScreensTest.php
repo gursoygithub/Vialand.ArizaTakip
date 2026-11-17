@@ -371,6 +371,8 @@ class TeamTicketScreensTest extends TestCase
             ->assertOk()
             ->assertSee('DMR-1001')
             ->assertSee(__('ui.sla_resolution'))
+            ->assertSee(__('ui.sla_due', ['time' => '8 sa']))
+            ->assertSee(__('ui.sla_used', ['percent' => 0]))
             ->assertSee(__('ui.request_in_pool'));
     }
 }

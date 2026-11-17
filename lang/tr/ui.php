@@ -1134,4 +1134,12 @@ return [
     'dashboard_type_chart_desc' => 'Şu an açık olan taleplerin türlere dağılımı',
     'sla_target_response' => 'Yanıt: :time',
     'sla_target_resolution' => 'Çözüm: :time',
+    'sla_overdue' => ':time gecikti',
+    'sla_paused_left' => 'Durdu · :time kaldı',
+    'sla_resolved_at' => 'Çözüldü: :time',
+    'sla_running_plain' => 'Süre işliyor',
+    'sla_deadline_hint' => 'Son tarih: :time',
+    'sla_deadline_hint_working' => 'Son tarih: :time · süre yalnızca mesai saatlerinde işler',
+    'sla_used' => 'Sürenin %:percent kadarı kullanıldı',
+    'sla_used_paused' => 'Süre durduruldu · %:percent kullanıldı',
 ];
