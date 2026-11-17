@@ -48,7 +48,32 @@ class ManageGeneralSettings extends SettingsPage
                             ->maxValue(100)
                             ->required()
                             ->helperText('Personelin "Verimli" sayılması için gereken minimum başarı yüzdesi.'),
-                    ])
+                    ]),
+
+                Section::make(__('ui.ticket_lifecycle_settings'))
+                    ->description(__('ui.ticket_lifecycle_settings_help'))
+                    ->columns(2)
+                    ->schema([
+                        TextInput::make('auto_close_days')
+                            ->label(__('ui.auto_close_days'))
+                            ->numeric()
+                            ->integer()
+                            ->minValue(1)
+                            ->maxValue(30)
+                            ->suffix(__('ui.days'))
+                            ->required()
+                            ->helperText(__('ui.auto_close_days_help')),
+
+                        TextInput::make('reopen_window_days')
+                            ->label(__('ui.reopen_window_days'))
+                            ->numeric()
+                            ->integer()
+                            ->minValue(1)
+                            ->maxValue(90)
+                            ->suffix(__('ui.days'))
+                            ->required()
+                            ->helperText(__('ui.reopen_window_days_help')),
+                    ]),
             ]);
     }
 

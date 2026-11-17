@@ -60,3 +60,15 @@ Always write a new migration file. Schema changes are additive.
 - Tables referenced by leftover code but **absent** from the schema: `reports`, `daily_reports` (see root CLAUDE.md "Dead / Leftover Code")
 - External connections: `sqlsrv2` (employee / technician sync, `_TGRY_PERSONEL`), `sqlsrv` (used only by the dead `DailyReportService`)
 - `employees.performance_score` and `employees.current_threshold` are **NULLABLE** (`decimal(5,2) NULL`). The original migration added them as `DEFAULT 0`; a follow-up migration (`2026_05_18_*_make_employee_performance_columns_nullable`) backfills all zeros to NULL. **`null` means "no sealed tickets yet"** — not a zero score. UI code must guard `is_null()` before rendering.
+
+## Request model tables (Phase 1, `2026_11_17_2000xx`)
+| Table | Key columns |
+|---|---|
+| ticket_types | name, description, icon, color, location_requirement (hidden/optional/required), form_fields JSON, is_active, sort_order, audit cols, soft deletes |
+| work_calendars | name, is_24_7, working_hours JSON (ISO weekday → {start,end}), observes_holidays, is_active, audit cols, soft deletes |
+| holidays | date (UNIQUE, Y-m-d), name |
+| teams | ticket_type_id FK, name, supervisor_employee_id FK employees, work_calendar_id FK NULL (nullOnDelete), allow_self_assign, is_active, audit cols, soft deletes |
+| team_members | team_id FK cascade, employee_id FK cascade, UNIQUE (team_id, employee_id) |
+| team_sla_policies | team_id FK cascade, priority (1–4), response_minutes, resolution_minutes, success_threshold; UNIQUE (team_id, priority) |
+| tickets (+) | ticket_type_id FK NULL, team_id FK NULL, custom_fields JSON NULL |
+Settings migration `database/settings/2026_11_17_200006`: `general.auto_close_days` = 3, `general.reopen_window_days` = 7.

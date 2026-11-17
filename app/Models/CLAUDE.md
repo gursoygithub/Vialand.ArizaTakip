@@ -154,3 +154,12 @@ Use only Reform-era statuses: `OPEN`, `ASSIGNED`, `IN_PROGRESS`,
 
 When encountering any of the above in existing code: flag and fix.
 When writing new code: never use any of the above.
+
+## Request model (Phase 1)
+- **TicketType**: teams, activeTeams, tickets; scopes `active()`, `ordered()`; casts `location_requirement` → `LocationRequirementEnum`, `form_fields` → array
+- **Team**: ticketType, supervisor (Employee), workCalendar, members (BelongsToMany Employee via `team_members`), slaPolicies (ordered by priority), tickets; `slaPolicyFor(TaskPriorityEnum)`, `runsAroundTheClock()`; scope `active()`
+- **TeamSlaPolicy**: team; `priority` cast to `TaskPriorityEnum`
+- **WorkCalendar**: teams; `hoursFor(int $isoWeekday): ?array{start,end}` (24/7 → 00:00–24:00, closed → null)
+- **Holiday**: `date` is stored as plain `Y-m-d` (set mutator) so the unique rule works on every driver
+- **Employee**: + teams (member), supervisedTeams; **Ticket**: + ticketType, team, `custom_fields` (array)
+- `Concerns\RecordsAuthors` fills created_by / updated_by / deleted_by and adds createdBy / updatedBy relations

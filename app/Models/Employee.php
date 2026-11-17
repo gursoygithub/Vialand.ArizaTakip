@@ -48,6 +48,16 @@ class Employee extends Model
         return $this->belongsTo(Company::class);
     }
 
+    public function teams(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    {
+        return $this->belongsToMany(Team::class, 'team_members')->withTimestamps();
+    }
+
+    public function supervisedTeams(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(Team::class, 'supervisor_employee_id');
+    }
+
     // İlişkilerdeki ->with() kısımlarını temizledik.
     // Bunları ihtiyacın olan Resource (EmployeeResource) içinde çağırmak sistemi yormaz.
     public function managedGroups()

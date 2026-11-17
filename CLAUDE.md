@@ -303,6 +303,31 @@ A 9-phase refactor that established the current permission architecture:
   `widget_DailyTaskPerformance`
 - DB migration: `2026_05_10_221815_permission_reform_cleanup.php`
 
+
+## New Request Model — Phase 1 (2026-11-17, branch `faz-1-veri-modeli`)
+Agreed redesign (agreement doc: https://claude.ai/artifact/Q5eUYYHpfbTgbNZcmjCRyB).
+Phase 1 adds the data model and admin screens **next to** the legacy
+area/unit/group/SlaPolicy flow; tickets are still created the old way until the
+lifecycle phase moves creation onto types and teams.
+- **TicketType** — Arıza, IT, Elektrik… Own extra form fields in `form_fields` JSON
+  (`key`, `label`, `type` = `FormFieldTypeEnum`, `required`, `options`, `help`) and a
+  `location_requirement` (`LocationRequirementEnum`: hidden / optional / required).
+- **Team** — belongs to exactly one type; `supervisor_employee_id` + `team_members`
+  (any company); optional `work_calendar_id` (NULL = 7/24); `allow_self_assign`.
+  `team_sla_policies`: one row per priority with `response_minutes`,
+  `resolution_minutes`, `success_threshold`. Defaults: `Team::DEFAULT_SLA_MINUTES`.
+- **WorkCalendar** — `is_24_7` or `working_hours` JSON keyed by ISO weekday
+  (closed days are not stored); `observes_holidays`. **Holiday** — unique `date`.
+- `tickets.ticket_type_id`, `tickets.team_id`, `tickets.custom_fields` (nullable, not
+  used by the UI yet).
+- Settings (`GeneralSettings`): `auto_close_days` (3), `reopen_window_days` (7).
+  Decision 17: copy them onto the ticket when used, never read them retroactively.
+- New models use `App\Models\Concerns\RecordsAuthors` (created_by / updated_by /
+  deleted_by, safe without an authenticated user) instead of hand-written `booted()`.
+- Shield permissions for the new resources: `*_ticket::type`, `*_team`,
+  `*_work::calendar`, `*_holiday`. After deploying, run
+  `php artisan shield:generate --resource=TicketTypeResource,TeamResource,WorkCalendarResource,HolidayResource --option=permissions --panel=dashboard --ignore-existing-policies`
+  then `php artisan db:seed --class=PermissionSeeder` so super_admin gets them.
 ## Dead / Leftover Code (do not build on it)
 Verified unused on `gg-ticket` @ `b92c364` (audit 2026-11-17). Leftovers from
 other projects or from the pre-Reform Task system:

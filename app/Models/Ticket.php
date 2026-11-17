@@ -26,6 +26,9 @@ class Ticket extends Model implements HasMedia
         'ticket_no',
         'title',
         'description',
+        'ticket_type_id',
+        'team_id',
+        'custom_fields',
         'user_id',
         'area_id',
         'group_id',
@@ -66,6 +69,7 @@ class Ticket extends Model implements HasMedia
         'total_on_hold_minutes' => 'integer',
         'reopened_at'  => 'datetime',
         'sla_breached' => 'boolean',
+        'custom_fields' => 'array',
         'type_id'      => \App\Enums\TaskTypeEnum::class,
         'status'       => \App\Enums\TaskStatusEnum::class,
         'priority'     => \App\Enums\TaskPriorityEnum::class,
@@ -73,6 +77,16 @@ class Ticket extends Model implements HasMedia
     ];
 
     // --- Relationships ---
+
+    public function ticketType(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(TicketType::class);
+    }
+
+    public function team(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(Team::class);
+    }
 
     public function employee()
     {

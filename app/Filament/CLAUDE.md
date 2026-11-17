@@ -150,3 +150,10 @@ Use only Reform-era statuses: `OPEN`, `ASSIGNED`, `IN_PROGRESS`,
 
 When encountering any of the above in existing code: flag and fix.
 When writing new code: never use any of the above.
+
+## Request model admin (Phase 1) — navigation group "Panel Yönetimi"
+- `TicketTypeResource` (List/Create/View/Edit): info section + `form_fields` Repeater (label → auto `key` slug, `key` regex `^[a-z][a-z0-9_]*$` + `distinct()`, type, options only for select, required, help). Delete only when the type has no teams and no tickets (otherwise deactivate)
+- `TeamResource` (List/Create/View/Edit): type, name, supervisor + members selects (server-side search, label "Ad (Şirket)" via `TeamResource::employeeLabel`), calendar (empty = 7/24), self-assign toggle. SLA Repeater bound to `slaPolicies`: fixed 4 rows (not addable/deletable), priority disabled+dehydrated, `resolution_minutes` `gte(response_minutes)`. Delete only when the team has no tickets
+- `WorkCalendarResource` (ManageRecords, modal): 7 weekday rows of TimePickers (`working_hours.{day}.start/end`, `requiredWith` + `after`); `WorkCalendarResource::normalize()` drops closed days / clears hours for 24/7 (called from Create and Edit actions); `summarize()` for the table
+- `HolidayResource` (ManageRecords): date (unique) + name; "Yaklaşanlar" filter on by default
+- `ManageGeneralSettings`: + "Talep Süreci Ayarları" (`auto_close_days`, `reopen_window_days`)
