@@ -88,6 +88,8 @@ RUN npm run build
 
 # --- supervisor config ---
 RUN echo "session.upload_progress.enabled = 0" > /etc/php/8.4/fpm/conf.d/99-php2shell-mitigation.ini
+# Upload limits: forms accept files up to 10 MB (PHP default is 2 MB)
+RUN printf "upload_max_filesize = 20M\npost_max_size = 25M\n" > /etc/php/8.4/fpm/conf.d/99-uploads.ini
 COPY ./.docker/supervisord.conf /etc/supervisor/supervisord.conf
 
 # --- nginx ve start script ---
