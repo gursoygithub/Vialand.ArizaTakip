@@ -32,6 +32,12 @@ class TicketObserver
      */
     public function saving(Ticket $ticket): void
     {
+        // Team-model tickets: SLA, timestamps and breach state are owned by
+        // TicketWorkflowService and ticket_sla_cycles, not by this observer.
+        if ($ticket->usesTeamWorkflow()) {
+            return;
+        }
+
         if ($ticket->employee_id && empty($ticket->assigned_at)) {
             $ticket->assigned_at = now();
         }
@@ -100,7 +106,8 @@ class TicketObserver
     public function creating(Ticket $ticket): void
     {
         // Resolve and snapshot the SLA deadline at creation time
-        if ($ticket->area_id && $ticket->priority) {
+        // (legacy flow only — team tickets get a ticket_sla_cycles row).
+        if (! $ticket->usesTeamWorkflow() && $ticket->area_id && $ticket->priority) {
             $priorityValue = is_object($ticket->priority)
                 ? $ticket->priority->value
                 : $ticket->priority;

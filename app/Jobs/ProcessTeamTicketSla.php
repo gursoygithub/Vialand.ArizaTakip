@@ -1,0 +1,100 @@
+<?php
+
+namespace App\Jobs;
+
+use App\Enums\TaskStatusEnum;
+use App\Events\TeamTicketSlaBreached;
+use App\Events\TeamTicketSlaWarning;
+use App\Exceptions\TicketWorkflowException;
+use App\Models\Ticket;
+use App\Models\TicketSlaCycle;
+use App\Services\TicketWorkflowService;
+use Carbon\CarbonImmutable;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Support\Facades\Log;
+
+/**
+ * Periodic sweep for team tickets (the legacy CheckSlaBreaches handles the
+ * rest):
+ *  1. response SLA breaches of tickets nobody has started,
+ *  2. resolution SLA breaches (flag + attribution + event, once),
+ *  3. the 80% warning (event, once per cycle),
+ *  4. auto-closing resolutions the requester never confirmed.
+ */
+class ProcessTeamTicketSla implements ShouldQueue
+{
+    use Queueable;
+
+    public function handle(TicketWorkflowService $workflow): void
+    {
+        $now = CarbonImmutable::now();
+
+        $this->runningCycles()
+            ->whereNull('responded_at')
+            ->where('response_breached', false)
+            ->where('response_due_at', '<', $now)
+            ->chunkById(100, function ($cycles) use ($workflow, $now): void {
+                foreach ($cycles as $cycle) {
+                    $workflow->flagResponseBreach($cycle, $now);
+                }
+            });
+
+        $this->runningCycles()
+            ->whereNull('paused_since')
+            ->where('resolution_breached', false)
+            ->where('resolution_due_at', '<', $now)
+            ->chunkById(100, function ($cycles) use ($workflow, $now): void {
+                foreach ($cycles as $cycle) {
+                    if ($workflow->flagResolutionBreach($cycle, $now)) {
+                        $cycle->forceFill(['breach_notified_at' => $now])->save();
+                        event(new TeamTicketSlaBreached($cycle));
+                    }
+                }
+            });
+
+        $this->runningCycles()
+            ->whereNull('paused_since')
+            ->whereNull('warning_sent_at')
+            ->where('resolution_breached', false)
+            ->where('resolution_due_at', '>', $now)
+            ->chunkById(100, function ($cycles) use ($workflow, $now): void {
+                foreach ($cycles as $cycle) {
+                    if ($workflow->elapsedRatio($cycle, $now) >= TicketWorkflowService::WARNING_RATIO) {
+                        $cycle->forceFill(['warning_sent_at' => $now])->save();
+                        event(new TeamTicketSlaWarning($cycle));
+                    }
+                }
+            });
+
+        Ticket::query()
+            ->whereNotNull('team_id')
+            ->where('status', TaskStatusEnum::RESOLVED)
+            ->where('auto_close_at', '<=', $now)
+            ->chunkById(100, function ($tickets) use ($workflow): void {
+                foreach ($tickets as $ticket) {
+                    try {
+                        $workflow->autoClose($ticket);
+                    } catch (TicketWorkflowException $exception) {
+                        Log::warning('Team ticket auto-close skipped', [
+                            'ticket_id' => $ticket->id,
+                            'reason' => $exception->getMessage(),
+                        ]);
+                    }
+                }
+            });
+    }
+
+    private function runningCycles()
+    {
+        return TicketSlaCycle::query()
+            ->running()
+            ->whereHas('ticket', fn ($query) => $query->whereIn('status', [
+                TaskStatusEnum::OPEN,
+                TaskStatusEnum::ASSIGNED,
+                TaskStatusEnum::IN_PROGRESS,
+                TaskStatusEnum::ON_HOLD,
+            ]))
+            ->with(['ticket', 'team.slaPolicies', 'workCalendar']);
+    }
+}

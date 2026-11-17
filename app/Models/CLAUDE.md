@@ -163,3 +163,9 @@ When writing new code: never use any of the above.
 - **Holiday**: `date` is stored as plain `Y-m-d` (set mutator) so the unique rule works on every driver
 - **Employee**: + teams (member), supervisedTeams; **Ticket**: + ticketType, team, `custom_fields` (array)
 - `Concerns\RecordsAuthors` fills created_by / updated_by / deleted_by and adds createdBy / updatedBy relations
+
+## SLA engine models (Phase 2)
+- **TicketSlaCycle**: ticket, team, workCalendar, breachEmployee, assignments; `isPaused()`, `isOpen()`, scope `running()`; enum casts `priority`, `breach_attribution`, `outcome`; immutable datetimes
+- **TicketAssignment**: ticket, cycle, employee, assignedBy; `END_*` reason constants
+- **Ticket** (+): slaCycles, currentCycle (max cycle_no), assignments, currentAssignment (open period), `usesTeamWorkflow()`; casts `hold_reason` → `HoldReasonEnum`, `auto_close_at`, `reopen_until`
+- Enums: `HoldReasonEnum`, `RejectionReasonEnum`, `BreachAttributionEnum`, `SlaCycleOutcomeEnum` (`countsForPerformance()` = on_time / breached only)

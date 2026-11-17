@@ -36,3 +36,8 @@
 - Place the class under `app/Jobs/`
 - For periodic jobs, register the schedule in `bootstrap/app.php` and document the cadence in this file
 - For ticket-touching jobs, prefer dispatching from `TicketService` rather than the Observer to keep "observers trigger services, services contain logic"
+
+## ProcessTeamTicketSla (team tickets)
+- Scheduled every 5 min (`process-team-ticket-sla`, queued, `withoutOverlapping`)
+- Response breach flag; resolution breach flag + attribution + `TeamTicketSlaBreached` (once, `breach_notified_at`); 80 % warning `TeamTicketSlaWarning` once per cycle (`warning_sent_at`, pauses excluded); auto-close of RESOLVED tickets past `auto_close_at`
+- `CheckSlaBreaches` now filters `whereNull('team_id')`

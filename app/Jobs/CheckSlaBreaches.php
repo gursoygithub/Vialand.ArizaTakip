@@ -45,7 +45,9 @@ class CheckSlaBreaches implements ShouldQueue
         ];
 
         // 1. Mark newly-breached tickets and notify (deduped per-day)
+        // Legacy tickets only — team tickets are handled by ProcessTeamTicketSla.
         Ticket::whereIn('status', $openStatuses)
+            ->whereNull('team_id')
             ->whereNotNull('sla_deadline')
             ->where('sla_deadline', '<', now())
             ->where('sla_breached', false)
@@ -62,6 +64,7 @@ class CheckSlaBreaches implements ShouldQueue
 
         // 2. Send 80% SLA warning for tickets approaching deadline
         Ticket::whereIn('status', $openStatuses)
+            ->whereNull('team_id')
             ->whereNotNull('sla_deadline')
             ->where('sla_deadline', '>', now())
             ->where('sla_breached', false)

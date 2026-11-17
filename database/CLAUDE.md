@@ -72,3 +72,11 @@ Always write a new migration file. Schema changes are additive.
 | team_sla_policies | team_id FK cascade, priority (1–4), response_minutes, resolution_minutes, success_threshold; UNIQUE (team_id, priority) |
 | tickets (+) | ticket_type_id FK NULL, team_id FK NULL, custom_fields JSON NULL |
 Settings migration `database/settings/2026_11_17_200006`: `general.auto_close_days` = 3, `general.reopen_window_days` = 7.
+
+## SLA engine tables (Phase 2, `2026_11_17_2100xx`)
+| Table | Key columns |
+|---|---|
+| ticket_sla_cycles | ticket_id, cycle_no (UNIQUE per ticket), team_id, priority, response/resolution minutes + success_threshold + work_calendar_id (snapshot), started_at, response_due_at, resolution_due_at, responded_at, resolved_at, resolution_rejections, paused_since / pause_kind (hold, awaiting_confirmation) / paused_minutes, response_breached, resolution_breached, breached_at, breach_attribution (person/handover/dispatch), breach_employee_id, warning_sent_at, breach_notified_at, outcome (on_time/breached/cancelled/rejected/transferred), ended_at |
+| ticket_assignments | ticket_id, ticket_sla_cycle_id, employee_id, assigned_by, self_assigned, started_at, ended_at, end_reason, remaining_ratio_at_start |
+| tickets (+) | hold_reason, closure_reason, auto_close_at, reopen_until; `area_id`, `sub_area_id`, `unit_id` are now NULLABLE (FKs kept) |
+`TaskStatusEnum::REJECTED = 17` added (terminal, excluded from performance).

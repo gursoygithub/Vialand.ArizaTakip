@@ -6,7 +6,7 @@ Tests use **SQLite in-memory** (configured via `phpunit.xml`).
 - Production uses MySQL; SQLite is test-only
 
 ## Running
-- 35 feature test files / 226 test methods in `tests/Feature/` (all green on `faz-1-veri-modeli`, 2026-11-17)
+- 40 feature test files / 278 test methods in `tests/Feature/` (all green on `faz-2-sla-motoru`, 2026-11-17)
 - Needs PHP 8.4 (host CLI is 8.3 → Composer platform check aborts). One-off container, no stack needed:
   `docker run --rm -u "$(id -u):$(id -g)" -v "$PWD":/var/www/html -w /var/www/html --entrypoint php sail-8.4/app vendor/bin/phpunit --testsuite Feature`
   (`-u` is required — run as root it leaves root-owned log/view files that break the local app)

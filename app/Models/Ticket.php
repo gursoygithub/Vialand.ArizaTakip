@@ -52,6 +52,10 @@ class Ticket extends Model implements HasMedia
         'closed_by',
         'on_hold_since',
         'total_on_hold_minutes',
+        'hold_reason',
+        'closure_reason',
+        'auto_close_at',
+        'reopen_until',
         'created_by',
         'updated_by',
         'deleted_by',
@@ -70,6 +74,9 @@ class Ticket extends Model implements HasMedia
         'reopened_at'  => 'datetime',
         'sla_breached' => 'boolean',
         'custom_fields' => 'array',
+        'hold_reason'  => \App\Enums\HoldReasonEnum::class,
+        'auto_close_at' => 'datetime',
+        'reopen_until' => 'datetime',
         'type_id'      => \App\Enums\TaskTypeEnum::class,
         'status'       => \App\Enums\TaskStatusEnum::class,
         'priority'     => \App\Enums\TaskPriorityEnum::class,
@@ -86,6 +93,35 @@ class Ticket extends Model implements HasMedia
     public function team(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(Team::class);
+    }
+
+    public function slaCycles(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(TicketSlaCycle::class)->orderBy('cycle_no');
+    }
+
+    public function currentCycle(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(TicketSlaCycle::class)->ofMany('cycle_no', 'max');
+    }
+
+    public function assignments(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(TicketAssignment::class)->orderBy('started_at');
+    }
+
+    public function currentAssignment(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(TicketAssignment::class)->ofMany(['id' => 'max'], fn ($query) => $query->whereNull('ended_at'));
+    }
+
+    /**
+     * Created through the type/team model (as opposed to the legacy
+     * area/unit/group flow driven by TicketService and TicketObserver).
+     */
+    public function usesTeamWorkflow(): bool
+    {
+        return $this->team_id !== null;
     }
 
     public function employee()

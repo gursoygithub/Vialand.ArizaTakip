@@ -144,3 +144,29 @@ enforce this chain:
 
 Breaking this chain at any point causes silent failures. Always validate
 prerequisites before allowing creation.
+
+## WorkingTimeCalculator (`App\Services\WorkingTimeCalculator`)
+- `addWorkingMinutes($from, $minutes, ?WorkCalendar)` / `workingMinutesBetween($from, $to, ?WorkCalendar)`
+- NULL calendar or 24/7 calendar that ignores holidays = plain clock time; otherwise only `hoursFor(weekday)` windows count, observed holidays skipped. Throws after 400 days without working time
+- Holidays are cached per instance — resolve a new instance (it is not a singleton)
+
+## TicketWorkflowService (`App\Services\TicketWorkflowService`) — team tickets only
+| Action | Who | From → To | SLA effect |
+|---|---|---|---|
+| `open` | requester | — → OPEN | cycle 1 starts now; required custom fields enforced |
+| `assign` | team supervisor (or super_admin) | OPEN/ASSIGNED/IN_PROGRESS → ASSIGNED | new assignment period, `remaining_ratio_at_start` recorded, deadline unchanged |
+| `selfAssign` | team member, if `allow_self_assign` | OPEN → ASSIGNED | same |
+| `startWork` | assignee | ASSIGNED → IN_PROGRESS | first start stops response clock (`responded_at`, `response_breached`) |
+| `hold` / `resume` | assignee / assignee or supervisor | IN_PROGRESS ⇄ ON_HOLD | `HoldReasonEnum` only; paused working minutes push both deadlines |
+| `resolve` | assignee | IN_PROGRESS → RESOLVED | outcome decided now; clock pauses awaiting confirmation; `auto_close_at` = now + setting |
+| `confirm` | requester | RESOLVED → CLOSED | cycle sealed `on_time`/`breached`; `reopen_until` = now + setting |
+| `rejectResolution` ("Çözülmedi") | requester, reason | RESOLVED → IN_PROGRESS | same cycle continues, waiting time not charged, `resolution_rejections`++ |
+| `autoClose` | scheduler | RESOLVED → CLOSED | as confirm, `closed_by` NULL |
+| `reopen` | requester within window | CLOSED → ASSIGNED (resolver) or OPEN | new cycle from now; previous outcome kept |
+| `cancel` | requester before work starts, else supervisor | active → CANCELLED | outcome `cancelled`; a breach already passed stays flagged |
+| `reject` | supervisor, `RejectionReasonEnum` | OPEN/ASSIGNED → REJECTED | outcome `rejected` |
+| `transfer` | supervisor, reason | OPEN/ASSIGNED/IN_PROGRESS → OPEN | old cycle `transferred` (charged to nobody), new team clock from now |
+| `changePriority` | supervisor, reason | status kept | targets re-measured from `started_at` (+ paused), never from now; existing breach stays |
+- Violations throw `App\Exceptions\TicketWorkflowException` with a Turkish user message
+- Every action writes `ticket_status_histories` and mirrors `sla_deadline` / `sla_breached` on the ticket; saves run with `TicketObserver::$skipReassignNotification` so the legacy assignment notification does not fire
+- `flagResolutionBreach` / `flagResponseBreach` / `elapsedRatio` are the scheduler entry points

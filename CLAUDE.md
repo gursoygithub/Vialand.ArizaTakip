@@ -328,6 +328,24 @@ lifecycle phase moves creation onto types and teams.
   `*_work::calendar`, `*_holiday`. After deploying, run
   `php artisan shield:generate --resource=TicketTypeResource,TeamResource,WorkCalendarResource,HolidayResource --option=permissions --panel=dashboard --ignore-existing-policies`
   then `php artisan db:seed --class=PermissionSeeder` so super_admin gets them.
+
+## SLA Engine & Lifecycle — Phase 2 (branch `faz-2-sla-motoru`)
+Team tickets (`tickets.team_id` set, `Ticket::usesTeamWorkflow()`) are driven
+**only** by `App\Services\TicketWorkflowService`; `TicketObserver::saving` /
+SLA part of `creating` and the legacy `CheckSlaBreaches` skip them. Legacy
+tickets keep using `TicketService`. Details: `app/Services/CLAUDE.md`.
+- SLA clock starts when the ticket reaches the team (open / transfer / reopen),
+  in the team's working time (`WorkingTimeCalculator`, holidays included).
+- `ticket_sla_cycles` = one row per team arrival (targets + calendar snapshot);
+  `ticket_assignments` = who held the ticket when. Handing over never resets SLA.
+- Breach attribution (decision 14): holder at the deadline → `person`; holder
+  who took over with < 25 % left → `handover` (team); nobody → `dispatch` (team).
+- `ProcessTeamTicketSla` (every 5 min): response breach, resolution breach
+  (+ `TeamTicketSlaBreached`), 80 % warning once per cycle (+ `TeamTicketSlaWarning`),
+  auto-close. The two events have no listeners until the notification phase.
+- Not built yet: screens for the new flow (Phase 3), notification matrix
+  (Phase 4), reports / exemptions / satisfaction (Phase 5). Known Issue #2
+  (reassign resets SLA) is solved for team tickets only; legacy flow unchanged.
 ## Dead / Leftover Code (do not build on it)
 Verified unused on `gg-ticket` @ `b92c364` (audit 2026-11-17). Leftovers from
 other projects or from the pre-Reform Task system:

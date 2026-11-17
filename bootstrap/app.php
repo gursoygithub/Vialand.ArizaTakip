@@ -32,6 +32,13 @@ return Application::configure(basePath: dirname(__DIR__))
             ->name('check-sla-breaches')
             ->withoutOverlapping();
 
+        // Team tickets: response/resolution breaches, 80% warning, auto-close.
+        $schedule->job(new \App\Jobs\ProcessTeamTicketSla())
+            ->everyFiveMinutes()
+            ->timezone(config('app.timezone', 'UTC'))
+            ->name('process-team-ticket-sla')
+            ->withoutOverlapping();
+
         // Yarının log dosyasını önceden oluştur
         $schedule->call(function () {
             $tomorrow = now()->addDay()->format('Y-m-d');

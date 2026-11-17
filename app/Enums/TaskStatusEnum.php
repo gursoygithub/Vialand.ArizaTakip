@@ -22,6 +22,10 @@ enum TaskStatusEnum: int implements HasLabel, HasColor, HasIcon
     case ON_HOLD = 15;
     case CANCELLED = 16;
 
+    // Team-model lifecycle: supervisor rejected the request (duplicate, out of
+    // scope, invalid). Terminal and excluded from performance like CANCELLED.
+    case REJECTED = 17;
+
     public function getLabel(): string
     {
         return match ($this) {
@@ -35,6 +39,7 @@ enum TaskStatusEnum: int implements HasLabel, HasColor, HasIcon
             self::CLOSED           => __('ui.closed'),
             self::ON_HOLD          => __('ui.on_hold'),
             self::CANCELLED        => __('ui.cancelled'),
+            self::REJECTED         => __('ui.rejected'),
         };
     }
 
@@ -51,6 +56,7 @@ enum TaskStatusEnum: int implements HasLabel, HasColor, HasIcon
             self::CLOSED           => 'gray',
             self::ON_HOLD          => 'danger',
             self::CANCELLED        => 'danger',
+            self::REJECTED         => 'gray',
         };
     }
 
@@ -67,12 +73,13 @@ enum TaskStatusEnum: int implements HasLabel, HasColor, HasIcon
             self::CLOSED           => 'heroicon-o-lock-closed',
             self::ON_HOLD          => 'heroicon-o-pause-circle',
             self::CANCELLED        => 'heroicon-o-x-circle',
+            self::REJECTED         => 'heroicon-o-no-symbol',
         };
     }
 
     public function isClosed(): bool
     {
-        return in_array($this, [self::COMPLETED, self::CLOSED, self::CANCELLED]);
+        return in_array($this, [self::COMPLETED, self::CLOSED, self::CANCELLED, self::REJECTED]);
     }
 
     public function is($status): bool
