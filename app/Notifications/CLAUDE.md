@@ -2,7 +2,7 @@
 
 ## Channels
 - All ticket notifications return `FilamentNotification::getDatabaseMessage()` from `toDatabase()` so the panel bell renders title / body / icon / action button automatically
-- All notification classes implement `ShouldQueue` (except `UserCreated`) — they run on the `database` queue (`queue:work` under supervisor)
+- All notification classes implement `ShouldQueue` (except `UserCreated`) — they run on the configured queue: `database` + `queue:work` where set, but **inline under `sync` in production today** (see root CLAUDE.md → Queue)
 - Mail is **always sent** for the 7 mail-capable classes below plus the `TicketOnHoldMail` mailable (= "8 targeted events"). Neither `config('notifications.mail_enabled')` nor the per-user `mail_enabled` preference is consulted — both are inert
 - FCM push is always **data-only** (no `notification` key in the payload) so the browser's `onMessage` handler fires in the foreground and Filament renders its own toast. All payload goes in the `data` field: `{ title, body, url }`
 - Database channel is added in `via()` only when `$user->wantsNotification(type, 'database')` is true. `ALWAYS_ON_DATABASE` (`ticket_assigned`, `ticket_cancelled`, `sla_breach`) cannot be opted out

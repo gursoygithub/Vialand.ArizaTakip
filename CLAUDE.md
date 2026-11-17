@@ -30,7 +30,7 @@ tekrarlanmamalı.
 - **LDAP**: directorytree/ldaprecord-laravel (Active Directory)
 - **Media**: spatie/laravel-medialibrary (S3 disk, collection: `task_attachments`)
 - **Activity**: spatie/laravel-activitylog
-- **Queue**: `database` driver (`QUEUE_CONNECTION=database` in .env)
+- **Queue**: intended driver is `database` (`.env.example`, test site). **Production (`gg-ticket`) currently runs `QUEUE_CONNECTION=sync`** — every `ShouldQueue` notification and queued job runs inline in the web request, and the 2 supervisor workers sit idle. Switching prod to `database` is recommended (workers already run); after changing `.env` run `config:cache` and restart the container
 - **Schedule**: `bootstrap/app.php` → `withSchedule()` (no Kernel.php — Laravel 12 style)
 
 ## LDAP Authentication
@@ -184,6 +184,8 @@ real change (Altın Kural #1).
 - Supervisor (`.docker/supervisord.conf`) runs php-fpm, nginx, `schedule:work`
   and 2× `queue:work` — scheduler and workers run as **root**, php-fpm as
   `www-data` (why the 23:55 schedule pre-creates tomorrow's log with `chmod 0777`).
+  Inside the container use `supervisorctl -c /etc/supervisor/supervisord.conf status`
+  (plain `supervisorctl` does not find the config).
 - `.env.example` is a template from another project (fr locale, `Africa/Ndjamena`,
   DigitalOcean bucket) — it does not describe this app's real variables.
 

@@ -1,15 +1,15 @@
 # Jobs Guide
 
 ## Queue
-- Driver: `database` (`QUEUE_CONNECTION=database` in `.env`)
-- All async work via `Job::dispatch()` — never run in `sync` for production
+- Intended driver: `database` (`.env.example`, test site `dev-ticket`). **Production currently runs `QUEUE_CONNECTION=sync`** — queued jobs and notifications execute inline (scheduler-dispatched jobs run inside `schedule:work`, request-time ones inside the HTTP request); switching prod to `database` is recommended
+- All async work via `Job::dispatch()`; local dev uses `sync`
 - Schedule entries live in `bootstrap/app.php` → `withSchedule()` callback (Laravel 12 — no `Kernel.php`)
 - In production, supervisor runs `schedule:work` (1×) and `queue:work --tries=3 --max-time=3600` (2×), both as root. Workers pick up new code only when they restart (container restart or `--max-time` expiry)
 - Current schedule: `employee:sync` every 5 min, `CheckSlaBreaches` every 5 min (`withoutOverlapping`, queued — not run inline), tomorrow's log file pre-created at 23:55 (`chmod 0777`)
 
 ## CheckSlaBreaches
 - Path: `App\Jobs\CheckSlaBreaches` — implements `ShouldQueue`
-- Schedule: every 5 minutes via `$schedule->job(...)` → pushed onto the `database` queue
+- Schedule: every 5 minutes via `$schedule->job(...)` → pushed onto the configured queue (runs inline under `sync`)
 - `TicketSlaBreached` event is dispatched but has **no listeners**
 - One of three writers of `tickets.sla_breached`; the other two are `TicketObserver::saving` and `TicketService` terminal-state markers (`markResolved` / `markClosed` / `markCancelled`)
 
