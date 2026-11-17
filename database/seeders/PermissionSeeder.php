@@ -52,6 +52,9 @@ class PermissionSeeder extends Seeder
         'ticket.view.own',
         'ticket.view.group',
         'ticket.view.all',
+        // Team-model tickets: see requests raised or handled by people of
+        // the viewer's companies (agreement §7 "Şirket kapsamı").
+        'ticket.view.company',
 
         // Ticket actions
         'ticket.assign',

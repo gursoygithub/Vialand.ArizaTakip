@@ -324,6 +324,51 @@ class Ticket extends Model implements HasMedia
         return $query->where('sla_breached', true);
     }
 
+    // --- Team-model visibility (agreement §7) ---
+
+    /**
+     * Team tickets the user may see. Nobody sees requests that do not concern
+     * them:
+     *   - tickets they opened,
+     *   - tickets assigned to them now or in the past,
+     *   - tickets of teams they belong to (incl. the unassigned pool),
+     *   - tickets of teams they supervise,
+     *   - with `ticket.view.company`: tickets opened or handled by people of
+     *     their companies,
+     *   - with `ticket.view.all`: every team ticket.
+     */
+    public function scopeVisibleInTeamWorkflow(Builder $query, ?User $user): Builder
+    {
+        $query->whereNotNull('team_id');
+
+        if (! $user) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        if ($user->hasRole('super_admin') || $user->can('ticket.view.all')) {
+            return $query;
+        }
+
+        $employeeId = $user->employee?->id;
+        $companyIds = $user->can('ticket.view.company') ? $user->scopedCompanyIds() : [];
+
+        return $query->where(function (Builder $q) use ($user, $employeeId, $companyIds): void {
+            $q->where('created_by', $user->id);
+
+            if ($employeeId) {
+                $q->orWhere('employee_id', $employeeId)
+                    ->orWhereHas('assignments', fn (Builder $a) => $a->where('employee_id', $employeeId))
+                    ->orWhereIn('team_id', \Illuminate\Support\Facades\DB::table('team_members')->where('employee_id', $employeeId)->select('team_id'))
+                    ->orWhereIn('team_id', Team::query()->where('supervisor_employee_id', $employeeId)->select('id'));
+            }
+
+            if ($companyIds !== []) {
+                $q->orWhereHas('createdBy.employee', fn (Builder $e) => $e->whereIn('company_id', $companyIds))
+                    ->orWhereHas('employee', fn (Builder $e) => $e->whereIn('company_id', $companyIds));
+            }
+        });
+    }
+
     // --- Permission-aware visibility scope ---
 
     /**

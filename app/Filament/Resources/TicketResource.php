@@ -53,7 +53,7 @@ class TicketResource extends Resource
     {
         // Only show open/assigned/in_progress in the badge — closed/cancelled are noise.
         $count = Ticket::query()
-            ->visibleBy(auth()->user())
+            ->visibleBy(auth()->user())->whereNull('team_id')
             ->whereIn('status', [
                 TaskStatusEnum::OPEN->value,
                 TaskStatusEnum::ASSIGNED->value,
@@ -68,7 +68,7 @@ class TicketResource extends Resource
     public static function getNavigationBadgeColor(): string
     {
         $breached = Ticket::query()
-            ->visibleBy(auth()->user())
+            ->visibleBy(auth()->user())->whereNull('team_id')
             ->slaBreached()
             ->count();
 
@@ -787,7 +787,7 @@ class TicketResource extends Resource
      */
     public static function getEloquentQuery(): Builder
     {
-        return parent::getEloquentQuery()->visibleBy(auth()->user());
+        return parent::getEloquentQuery()->visibleBy(auth()->user())->whereNull('team_id');
     }
 
     public static function getPages(): array

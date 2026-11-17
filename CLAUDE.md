@@ -346,6 +346,17 @@ tickets keep using `TicketService`. Details: `app/Services/CLAUDE.md`.
 - Not built yet: screens for the new flow (Phase 3), notification matrix
   (Phase 4), reports / exemptions / satisfaction (Phase 5). Known Issue #2
   (reassign resets SLA) is solved for team tickets only; legacy flow unchanged.
+
+## Screens — Phase 3 (branch `faz-3-ekranlar`)
+- New menu **Talepler** (`TeamTicketResource`, slug `/requests`) for team tickets;
+  the legacy `TicketResource` ("Arıza Talepleri") now filters `whereNull('team_id')`
+  everywhere (list, badges, tabs, record routes) so the two engines never mix.
+- Visibility: `Ticket::scopeVisibleInTeamWorkflow(User)` — own / assigned (now or
+  before) / member teams / supervised teams; `ticket.view.company` adds people of
+  the viewer's companies (`scopedCompanyIds()`); `ticket.view.all` / super_admin see all.
+  `ticket.view.company` is created by `PermissionSeeder` (run it after deploy).
+- Uses the Ticket policy (`view_any_ticket`, `view_ticket`, `create_ticket`) — the
+  same Shield permissions as the legacy menu.
 ## Dead / Leftover Code (do not build on it)
 Verified unused on `gg-ticket` @ `b92c364` (audit 2026-11-17). Leftovers from
 other projects or from the pre-Reform Task system:

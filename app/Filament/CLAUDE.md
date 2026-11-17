@@ -157,3 +157,9 @@ When writing new code: never use any of the above.
 - `WorkCalendarResource` (ManageRecords, modal): 7 weekday rows of TimePickers (`working_hours.{day}.start/end`, `requiredWith` + `after`); `WorkCalendarResource::normalize()` drops closed days / clears hours for 24/7 (called from Create and Edit actions); `summarize()` for the table
 - `HolidayResource` (ManageRecords): date (unique) + name; "Yaklaşanlar" filter on by default
 - `ManageGeneralSettings`: + "Talep Süreci Ayarları" (`auto_close_days`, `reopen_window_days`)
+
+## TeamTicketResource ("Talepler", `/requests`) — Phase 3
+- **Create** (`CreateTeamTicket`): type picker (ToggleButtons, `?type=` preselects) → active teams of that type (supervisor hint + SLA preview) → priority → location (hidden / optional / required per type) → the type's `form_fields` rendered by `TeamTicketResource::customFieldComponents()` into `custom_fields.*` → description + attachments. `handleRecordCreation` calls `TicketWorkflowService::open` (team must match type; unknown custom keys dropped)
+- **List** (`ListTeamTickets`): tabs Bana Atananlar / Ekibimin Talepleri / Yönettiğim Ekipler (active statuses only) / Açtıklarım / Tümü; default tab = assigned (employees), all (super_admin / view.all), else created. SLA badge from the current cycle (`slaLabel` / `slaColor`), polls 60 s
+- **View** (`ViewTeamTicket`): header actions mapped 1:1 to the workflow service (Üzerime Al, Ata/Devret, İşleme Al, Beklet, Devam Et, Çözüldü, Onayla, Çözülmedi, Yeniden Aç, Not Ekle; "Diğer İşlemler": öncelik, aktar, reddet, iptal). Visibility = UX only; the service re-checks. Infolist: request, people (with companies), SLA panel (response, resolution, state, breach owner, targets/calendar/paused), attachments, history (`filament.partials.team-ticket-timeline`, inline styles)
+- Not Ekle reuses `TicketService::addComment` (legacy comment notification to participants)

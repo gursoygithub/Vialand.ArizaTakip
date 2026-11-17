@@ -31,7 +31,7 @@ class ListTickets extends ListRecords
         // and badges have to match or they'll show counts the user can't actually
         // open. modifyQueryUsing is applied on top of the already-scoped list query
         // so it doesn't need its own visibleBy.
-        $scoped = fn () => Ticket::query()->visibleBy(auth()->user());
+        $scoped = fn () => Ticket::query()->visibleBy(auth()->user())->whereNull('team_id');
 
         return [
             'all' => Tab::make(__('ui.all'))
