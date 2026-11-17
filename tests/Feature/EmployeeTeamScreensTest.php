@@ -183,9 +183,8 @@ class EmployeeTeamScreensTest extends TestCase
 
         $list = Livewire::test(ListEmployees::class)
             ->assertCanSeeTableRecords([$this->tech1->employee, $this->supervisor->employee])
-            ->assertTableColumnExists('team_names')
-            ->assertTableColumnStateSet('team_names', ['Teknik'], $this->tech1->employee)
-            ->assertTableColumnStateSet('team_names', ['Teknik (Amir)'], $this->supervisor->employee)
+            ->assertTableColumnFormattedStateSet('team_count', '1 ekip', $this->tech1->employee)
+            ->assertTableColumnFormattedStateSet('team_count', '1 ekip · 1 amir', $this->supervisor->employee)
             ->assertTableColumnDoesNotExist('performance_score');
 
         $rows = $list->instance()->getTableRecords()->keyBy('id');
@@ -197,6 +196,15 @@ class EmployeeTeamScreensTest extends TestCase
             ->filterTable('team', [$this->team->id])
             ->assertCanSeeTableRecords([$this->tech1->employee, $this->supervisor->employee])
             ->assertCanNotSeeTableRecords([$other]);
+    }
+
+    public function test_team_names_are_listed_with_supervised_ones_marked(): void
+    {
+        Team::factory()->create(['name' => 'Elektrik', 'supervisor_employee_id' => $this->tech1->employee->id]);
+        $employee = $this->tech1->employee->fresh(['teams', 'supervisedTeams']);
+
+        $this->assertSame(['Elektrik (Amir)', 'Teknik'], EmployeeResource::teamLabels($employee));
+        $this->assertSame('2 ekip · 1 amir', EmployeeResource::teamCountLabel(2, $employee));
     }
 
     public function test_detail_page_shows_team_figures_not_legacy_units(): void

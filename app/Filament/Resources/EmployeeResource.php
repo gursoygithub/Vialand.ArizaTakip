@@ -189,12 +189,13 @@ class EmployeeResource extends Resource
                     ->searchable()
                     ->sortable()
                     ->toggleable(),
-                Tables\Columns\TextColumn::make('team_names')
+                Tables\Columns\TextColumn::make('team_count')
                     ->label(__('ui.teams'))
-                    ->state(fn (Employee $record): array => static::teamLabels($record))
+                    ->state(fn (Employee $record): int => count(static::teamLabels($record)))
+                    ->formatStateUsing(fn (int $state, Employee $record): string => static::teamCountLabel($state, $record))
+                    ->tooltip(fn (Employee $record): ?string => implode("\n", static::teamLabels($record)) ?: null)
                     ->badge()
-                    ->color('info')
-                    ->placeholder('—'),
+                    ->color(fn (int $state): string => $state > 0 ? 'info' : 'gray'),
                 Tables\Columns\TextColumn::make('held_requests_count')
                     ->label(__('ui.employee_requests_on_them'))
                     ->counts(['tickets as held_requests_count' => $active])
@@ -226,6 +227,18 @@ class EmployeeResource extends Resource
             ->actions([
                 Tables\Actions\ViewAction::make(),
             ]);
+    }
+
+    /**
+     * "4 ekip · 2 amir" — names are in the tooltip and on the detail page.
+     */
+    public static function teamCountLabel(int $count, Employee $employee): string
+    {
+        $supervised = $employee->supervisedTeams->count();
+
+        return $supervised > 0
+            ? __('ui.employee_team_count_supervised', ['count' => $count, 'supervised' => $supervised])
+            : __('ui.employee_team_count', ['count' => $count]);
     }
 
     /**

@@ -1174,5 +1174,7 @@ return [
     'employee_quality' => 'Kalite',
     'employee_summary_overdue' => 'Üzerinde SLA süresi aşılmış :count açık talep var — müdahale gerekiyor.',
     'employee_summary_empty' => 'Henüz sonuçlanmış ekip talebi yok.',
+    'employee_team_count' => ':count ekip',
+    'employee_team_count_supervised' => ':count ekip · :supervised amir',
     'employee_summary_rates' => 'Son 30 gün: :last30 · Tüm zamanlar: :all · Hedef: :target',
 ];
