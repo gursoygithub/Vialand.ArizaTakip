@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Enums\ExemptionReasonEnum;
 use App\Enums\FormFieldTypeEnum;
 use App\Enums\HoldReasonEnum;
 use App\Enums\LocationRequirementEnum;
@@ -16,6 +17,7 @@ use App\Models\TicketAssignment;
 use App\Models\TicketSlaCycle;
 use App\Models\TicketStatusHistory;
 use App\Models\User;
+use App\Services\SlaExemptionService;
 use App\Services\TicketService;
 use App\Services\TicketWorkflowService;
 use App\Settings\GeneralSettings;
@@ -31,9 +33,11 @@ use RuntimeException;
  * SLA cycles and notifications look exactly like real use.
  *
  * Only the people of these teams take part: requesters, assignees and
- * supervisors all come from them. Steps that would reach anyone else (SLA
- * exemption approvers, escalation recipients) are left out, and the seeder
- * refuses to run while SLA escalation is switched on.
+ * supervisors all come from them. Exemptions are decided by the system
+ * admin account (a super_admin with no employee record); asking for one
+ * still rings the bell of every possible approver, as in real use. The
+ * seeder refuses to run while SLA escalation is switched on, because
+ * escalation would reach people outside the teams.
  *
  * Works on the teams that already exist (by name). Re-running removes the
  * previous demo tickets first; they are recognised by the title marker,
@@ -76,6 +80,7 @@ class DemoTicketScenarioSeeder extends Seeder
         private TicketWorkflowService $workflow,
         private TicketService $tickets,
         private GeneralSettings $settings,
+        private SlaExemptionService $exemptions,
     ) {}
 
     public function run(): void
@@ -265,6 +270,32 @@ class DemoTicketScenarioSeeder extends Seeder
                 return $this->confirm($ticket, 2800, 3, null);
             }],
 
+            'SLA ihlali — muafiyet onaylandı' => [self::ELECTRIC, function (Team $team, string $title): Ticket {
+                $ticket = $this->open($team, $title, TaskPriorityEnum::High, 5760, 'Ana trafo binasında röle sürekli atıyor.', ['panel_no' => 'TRF-1']);
+                $ticket = $this->work($ticket, $team, 0, 5740, 5730);
+                $ticket = $this->markResolved($ticket, 1440, 'Röle değiştirildi, yük testi yapıldı.');
+                $ticket = $this->confirm($ticket, 1380, 4, null);
+
+                $this->at($this->ago(1320));
+                $exemption = $this->exemptions->request($this->cycleOf($ticket), $this->supervisorOf($team), ExemptionReasonEnum::PowerOutage, 'Şebeke kesintisi nedeniyle iki gün çalışma yapılamadı.');
+
+                $this->at($this->ago(1200));
+                $this->exemptions->approve($exemption, $this->systemAdmin(), 'Kesinti, dağıtım şirketinin duyurusuyla doğrulandı.');
+
+                return $ticket;
+            }],
+
+            'SLA ihlali — muafiyet onay bekliyor' => [self::ELECTRIC, function (Team $team, string $title): Ticket {
+                $ticket = $this->open($team, $title, TaskPriorityEnum::Urgent, 4320, 'Restoran mutfağında ana sigorta sürekli atıyor.', ['panel_no' => 'MTF-3']);
+                $ticket = $this->work($ticket, $team, 1, 4300, 4290);
+                $ticket = $this->markResolved($ticket, 600, 'Arızalı fırın hattı ayrıldı, sigorta yenilendi.');
+
+                $this->at($this->ago(120));
+                $this->exemptions->request($this->cycleOf($ticket), $this->supervisorOf($team), ExemptionReasonEnum::Supplier, 'Uygun sigorta tedarikçiden ancak bugün gelebildi.');
+
+                return $ticket;
+            }],
+
             'Otomatik kapandı — onay verilmedi' => [self::CLEANING, function (Team $team, string $title): Ticket {
                 $ticket = $this->open($team, $title, TaskPriorityEnum::Low, 7200, 'Personel giriş kapısı paspası değiştirilmeli.');
                 $ticket = $this->work($ticket, $team, 0, 7150, 7140);
@@ -422,6 +453,18 @@ class DemoTicketScenarioSeeder extends Seeder
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────
+
+    /**
+     * The panel's system admin account: a super_admin that is not a person,
+     * so it is never part of a team and may decide any exemption.
+     */
+    private function systemAdmin(): User
+    {
+        $admin = User::role('super_admin')->orderBy('id')->get()
+            ->first(fn (User $user): bool => $user->employee === null);
+
+        return $admin ?? throw new RuntimeException('Muafiyet kararı için çalışan kaydı olmayan bir super_admin hesabı bulunamadı.');
+    }
 
     private function cycleOf(Ticket $ticket): TicketSlaCycle
     {

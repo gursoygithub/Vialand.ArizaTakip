@@ -3,8 +3,10 @@
 namespace Tests\Feature;
 
 use App\Enums\ActiveStatusEnum;
+use App\Enums\ExemptionStatusEnum;
 use App\Enums\TaskPriorityEnum;
 use App\Enums\TaskStatusEnum;
+use App\Enums\TeamTicketEventEnum;
 use App\Enums\UserStatusEnum;
 use App\Models\Area;
 use App\Models\Company;
@@ -16,6 +18,7 @@ use App\Models\Ticket;
 use App\Models\TicketSlaCycle;
 use App\Models\TicketType;
 use App\Models\User;
+use App\Notifications\TeamTicketNotification;
 use App\Services\FcmService;
 use App\Settings\GeneralSettings;
 use Carbon\CarbonImmutable;
@@ -73,6 +76,9 @@ class DemoTicketScenarioSeederTest extends TestCase
         SubArea::factory()->for(Area::factory()->create(['name' => 'TEMAPARK']))->create();
         SubArea::factory()->for(Area::factory()->create(['name' => 'VIALAND AVM']))->create();
 
+        $this->systemAdmin = User::factory()->create(['email' => 'sa@example.com', 'status' => UserStatusEnum::ACTIVE]);
+        $this->systemAdmin->assignRole('super_admin');
+
         $this->outsider = User::factory()->create(['status' => UserStatusEnum::ACTIVE]);
         $this->outsider->givePermissionTo(['sla.exemption.approve', 'ticket.sla.escalation']);
 
@@ -80,6 +86,8 @@ class DemoTicketScenarioSeederTest extends TestCase
     }
 
     private User $outsider;
+
+    private User $systemAdmin;
 
     private function escalation(int $hours): void
     {
@@ -105,7 +113,7 @@ class DemoTicketScenarioSeederTest extends TestCase
         $this->seed(DemoTicketScenarioSeeder::class);
 
         $tickets = $this->demoTickets();
-        $this->assertCount(20, $tickets);
+        $this->assertCount(22, $tickets);
 
         $expected = [
             'Yeni talep — ekipte bekliyor' => TaskStatusEnum::OPEN,
@@ -126,6 +134,8 @@ class DemoTicketScenarioSeederTest extends TestCase
             'Öncelik yükseltildi' => TaskStatusEnum::OPEN,
             'SLA ihlali — geç çözüldü, onay bekliyor' => TaskStatusEnum::RESOLVED,
             'SLA ihlali — geç çözüldü ve kapandı' => TaskStatusEnum::CLOSED,
+            'SLA ihlali — muafiyet onaylandı' => TaskStatusEnum::CLOSED,
+            'SLA ihlali — muafiyet onay bekliyor' => TaskStatusEnum::RESOLVED,
             'Otomatik kapandı — onay verilmedi' => TaskStatusEnum::CLOSED,
         ];
 
@@ -146,7 +156,13 @@ class DemoTicketScenarioSeederTest extends TestCase
         $this->assertTrue($cycle('Çözüm süresi aşıldı')->resolution_breached);
         $this->assertTrue($cycle('SLA ihlali — geç çözüldü, onay bekliyor')->resolution_breached);
         $this->assertTrue($cycle('SLA ihlali — geç çözüldü ve kapandı')->resolution_breached);
-        $this->assertSame(0, SlaExemption::count());
+
+        $approved = SlaExemption::where('ticket_id', $tickets['SLA ihlali — muafiyet onaylandı']->id)->sole();
+        $this->assertSame(ExemptionStatusEnum::Approved, $approved->status);
+        $this->assertSame($this->systemAdmin->id, $approved->decided_by);
+        $this->assertTrue($cycle('SLA ihlali — muafiyet onaylandı')->exempted);
+        $this->assertSame(ExemptionStatusEnum::Pending, SlaExemption::where('ticket_id', $tickets['SLA ihlali — muafiyet onay bekliyor']->id)->sole()->status);
+        $this->assertSame(2, SlaExemption::count());
 
         $this->assertTrue(now()->equalTo(CarbonImmutable::parse('2026-11-18 11:00:00')), 'the seeder must give the clock back');
     }
@@ -172,9 +188,15 @@ class DemoTicketScenarioSeederTest extends TestCase
             ->filter()
             ->unique();
 
-        $this->assertEmpty($involved->diff($teamPeople)->all());
-        Notification::assertNothingSentTo($this->outsider);
+        $this->assertEmpty($involved->diff($teamPeople->push($this->systemAdmin->id))->all());
         Notification::assertNothingSentTo($panelUser);
+
+        $outsiderEvents = Notification::sent($this->outsider, TeamTicketNotification::class)
+            ->map(fn (TeamTicketNotification $notification): TeamTicketEventEnum => $notification->event)
+            ->unique()
+            ->values()
+            ->all();
+        $this->assertSame([TeamTicketEventEnum::ExemptionRequested], $outsiderEvents, 'an outside approver only gets the exemption request bell');
     }
 
     public function test_it_refuses_to_run_while_escalation_is_on(): void
@@ -198,8 +220,8 @@ class DemoTicketScenarioSeederTest extends TestCase
 
         $this->seed(DemoTicketScenarioSeeder::class);
 
-        $this->assertCount(20, $this->demoTickets());
-        $this->assertSame(20, Ticket::onlyTrashed()->whereIn('id', $firstIds)->count());
+        $this->assertCount(22, $this->demoTickets());
+        $this->assertSame(22, Ticket::onlyTrashed()->whereIn('id', $firstIds)->count());
         $this->assertSame(0, TicketSlaCycle::whereIn('ticket_id', $firstIds)->count());
         $this->assertSame(0, SlaExemption::whereIn('ticket_id', $firstIds)->count());
     }
