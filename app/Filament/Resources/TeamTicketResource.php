@@ -9,6 +9,7 @@ use App\Enums\TaskPriorityEnum;
 use App\Enums\TaskStatusEnum;
 use App\Filament\Resources\TeamTicketResource\Pages;
 use App\Models\Area;
+use App\Models\Employee;
 use App\Models\SubArea;
 use App\Models\Team;
 use App\Models\Ticket;
@@ -177,6 +178,25 @@ class TeamTicketResource extends Resource
                             ->minLength(10)
                             ->rows(4),
 
+                        Forms\Components\Select::make('watchers')
+                            ->label(__('ui.watchers'))
+                            ->helperText(__('ui.watchers_help'))
+                            ->multiple()
+                            ->searchable()
+                            ->getSearchResultsUsing(fn (string $search): array => self::watcherCandidates()
+                                ->where(fn (Builder $query) => $query->where('name', 'like', "%{$search}%")->orWhere('email', 'like', "%{$search}%"))
+                                ->limit(30)
+                                ->get()
+                                ->mapWithKeys(fn (Employee $employee): array => [$employee->id => TeamResource::employeeLabel($employee)])
+                                ->all())
+                            ->getOptionLabelsUsing(fn (array $values): array => Employee::with('company')->whereKey($values)->get()
+                                ->mapWithKeys(fn (Employee $employee): array => [$employee->id => TeamResource::employeeLabel($employee)])
+                                ->all())
+                            ->default(fn (): array => self::lastWatcherIds())
+                            ->required(fn (Get $get): bool => (bool) TicketType::find($get('ticket_type_id'))?->requiresWatchers((array) $get('custom_fields')))
+                            ->validationMessages(['required' => __('ui.workflow_watchers_required')])
+                            ->columnSpanFull(),
+
                         Forms\Components\SpatieMediaLibraryFileUpload::make('task_attachments')
                             ->label(__('ui.images'))
                             ->collection('task_attachments')
@@ -216,6 +236,7 @@ class TeamTicketResource extends Resource
                     FormFieldTypeEnum::Number => Forms\Components\TextInput::make($field['key'])->numeric(),
                     FormFieldTypeEnum::Select => Forms\Components\Select::make($field['key'])
                         ->options(collect($field['options'] ?? [])->mapWithKeys(fn ($option): array => [$option => $option])->all())
+                        ->live(condition: filled($field['cc_required_options'] ?? null))
                         ->native(false),
                     FormFieldTypeEnum::Date => Forms\Components\DatePicker::make($field['key']),
                     FormFieldTypeEnum::Checkbox => Forms\Components\Toggle::make($field['key'])->inline(false),
@@ -249,6 +270,46 @@ class TeamTicketResource extends Resource
                 $field['key'] => ($field['type'] ?? null) === FormFieldTypeEnum::Checkbox->value ? false : null,
             ])
             ->all();
+    }
+
+    /**
+     * People who can be kept informed: active and reachable by e-mail,
+     * never the requester themself.
+     */
+    public static function watcherCandidates(): Builder
+    {
+        return Employee::query()
+            ->with('company')
+            ->where('status', ActiveStatusEnum::ACTIVE)
+            ->whereNotNull('email')
+            ->where('email', '!=', '')
+            ->when(auth()->user()?->employee?->id, fn (Builder $query, int $ownId) => $query->whereKeyNot($ownId))
+            ->orderBy('name');
+    }
+
+    /**
+     * CC people of the user's latest request, offered again on the next one.
+     *
+     * @return array<int, int>
+     */
+    public static function lastWatcherIds(): array
+    {
+        $userId = auth()->id();
+
+        if (! $userId) {
+            return [];
+        }
+
+        $lastTicket = Ticket::query()
+            ->whereNotNull('team_id')
+            ->where('created_by', $userId)
+            ->whereHas('watchers')
+            ->latest('id')
+            ->first();
+
+        return $lastTicket
+            ? self::watcherCandidates()->whereIn('id', $lastTicket->watchers()->pluck('employees.id'))->pluck('id')->all()
+            : [];
     }
 
     public static function locationRequirement(mixed $ticketTypeId): LocationRequirementEnum

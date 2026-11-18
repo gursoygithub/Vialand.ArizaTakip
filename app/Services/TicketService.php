@@ -374,7 +374,9 @@ class TicketService
         $additionalIds = collect([
             $ticket->created_by,
             $ticket->employee?->user?->id,
-        ])->filter();
+        ])
+            ->merge($ticket->watchers()->with('user')->get()->map(fn (Employee $watcher) => $watcher->user?->id))
+            ->filter();
 
         $actorId = (int) $actor->id;
 

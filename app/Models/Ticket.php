@@ -110,6 +110,23 @@ class Ticket extends Model implements HasMedia
         return $this->hasMany(TicketAssignment::class)->orderBy('started_at');
     }
 
+    /**
+     * People kept informed on the request (CC).
+     */
+    public function watchers(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    {
+        return $this->belongsToMany(Employee::class, 'ticket_watchers')
+            ->withPivot('added_by')
+            ->withTimestamps();
+    }
+
+    public function isWatchedBy(?User $user): bool
+    {
+        $employeeId = $user?->employee?->id;
+
+        return $employeeId !== null && $this->watchers()->whereKey($employeeId)->exists();
+    }
+
     public function currentAssignment(): \Illuminate\Database\Eloquent\Relations\HasOne
     {
         return $this->hasOne(TicketAssignment::class)->ofMany(['id' => 'max'], fn ($query) => $query->whereNull('ended_at'));
@@ -368,6 +385,7 @@ class Ticket extends Model implements HasMedia
             if ($employeeId) {
                 $q->orWhere('employee_id', $employeeId)
                     ->orWhereHas('assignments', fn (Builder $a) => $a->where('employee_id', $employeeId))
+                    ->orWhereIn('id', \Illuminate\Support\Facades\DB::table('ticket_watchers')->where('employee_id', $employeeId)->select('ticket_id'))
                     ->orWhereIn('team_id', \Illuminate\Support\Facades\DB::table('team_members')->where('employee_id', $employeeId)->select('team_id'))
                     ->orWhereIn('team_id', Team::query()->where('supervisor_employee_id', $employeeId)->select('id'));
             }

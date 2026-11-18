@@ -11,6 +11,11 @@ use DomainException;
  */
 class TicketWorkflowException extends DomainException
 {
+    /**
+     * Form field the message belongs to, when it is about one input.
+     */
+    public ?string $field = null;
+
     public static function notAllowed(): self
     {
         return new self(__('ui.workflow_not_allowed'));
@@ -49,5 +54,15 @@ class TicketWorkflowException extends DomainException
     public static function reasonRequired(): self
     {
         return new self(__('ui.workflow_reason_required'));
+    }
+
+    public static function watchersRequired(): self
+    {
+        return tap(new self(__('ui.workflow_watchers_required')), fn (self $exception) => $exception->field = 'watchers');
+    }
+
+    public static function watcherWithoutEmail(string $names): self
+    {
+        return tap(new self(__('ui.workflow_watcher_without_email', ['names' => $names])), fn (self $exception) => $exception->field = 'watchers');
     }
 }

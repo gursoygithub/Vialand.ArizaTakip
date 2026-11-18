@@ -71,6 +71,11 @@ class ListTeamTickets extends ListRecords
         $tabs['created'] = $this->tab(__('ui.tab_created_by_me'), 'heroicon-o-pencil-square',
             fn (Builder $q) => $q->where('created_by', $user?->id));
 
+        if ($employeeId && DB::table('ticket_watchers')->where('employee_id', $employeeId)->exists()) {
+            $tabs['watching'] = $this->tab(__('ui.tab_watching'), 'heroicon-o-eye',
+                fn (Builder $q) => $q->whereIn('id', DB::table('ticket_watchers')->where('employee_id', $employeeId)->select('ticket_id')));
+        }
+
         $tabs['all'] = Tab::make(__('ui.all'))->icon('heroicon-o-queue-list');
 
         return $tabs;

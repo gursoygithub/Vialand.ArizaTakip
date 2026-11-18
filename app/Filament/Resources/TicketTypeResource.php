@@ -119,6 +119,12 @@ class TicketTypeResource extends Resource
                             ->label(__('ui.active'))
                             ->default(true)
                             ->inline(false),
+
+                        Forms\Components\Toggle::make('cc_required')
+                            ->label(__('ui.cc_required'))
+                            ->helperText(__('ui.cc_required_help'))
+                            ->default(false)
+                            ->inline(false),
                     ]),
 
                 Forms\Components\Section::make(__('ui.form_fields'))
@@ -165,7 +171,16 @@ class TicketTypeResource extends Resource
                                     ->label(__('ui.form_field_options'))
                                     ->visible(fn (Get $get): bool => $get('type') === FormFieldTypeEnum::Select->value)
                                     ->required(fn (Get $get): bool => $get('type') === FormFieldTypeEnum::Select->value)
+                                    ->live()
                                     ->columnSpan(2),
+
+                                Forms\Components\CheckboxList::make('cc_required_options')
+                                    ->label(__('ui.form_field_cc_required_options'))
+                                    ->helperText(__('ui.form_field_cc_required_options_help'))
+                                    ->options(fn (Get $get): array => collect($get('options') ?? [])->mapWithKeys(fn ($option): array => [$option => $option])->all())
+                                    ->visible(fn (Get $get): bool => $get('type') === FormFieldTypeEnum::Select->value && filled($get('options')))
+                                    ->columns(3)
+                                    ->columnSpanFull(),
 
                                 Forms\Components\Toggle::make('required')
                                     ->label(__('ui.form_field_required'))

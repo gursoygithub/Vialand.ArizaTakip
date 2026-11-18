@@ -76,6 +76,11 @@ class ViewTeamTicket extends ViewRecord
         return $this->workflow()->isRequester($this->ticket(), auth()->user());
     }
 
+    private function isWatcher(): bool
+    {
+        return $this->ticket()->isWatchedBy(auth()->user());
+    }
+
     /**
      * Run a workflow step, report the outcome and reload the record.
      */
@@ -151,8 +156,11 @@ class ViewTeamTicket extends ViewRecord
                     Forms\Components\Select::make('reason')
                         ->label(__('ui.hold_reason'))
                         ->options(HoldReasonEnum::class)
+                        ->live()
                         ->required(),
-                    $this->reasonField('note', required: false),
+                    $this->reasonField('note', required: false)
+                        ->required(fn (Forms\Get $get): bool => $get('reason') === HoldReasonEnum::AwaitingApproval->value)
+                        ->helperText(fn (Forms\Get $get): ?string => $get('reason') === HoldReasonEnum::AwaitingApproval->value ? __('ui.hold_approval_note_help') : null),
                 ])
                 ->action(fn (array $data) => $this->run(
                     fn ($wf, $user) => $wf->hold($ticket, $user, HoldReasonEnum::from($data['reason']), $data['note'] ?? null),
@@ -224,7 +232,7 @@ class ViewTeamTicket extends ViewRecord
                 ->label(__('ui.add_note'))
                 ->icon('heroicon-o-chat-bubble-left')
                 ->color('gray')
-                ->visible(fn (): bool => $this->isRequester() || $this->isAssignee() || $this->isSupervisor())
+                ->visible(fn (): bool => $this->isRequester() || $this->isAssignee() || $this->isSupervisor() || $this->isWatcher())
                 ->form([$this->reasonField('note')])
                 ->action(function (array $data) use ($ticket): void {
                     app(TicketService::class)->addComment($ticket, auth()->user(), $data['note']);
@@ -429,6 +437,14 @@ class ViewTeamTicket extends ViewRecord
                             $this->companyOf($ticket->employee))
                             ->placeholder(__('ui.request_in_pool'))
                             ->color($ticket->employee ? 'primary' : 'warning'),
+                        Infolists\Components\TextEntry::make('watcher_names')
+                            ->label(__('ui.watchers'))
+                            ->icon('heroicon-o-eye')
+                            ->state($ticket->watchers()->with('company')->orderBy('name')->get()
+                                ->map(fn (Employee $employee): string => TeamResource::employeeLabel($employee))
+                                ->all())
+                            ->listWithLineBreaks()
+                            ->visible($ticket->watchers()->exists()),
                     ]),
 
                 Infolists\Components\Section::make(__('ui.sla'))

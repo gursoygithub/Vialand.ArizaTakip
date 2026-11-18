@@ -21,6 +21,7 @@ use App\Models\User;
 use App\Observers\TicketObserver;
 use App\Settings\GeneralSettings;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -68,6 +69,7 @@ class TicketWorkflowService
      *
      * @param  array<string, mixed>  $customFields  values keyed by the type's form field keys
      * @param  array<string, mixed>  $attributes  extra ticket columns (area_id, sub_area_id, title, ...)
+     * @param  array<int, int|string>  $watcherEmployeeIds  people kept informed (CC)
      */
     public function open(
         User $requester,
@@ -76,6 +78,7 @@ class TicketWorkflowService
         string $description,
         array $customFields = [],
         array $attributes = [],
+        array $watcherEmployeeIds = [],
     ): Ticket {
         $team->loadMissing('ticketType', 'slaPolicies', 'workCalendar');
 
@@ -84,8 +87,9 @@ class TicketWorkflowService
         }
 
         $this->ensureRequiredCustomFields($team, $customFields);
+        $watchers = $this->watchersFor($requester, $team, $customFields, $watcherEmployeeIds);
 
-        $ticket = DB::transaction(function () use ($requester, $team, $priority, $description, $customFields, $attributes): Ticket {
+        $ticket = DB::transaction(function () use ($requester, $team, $priority, $description, $customFields, $attributes, $watchers): Ticket {
             $now = CarbonImmutable::now();
 
             $ticket = $this->quietly(fn (): Ticket => Ticket::create(array_merge($attributes, [
@@ -104,12 +108,44 @@ class TicketWorkflowService
             $cycle = $this->startCycle($ticket, $team, $priority, $now, 1);
             $this->mirror($ticket, $cycle);
 
+            $ticket->watchers()->attach($watchers->mapWithKeys(fn (Employee $employee): array => [
+                $employee->id => ['added_by' => $requester->id],
+            ])->all());
+
             return $ticket->fresh();
         });
 
         $this->notifier->dispatch(TeamTicketEventEnum::Opened, $ticket, $requester);
 
         return $ticket;
+    }
+
+    /**
+     * CC people must be active and reachable by e-mail; the requester is
+     * never their own CC. Types can make at least one CC mandatory.
+     *
+     * @param  array<string, mixed>  $customFields
+     * @param  array<int, int|string>  $employeeIds
+     * @return Collection<int, Employee>
+     */
+    private function watchersFor(User $requester, Team $team, array $customFields, array $employeeIds): Collection
+    {
+        $watchers = Employee::query()
+            ->whereKey(array_unique(array_map('intval', $employeeIds)))
+            ->when($requester->employee?->id, fn ($query, $ownId) => $query->whereKeyNot($ownId))
+            ->get();
+
+        $withoutEmail = $watchers->filter(fn (Employee $employee): bool => blank($employee->email));
+
+        if ($withoutEmail->isNotEmpty()) {
+            throw TicketWorkflowException::watcherWithoutEmail($withoutEmail->pluck('name')->implode(', '));
+        }
+
+        if ($watchers->isEmpty() && $team->ticketType->requiresWatchers($customFields)) {
+            throw TicketWorkflowException::watchersRequired();
+        }
+
+        return $watchers;
     }
 
     // ── Assignment ──────────────────────────────────────────────────────
@@ -183,6 +219,10 @@ class TicketWorkflowService
     {
         $this->ensureAssignee($ticket, $actor);
         $this->ensureStatus($ticket, [TaskStatusEnum::IN_PROGRESS]);
+
+        if ($reason === HoldReasonEnum::AwaitingApproval) {
+            $this->ensureReason((string) $note);
+        }
 
         return DB::transaction(function () use ($ticket, $actor, $reason, $note): Ticket {
             $now = CarbonImmutable::now();

@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Notifications\TeamTicketNotification;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
 use Spatie\Permission\Models\Permission;
 
 /**
@@ -110,11 +111,64 @@ class TeamTicketNotifier
             ],
         };
 
+        $watcherLevel = $this->watcherLevel($event);
+        $watchers = $watcherLevel ? $ticket->watchers()->with('user')->get() : collect();
+
+        foreach ($watchers as $watcher) {
+            if ($watcher->user) {
+                $plan[] = [$watcher->user, $watcherLevel, false];
+            }
+        }
+
         // The requester's "talebiniz alındı" confirmation is the one notice
         // that goes to the person who performed the action.
         $excludeActor = $event !== TeamTicketEventEnum::Opened;
 
         $this->deliver($event, $ticket, $actor, $plan, $context['note'] ?? null, $excludeActor);
+
+        if ($watcherLevel !== 'info') {
+            $this->mailWatchersWithoutAccount($event, $ticket, $actor, $watchers, $context['note'] ?? null);
+        }
+    }
+
+    /**
+     * CC people hear about the opening and the outcome by mail; the steps in
+     * between only ring their bell. SLA and exemption matters stay inside
+     * the team.
+     */
+    private function watcherLevel(TeamTicketEventEnum $event): ?string
+    {
+        return match ($event) {
+            TeamTicketEventEnum::Opened,
+            TeamTicketEventEnum::Resolved,
+            TeamTicketEventEnum::Rejected,
+            TeamTicketEventEnum::Cancelled => 'important',
+            TeamTicketEventEnum::Assigned,
+            TeamTicketEventEnum::Started,
+            TeamTicketEventEnum::Held,
+            TeamTicketEventEnum::ResolutionRejected,
+            TeamTicketEventEnum::Closed,
+            TeamTicketEventEnum::Reopened,
+            TeamTicketEventEnum::Transferred,
+            TeamTicketEventEnum::PriorityChanged => 'info',
+            default => null,
+        };
+    }
+
+    /**
+     * A CC person who never logged in has no account yet, so no bell — the
+     * important steps still reach them by mail.
+     *
+     * @param  Collection<int, Employee>  $watchers
+     */
+    private function mailWatchersWithoutAccount(TeamTicketEventEnum $event, Ticket $ticket, ?User $actor, Collection $watchers, ?string $note): void
+    {
+        $actorName = $actor?->employee?->name ?? $actor?->name;
+
+        $watchers
+            ->filter(fn (Employee $watcher): bool => $watcher->user === null && filled($watcher->email))
+            ->each(fn (Employee $watcher) => Notification::route('mail', $watcher->email)
+                ->notify(new TeamTicketNotification($ticket, $event, ['mail'], $actorName, $note)));
     }
 
     /**

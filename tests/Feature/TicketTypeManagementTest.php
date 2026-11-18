@@ -170,4 +170,40 @@ class TicketTypeManagementTest extends TestCase
 
         $this->get(TicketTypeResource::getUrl('index'))->assertForbidden();
     }
+
+    public function test_admin_sets_when_people_must_be_kept_informed(): void
+    {
+        $undoRepeaterFake = Repeater::fake();
+
+        Livewire::test(CreateTicketType::class)
+            ->fillForm([
+                'name' => 'IT Destek',
+                'location_requirement' => LocationRequirementEnum::Hidden->value,
+                'cc_required' => false,
+                'form_fields' => [
+                    [
+                        'label' => 'Konu',
+                        'key' => 'device_kind',
+                        'type' => FormFieldTypeEnum::Select->value,
+                        'options' => ['Bilgisayar', 'Yazılım / Hesap'],
+                        'cc_required_options' => ['Yazılım / Hesap'],
+                        'required' => true,
+                        'help' => null,
+                    ],
+                ],
+            ])
+            ->call('create')
+            ->assertHasNoFormErrors();
+
+        $undoRepeaterFake();
+
+        $type = TicketType::where('name', 'IT Destek')->sole();
+        $this->assertFalse($type->cc_required);
+        $this->assertSame(['Yazılım / Hesap'], $type->form_fields[0]['cc_required_options']);
+        $this->assertTrue($type->requiresWatchers(['device_kind' => 'Yazılım / Hesap']));
+        $this->assertFalse($type->requiresWatchers(['device_kind' => 'Bilgisayar']));
+
+        $type->update(['cc_required' => true]);
+        $this->assertTrue($type->requiresWatchers(['device_kind' => 'Bilgisayar']));
+    }
 }

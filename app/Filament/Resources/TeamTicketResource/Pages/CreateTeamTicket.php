@@ -30,7 +30,7 @@ class CreateTeamTicket extends CreateRecord
         $type = request()->integer('type');
 
         if ($type && TicketType::active()->whereKey($type)->exists()) {
-            $this->form->fill(['ticket_type_id' => $type]);
+            $this->form->fill(['ticket_type_id' => $type, 'watchers' => TeamTicketResource::lastWatcherIds()]);
         }
     }
 
@@ -65,9 +65,10 @@ class CreateTeamTicket extends CreateRecord
                     'area_id' => $data['area_id'] ?? null,
                     'sub_area_id' => $data['sub_area_id'] ?? null,
                 ]),
+                $data['watchers'] ?? [],
             );
         } catch (TicketWorkflowException $exception) {
-            throw ValidationException::withMessages(['data.team_id' => $exception->getMessage()]);
+            throw ValidationException::withMessages(['data.'.($exception->field ?? 'team_id') => $exception->getMessage()]);
         }
     }
 
