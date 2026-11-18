@@ -23,6 +23,7 @@ use App\Notifications\TicketCommentNotification;
 use App\Services\TicketWorkflowService;
 use Carbon\CarbonImmutable;
 use Database\Seeders\PermissionSeeder;
+use Filament\Tables\Columns\Column;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -291,6 +292,17 @@ class TeamTicketScreensTest extends TestCase
 
         $this->assertFalse(TicketResource::getEloquentQuery()->whereKey($ticket->id)->exists());
         $this->get(TicketResource::getUrl('view', ['record' => $ticket]))->assertNotFound();
+    }
+
+    public function test_region_and_location_columns_can_be_shown(): void
+    {
+        $this->openTicket();
+
+        $hiddenButToggleable = fn (Column $column): bool => $column->isToggleable() && $column->isToggledHiddenByDefault();
+
+        Livewire::test(ListTeamTickets::class)
+            ->assertTableColumnExists('area.name', $hiddenButToggleable)
+            ->assertTableColumnExists('subArea.name', $hiddenButToggleable);
     }
 
     // ── Actions on the detail page ──────────────────────────────────────

@@ -91,7 +91,14 @@ class TeamTicketNotifier
             ],
             TeamTicketEventEnum::PriorityChanged => [
                 [$assignee, 'info', false],
-                [$requester, 'info', false],
+                [$requester, 'important', false],
+            ],
+            TeamTicketEventEnum::PriorityObjected => [
+                [$supervisor, 'action', true],
+            ],
+            TeamTicketEventEnum::PriorityObjectionDecided => [
+                [$requester, 'important', false],
+                [$assignee, 'info', false],
             ],
             TeamTicketEventEnum::SlaWarning => [
                 [$assignee ?? $supervisor, 'important', false],

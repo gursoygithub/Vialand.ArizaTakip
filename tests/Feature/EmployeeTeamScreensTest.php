@@ -244,9 +244,31 @@ class EmployeeTeamScreensTest extends TestCase
             ->assertCanNotSeeTableRecords([$notTheirs])
             ->assertTableColumnStateSet('holder', __('ui.employee_request_on_them'), $held)
             ->assertTableColumnStateSet('holder', $this->tech2->employee->name, $handover)
-            ->filterTable('on_them', true)
+            ->filterTable('involvement', 'holder')
             ->assertCanSeeTableRecords([$held])
             ->assertCanNotSeeTableRecords([$handover]);
+    }
+
+    public function test_requests_relation_lists_supervised_requested_and_cc_requests(): void
+    {
+        $inTheirTeam = $this->workflow->open($this->requester, $this->team, TaskPriorityEnum::Urgent, 'Klima arızası.');
+        $otherTeam = Team::factory()->create();
+        $this->actingAs($this->supervisor);
+        $requested = $this->workflow->open($this->supervisor, $otherTeam, TaskPriorityEnum::Urgent, 'Yazıcı arızası.');
+        $this->actingAs($this->requester);
+        $informed = $this->workflow->open($this->requester, $otherTeam, TaskPriorityEnum::Urgent, 'Kapı arızası.', [], [], [$this->supervisor->employee->id]);
+        $unrelated = $this->workflow->open($this->requester, $otherTeam, TaskPriorityEnum::Urgent, 'Lamba arızası.');
+        $this->actingAs($this->viewer);
+
+        Livewire::test(TeamTicketsRelationManager::class, ['ownerRecord' => $this->supervisor->employee, 'pageClass' => ViewEmployee::class])
+            ->assertCanSeeTableRecords([$inTheirTeam, $requested, $informed])
+            ->assertCanNotSeeTableRecords([$unrelated])
+            ->assertTableColumnStateSet('involvement', [__('ui.employee_involvement_supervisor')], $inTheirTeam)
+            ->assertTableColumnStateSet('involvement', [__('ui.employee_involvement_requester')], $requested)
+            ->assertTableColumnStateSet('involvement', [__('ui.employee_involvement_watcher')], $informed)
+            ->filterTable('involvement', 'supervisor')
+            ->assertCanSeeTableRecords([$inTheirTeam])
+            ->assertCanNotSeeTableRecords([$requested, $informed]);
     }
 
     public function test_requests_relation_respects_request_visibility(): void

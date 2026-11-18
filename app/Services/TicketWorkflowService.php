@@ -492,43 +492,114 @@ class TicketWorkflowService
         $this->ensureStatus($ticket, self::ACTIVE_STATUSES);
         $this->ensureReason($reason);
 
-        return DB::transaction(function () use ($ticket, $priority, $actor, $reason): Ticket {
-            $now = CarbonImmutable::now();
-            $cycle = $this->cycle($ticket);
-            $policy = $cycle->team->slaPolicyFor($priority) ?? throw TicketWorkflowException::noSlaPolicy();
-            $calendar = $cycle->workCalendar;
+        return DB::transaction(fn (): Ticket => $this->applyPriority($ticket, $priority, $actor, $reason, TeamTicketEventEnum::PriorityChanged));
+    }
 
-            $cycle->priority = $priority;
-            $cycle->response_minutes = $policy->response_minutes;
-            $cycle->resolution_minutes = $policy->resolution_minutes;
-            $cycle->success_threshold = $policy->success_threshold;
-            $cycle->response_due_at = $this->calculator->addWorkingMinutes($cycle->started_at, $policy->response_minutes, $calendar);
-            $cycle->resolution_due_at = $this->calculator->addWorkingMinutes(
-                $cycle->started_at,
-                $policy->resolution_minutes + $cycle->paused_minutes,
-                $calendar,
-            );
+    /**
+     * The requester objects once to a priority the supervisor lowered; the
+     * supervisor decides. The SLA keeps running on the current priority.
+     */
+    public function objectToPriority(Ticket $ticket, User $actor, string $reason): Ticket
+    {
+        $this->ensureRequester($ticket, $actor);
+        $this->ensureStatus($ticket, self::ACTIVE_STATUSES);
+        $this->ensureReason($reason);
 
-            if ($cycle->responded_at !== null) {
-                $cycle->response_breached = $cycle->response_breached || $cycle->responded_at->greaterThan($cycle->response_due_at);
+        if (! $this->canObjectToPriority($ticket)) {
+            throw TicketWorkflowException::notAllowed();
+        }
+
+        return DB::transaction(function () use ($ticket, $actor, $reason): Ticket {
+            $ticket->priority_objected_at = CarbonImmutable::now();
+            $note = __('ui.priority_objection_note', [
+                'current' => $ticket->priority?->getLabel() ?? '—',
+                'wanted' => $ticket->priority_lowered_from->getLabel(),
+            ]).': '.$reason;
+
+            return $this->moveTo($ticket, $ticket->status, $actor, $note, $this->cycle($ticket),
+                TeamTicketEventEnum::PriorityObjected, ['note' => $note]);
+        });
+    }
+
+    /**
+     * Accepting restores the priority from before the lowering (targets
+     * recomputed as in changePriority); rejecting keeps it. Either way the
+     * objection is closed and the requester hears the decision.
+     */
+    public function decidePriorityObjection(Ticket $ticket, User $actor, bool $accept, string $reason): Ticket
+    {
+        $this->ensureSupervisor($ticket, $actor);
+        $this->ensureStatus($ticket, self::ACTIVE_STATUSES);
+        $this->ensureReason($reason);
+
+        if (! $this->hasOpenPriorityObjection($ticket)) {
+            throw TicketWorkflowException::notAllowed();
+        }
+
+        return DB::transaction(function () use ($ticket, $actor, $accept, $reason): Ticket {
+            if ($accept) {
+                return $this->applyPriority($ticket, $ticket->priority_lowered_from, $actor,
+                    __('ui.priority_objection_accepted').': '.$reason, TeamTicketEventEnum::PriorityObjectionDecided);
             }
 
-            $this->evaluateResolutionBreach($cycle, $now);
-            $cycle->save();
+            $ticket->priority_lowered_from = null;
+            $ticket->priority_objected_at = null;
+            $note = __('ui.priority_objection_rejected').': '.$reason;
 
-            $old = $ticket->priority;
-            $ticket->priority = $priority;
-
-            return $this->moveTo(
-                $ticket,
-                $ticket->status,
-                $actor,
-                ($old?->getLabel() ?? '—').' → '.$priority->getLabel().': '.$reason,
-                $cycle,
-                TeamTicketEventEnum::PriorityChanged,
-                ['note' => ($old?->getLabel() ?? '—').' → '.$priority->getLabel().': '.$reason],
-            );
+            return $this->moveTo($ticket, $ticket->status, $actor, $note, $this->cycle($ticket),
+                TeamTicketEventEnum::PriorityObjectionDecided, ['note' => $note]);
         });
+    }
+
+    public function canObjectToPriority(Ticket $ticket): bool
+    {
+        return $ticket->priority_lowered_from !== null && $ticket->priority_objected_at === null;
+    }
+
+    public function hasOpenPriorityObjection(Ticket $ticket): bool
+    {
+        return $ticket->priority_lowered_from !== null && $ticket->priority_objected_at !== null;
+    }
+
+    /**
+     * New targets count from the cycle start, never from now, so a change
+     * cannot buy time; a breach already recorded stays. A lowering opens
+     * the requester's right to object, any other change closes it.
+     */
+    private function applyPriority(Ticket $ticket, TaskPriorityEnum $priority, User $actor, string $reason, TeamTicketEventEnum $event): Ticket
+    {
+        $now = CarbonImmutable::now();
+        $cycle = $this->cycle($ticket);
+        $policy = $cycle->team->slaPolicyFor($priority) ?? throw TicketWorkflowException::noSlaPolicy();
+        $calendar = $cycle->workCalendar;
+
+        $cycle->priority = $priority;
+        $cycle->response_minutes = $policy->response_minutes;
+        $cycle->resolution_minutes = $policy->resolution_minutes;
+        $cycle->success_threshold = $policy->success_threshold;
+        $cycle->response_due_at = $this->calculator->addWorkingMinutes($cycle->started_at, $policy->response_minutes, $calendar);
+        $cycle->resolution_due_at = $this->calculator->addWorkingMinutes(
+            $cycle->started_at,
+            $policy->resolution_minutes + $cycle->paused_minutes,
+            $calendar,
+        );
+
+        if ($cycle->responded_at !== null) {
+            $cycle->response_breached = $cycle->response_breached || $cycle->responded_at->greaterThan($cycle->response_due_at);
+        }
+
+        $this->evaluateResolutionBreach($cycle, $now);
+        $cycle->save();
+
+        $old = $ticket->priority;
+        $ticket->priority = $priority;
+
+        $ticket->priority_lowered_from = $old !== null && $priority->value < $old->value ? $old : null;
+        $ticket->priority_objected_at = null;
+
+        $note = ($old?->getLabel() ?? '—').' → '.$priority->getLabel().': '.$reason;
+
+        return $this->moveTo($ticket, $ticket->status, $actor, $note, $cycle, $event, ['note' => $note]);
     }
 
     // ── Scheduler entry points ──────────────────────────────────────────

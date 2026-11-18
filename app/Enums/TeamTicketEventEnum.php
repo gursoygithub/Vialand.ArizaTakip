@@ -19,6 +19,8 @@ enum TeamTicketEventEnum: string
     case Rejected = 'rejected';
     case Cancelled = 'cancelled';
     case PriorityChanged = 'priority_changed';
+    case PriorityObjected = 'priority_objected';
+    case PriorityObjectionDecided = 'priority_objection_decided';
     case SlaWarning = 'sla_warning';
     case SlaBreached = 'sla_breached';
     case SlaEscalated = 'sla_escalated';
@@ -39,7 +41,7 @@ enum TeamTicketEventEnum: string
     {
         return match ($this) {
             self::Resolved, self::Closed => '#198754',
-            self::SlaWarning, self::Held, self::PriorityChanged => '#d97706',
+            self::SlaWarning, self::Held, self::PriorityChanged, self::PriorityObjected, self::PriorityObjectionDecided => '#d97706',
             self::SlaBreached, self::SlaEscalated, self::ResolutionRejected, self::Cancelled, self::Rejected => '#dc3545',
             self::ExemptionRequested, self::ExemptionDecided => '#6f42c1',
             default => '#0d6efd',
@@ -50,7 +52,7 @@ enum TeamTicketEventEnum: string
     {
         return match ($this) {
             self::Resolved, self::Closed => 'success',
-            self::SlaWarning, self::Held, self::PriorityChanged => 'warning',
+            self::SlaWarning, self::Held, self::PriorityChanged, self::PriorityObjected, self::PriorityObjectionDecided => 'warning',
             self::SlaBreached, self::SlaEscalated, self::ResolutionRejected, self::Cancelled, self::Rejected => 'danger',
             default => 'info',
         };
@@ -70,7 +72,8 @@ enum TeamTicketEventEnum: string
             self::Transferred => 'heroicon-o-arrows-right-left',
             self::Rejected => 'heroicon-o-no-symbol',
             self::Cancelled => 'heroicon-o-x-circle',
-            self::PriorityChanged => 'heroicon-o-arrows-up-down',
+            self::PriorityChanged, self::PriorityObjectionDecided => 'heroicon-o-arrows-up-down',
+            self::PriorityObjected => 'heroicon-o-hand-raised',
             self::SlaWarning => 'heroicon-o-exclamation-triangle',
             self::SlaBreached, self::SlaEscalated => 'heroicon-o-fire',
             self::ExemptionRequested, self::ExemptionDecided => 'heroicon-o-scale',

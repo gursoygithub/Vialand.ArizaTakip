@@ -334,7 +334,7 @@ class TeamTicketResource extends Resource
     {
         return $table
             ->modifyQueryUsing(fn (Builder $query) => $query->with([
-                'ticketType', 'team', 'employee', 'createdBy', 'currentCycle.workCalendar',
+                'ticketType', 'team', 'employee', 'createdBy', 'currentCycle.workCalendar', 'area', 'subArea',
             ]))
             ->defaultSort('created_at', 'desc')
             ->poll('60s')
@@ -354,6 +354,16 @@ class TeamTicketResource extends Resource
                 Tables\Columns\TextColumn::make('team.name')
                     ->label(__('ui.team'))
                     ->toggleable(),
+
+                Tables\Columns\TextColumn::make('area.name')
+                    ->label(__('ui.area'))
+                    ->placeholder('—')
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+                Tables\Columns\TextColumn::make('subArea.name')
+                    ->label(__('ui.sub_area'))
+                    ->placeholder('—')
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 Tables\Columns\TextColumn::make('priority')
                     ->label(__('ui.priority'))
