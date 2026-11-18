@@ -24,6 +24,8 @@ use App\Services\TicketWorkflowService;
 use Carbon\CarbonImmutable;
 use Database\Seeders\PermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 use Tests\TestCase;
 
@@ -402,5 +404,22 @@ class TeamTicketScreensTest extends TestCase
             ->assertSee(__('ui.sla_due', ['time' => '8 sa']))
             ->assertSee(__('ui.sla_used', ['percent' => 0]))
             ->assertSee(__('ui.request_in_pool'));
+    }
+
+    public function test_detail_page_shows_attachments_as_fixed_size_tiles(): void
+    {
+        Storage::fake('s3');
+        $ticket = $this->openTicket();
+        $ticket->addMedia(UploadedFile::fake()->image('sistem-odasi.png', 2400, 300))->toMediaCollection('task_attachments');
+        $ticket->addMedia(UploadedFile::fake()->create('servis-formu.pdf', 50, 'application/pdf'))->toMediaCollection('task_attachments');
+
+        $html = $this->get(TeamTicketResource::getUrl('view', ['record' => $ticket]))
+            ->assertOk()
+            ->assertSee('sistem-odasi.png')
+            ->assertSee('servis-formu.pdf')
+            ->getContent();
+
+        $this->assertSame(1, substr_count($html, 'alt="sistem-odasi.png"'), 'only the image gets a thumbnail');
+        $this->assertStringContainsString('object-fit:cover', $html);
     }
 }

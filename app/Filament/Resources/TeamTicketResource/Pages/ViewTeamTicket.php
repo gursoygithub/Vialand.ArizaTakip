@@ -26,6 +26,7 @@ use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
 use Illuminate\Support\HtmlString;
+use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
 /**
  * Detail page of a team ticket. Every button calls TicketWorkflowService,
@@ -443,10 +444,14 @@ class ViewTeamTicket extends ViewRecord
                     ->collapsible()
                     ->visible($ticket->getMedia('task_attachments')->isNotEmpty())
                     ->schema([
-                        Infolists\Components\SpatieMediaLibraryImageEntry::make('task_attachments')
+                        Infolists\Components\ViewEntry::make('attachments')
                             ->hiddenLabel()
-                            ->collection('task_attachments')
-                            ->disk('s3'),
+                            ->view('filament.partials.team-ticket-attachments', [
+                                'media' => $ticket->getMedia('task_attachments'),
+                                'urlFor' => fn (Media $media): string => config('filesystems.disks.'.$media->disk.'.visibility') === 'private'
+                                    ? $media->getTemporaryUrl(now()->addMinutes(30))
+                                    : $media->getUrl(),
+                            ]),
                     ]),
 
                 Infolists\Components\Section::make(__('ui.history'))

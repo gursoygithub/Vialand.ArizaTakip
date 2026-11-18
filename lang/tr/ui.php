@@ -412,6 +412,7 @@ return [
     'due_date_after_or_equal_task_date' => 'Çözüm tarihi, görev tarihine eşit veya daha sonra olmalıdır',
     'image' => 'Resim',
     'images' => 'Resimler',
+    'attachments_help' => 'En fazla 5 dosya (JPG, PNG, WEBP veya PDF), her biri en fazla 10 MB.',
     'upload_image' => 'Resim Yükle',
     'task_photo_helper_text' => 'Sadece jpg, jpeg, png formatları desteklenir. Maksimum dosya boyutu 10MB olmalıdır.',
     'task_description_placeholder' => 'Görev açıklamasını buraya giriniz...',

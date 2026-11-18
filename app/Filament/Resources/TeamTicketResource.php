@@ -183,7 +183,12 @@ class TeamTicketResource extends Resource
                             ->multiple()
                             ->maxFiles(5)
                             ->maxSize(10240)
-                            ->acceptedFileTypes(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']),
+                            ->acceptedFileTypes(['image/jpeg', 'image/png', 'image/webp', 'application/pdf'])
+                            ->panelLayout('grid')
+                            ->imagePreviewHeight('140')
+                            ->openable()
+                            ->helperText(__('ui.attachments_help'))
+                            ->columnSpanFull(),
                     ]),
             ]);
     }
