@@ -30,7 +30,7 @@ class CreateTeamTicket extends CreateRecord
         $type = request()->integer('type');
 
         if ($type && TicketType::active()->whereKey($type)->exists()) {
-            $this->form->fill(['ticket_type_id' => $type, 'watchers' => TeamTicketResource::lastWatcherIds()]);
+            $this->form->fill(['ticket_type_id' => $type]);
         }
     }
 

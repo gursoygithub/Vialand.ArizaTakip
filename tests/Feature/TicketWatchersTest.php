@@ -178,13 +178,13 @@ class TicketWatchersTest extends TestCase
         $this->assertSame([$this->manager->employee->id], $ticket->watchers()->pluck('employees.id')->all());
     }
 
-    public function test_last_cc_people_are_offered_on_the_next_request(): void
+    public function test_cc_starts_empty_on_every_new_request(): void
     {
         Notification::fake();
         $this->open([$this->manager->employee->id]);
 
         Livewire::test(CreateTeamTicket::class)
-            ->assertFormSet(['watchers' => [$this->manager->employee->id]]);
+            ->assertFormSet(['watchers' => []]);
     }
 
     // ── Seeing and taking part ──────────────────────────────────────────

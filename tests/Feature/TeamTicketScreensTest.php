@@ -420,6 +420,30 @@ class TeamTicketScreensTest extends TestCase
             ->getContent();
 
         $this->assertSame(1, substr_count($html, 'alt="sistem-odasi.png"'), 'only the image gets a thumbnail');
-        $this->assertStringContainsString('object-fit:cover', $html);
+        $this->assertStringContainsString('object-fit:contain', $html);
+    }
+
+    public function test_description_is_shown_framed_and_escaped(): void
+    {
+        $ticket = $this->openTicket();
+        $ticket->update(['description' => 'Yazıcı <b>çalışmıyor</b>']);
+
+        $this->get(TeamTicketResource::getUrl('view', ['record' => $ticket]))
+            ->assertOk()
+            ->assertSee('border-left:4px solid #3b82f6', false)
+            ->assertSee('Yazıcı &lt;b&gt;çalışmıyor&lt;/b&gt;', false);
+    }
+
+    public function test_supervisor_goes_back_to_the_list_after_a_transfer(): void
+    {
+        $ticket = $this->openTicket();
+        $otherTeam = Team::factory()->create(['ticket_type_id' => $this->type->id]);
+
+        $this->actingAs($this->supervisor);
+        Livewire::test(ViewTeamTicket::class, ['record' => $ticket->id])
+            ->callAction('transfer', ['team_id' => $otherTeam->id, 'reason' => 'Diğer ekibin işi.'])
+            ->assertRedirect(TeamTicketResource::getUrl('index'));
+
+        $this->assertSame($otherTeam->id, $ticket->fresh()->team_id);
     }
 }

@@ -276,10 +276,18 @@ class ViewTeamTicket extends ViewRecord
                             ->searchable(),
                         $this->reasonField(),
                     ])
-                    ->action(fn (array $data) => $this->run(
-                        fn ($wf, $user) => $wf->transfer($ticket, Team::findOrFail($data['team_id']), $user, $data['reason']),
-                        __('ui.action_done'),
-                    )),
+                    ->action(function (array $data) use ($ticket): void {
+                        $this->run(
+                            fn ($wf, $user) => $wf->transfer($ticket, Team::findOrFail($data['team_id']), $user, $data['reason']),
+                            __('ui.action_done'),
+                        );
+
+                        // The old supervisor usually loses sight of the request
+                        // with the transfer, so go back to the list.
+                        if ((int) $this->record->team_id === (int) $data['team_id']) {
+                            $this->redirect(TeamTicketResource::getUrl('index'));
+                        }
+                    }),
 
                 Action::make('reject')
                     ->label(__('ui.action_reject'))
@@ -404,8 +412,16 @@ class ViewTeamTicket extends ViewRecord
                             ->badge()
                             ->color('gray'),
                         Infolists\Components\TextEntry::make('created_at')->label(__('ui.created_at'))->dateTime(),
+                        // Framed and larger: this is what everybody reads first.
+                        // Inline styles because Filament's prebuilt CSS does not
+                        // scan custom classes (see app/Filament/CLAUDE.md).
                         Infolists\Components\TextEntry::make('description')
                             ->label(__('ui.description'))
+                            ->state(new HtmlString(
+                                '<div style="white-space:pre-line;font-size:1rem;line-height:1.6;padding:14px 16px;border:1px solid rgba(148,163,184,.35);border-left:4px solid #3b82f6;border-radius:10px;background:rgba(59,130,246,.06);">'
+                                .e($ticket->description)
+                                .'</div>'
+                            ))
                             ->columnSpanFull(),
                         Infolists\Components\TextEntry::make('custom_fields_view')
                             ->label(__('ui.form_fields'))

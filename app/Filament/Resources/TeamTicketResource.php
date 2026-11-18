@@ -192,7 +192,6 @@ class TeamTicketResource extends Resource
                             ->getOptionLabelsUsing(fn (array $values): array => Employee::with('company')->whereKey($values)->get()
                                 ->mapWithKeys(fn (Employee $employee): array => [$employee->id => TeamResource::employeeLabel($employee)])
                                 ->all())
-                            ->default(fn (): array => self::lastWatcherIds())
                             ->required(fn (Get $get): bool => (bool) TicketType::find($get('ticket_type_id'))?->requiresWatchers((array) $get('custom_fields')))
                             ->validationMessages(['required' => __('ui.workflow_watchers_required')])
                             ->columnSpanFull(),
@@ -285,31 +284,6 @@ class TeamTicketResource extends Resource
             ->where('email', '!=', '')
             ->when(auth()->user()?->employee?->id, fn (Builder $query, int $ownId) => $query->whereKeyNot($ownId))
             ->orderBy('name');
-    }
-
-    /**
-     * CC people of the user's latest request, offered again on the next one.
-     *
-     * @return array<int, int>
-     */
-    public static function lastWatcherIds(): array
-    {
-        $userId = auth()->id();
-
-        if (! $userId) {
-            return [];
-        }
-
-        $lastTicket = Ticket::query()
-            ->whereNotNull('team_id')
-            ->where('created_by', $userId)
-            ->whereHas('watchers')
-            ->latest('id')
-            ->first();
-
-        return $lastTicket
-            ? self::watcherCandidates()->whereIn('id', $lastTicket->watchers()->pluck('employees.id'))->pluck('id')->all()
-            : [];
     }
 
     public static function locationRequirement(mixed $ticketTypeId): LocationRequirementEnum
