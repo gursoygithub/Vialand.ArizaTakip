@@ -80,8 +80,6 @@ class Ticket extends Model implements HasMedia
         'type_id'      => \App\Enums\TaskTypeEnum::class,
         'status'       => \App\Enums\TaskStatusEnum::class,
         'priority'     => \App\Enums\TaskPriorityEnum::class,
-        'priority_lowered_from' => \App\Enums\TaskPriorityEnum::class,
-        'priority_objected_at' => 'datetime',
         'assigned_person_type_id' => \App\Enums\AssignedPersonTypeEnum::class,
     ];
 

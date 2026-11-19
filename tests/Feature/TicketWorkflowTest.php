@@ -472,26 +472,6 @@ class TicketWorkflowTest extends TestCase
         $this->assertEquals(now()->addMinutes(120), $new->resolution_due_at);
     }
 
-    public function test_priority_change_is_measured_from_team_arrival_not_now(): void
-    {
-        $ticket = $this->open(TaskPriorityEnum::Medium); // 1440 min
-        $this->travel(200)->minutes();
-
-        $ticket = $this->workflow->changePriority($ticket, TaskPriorityEnum::Urgent, $this->supervisor, 'Ana giriş kapalı.');
-
-        $cycle = $this->cycleOf($ticket);
-        $this->assertSame(TaskPriorityEnum::Urgent, $ticket->priority);
-        $this->assertEquals($cycle->started_at->addMinutes(120), $cycle->resolution_due_at);
-        $this->assertTrue($cycle->resolution_breached, '200 min already exceed the urgent target');
-        $this->assertSame(BreachAttributionEnum::Dispatch, $cycle->breach_attribution);
-    }
-
-    public function test_priority_change_needs_the_supervisor(): void
-    {
-        $this->expectException(TicketWorkflowException::class);
-        $this->workflow->changePriority($this->open(), TaskPriorityEnum::Low, $this->requester, 'Acil değil.');
-    }
-
     // ── Isolation from the legacy flow ──────────────────────────────────
 
     public function test_legacy_observer_leaves_team_tickets_alone(): void

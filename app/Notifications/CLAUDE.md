@@ -70,7 +70,6 @@ Levels: **action** = bell + mail (+ push where marked), ignores preferences and 
 | Reopened | assignee (or supervisor if none): action + push · supervisor: info |
 | Transferred | new supervisor: action + push · old supervisor, requester: info |
 | Rejected / Cancelled | requester: important · assignee: info |
-| PriorityChanged | assignee, requester: info |
 | SlaWarning (80 %, once per cycle) | assignee, or supervisor if unassigned: important |
 | SlaBreached (once per cycle) | assignee + supervisor: important |
 | SlaEscalated (once per cycle) | users with `ticket.sla.escalation`: important |

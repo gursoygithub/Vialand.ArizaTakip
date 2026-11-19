@@ -6,7 +6,6 @@ use App\Enums\ActiveStatusEnum;
 use App\Enums\ExemptionReasonEnum;
 use App\Enums\HoldReasonEnum;
 use App\Enums\RejectionReasonEnum;
-use App\Enums\TaskPriorityEnum;
 use App\Enums\TaskStatusEnum;
 use App\Exceptions\TicketWorkflowException;
 use App\Filament\Resources\TeamResource;
@@ -228,43 +227,6 @@ class ViewTeamTicket extends ViewRecord
                 ->form([$this->reasonField()])
                 ->action(fn (array $data) => $this->run(fn ($wf, $user) => $wf->reopen($ticket, $user, $data['reason']), __('ui.action_done'))),
 
-            Action::make('objectPriority')
-                ->label(__('ui.action_object_priority'))
-                ->icon('heroicon-o-hand-raised')
-                ->color('warning')
-                ->visible(fn (): bool => $this->isRequester()
-                    && $this->is(TaskStatusEnum::OPEN, TaskStatusEnum::ASSIGNED, TaskStatusEnum::IN_PROGRESS, TaskStatusEnum::ON_HOLD)
-                    && $this->workflow()->canObjectToPriority($this->ticket()))
-                ->modalDescription(fn (): string => __('ui.action_object_priority_help', [
-                    'from' => $this->ticket()->priority_lowered_from?->getLabel(),
-                    'to' => $this->ticket()->priority?->getLabel(),
-                ]))
-                ->form([$this->reasonField()])
-                ->action(fn (array $data) => $this->run(fn ($wf, $user) => $wf->objectToPriority($ticket, $user, $data['reason']), __('ui.action_done'))),
-
-            Action::make('decidePriorityObjection')
-                ->label(__('ui.action_decide_priority_objection'))
-                ->icon('heroicon-o-scale')
-                ->color('warning')
-                ->visible(fn (): bool => $this->isSupervisor()
-                    && $this->is(TaskStatusEnum::OPEN, TaskStatusEnum::ASSIGNED, TaskStatusEnum::IN_PROGRESS, TaskStatusEnum::ON_HOLD)
-                    && $this->workflow()->hasOpenPriorityObjection($this->ticket()))
-                ->modalDescription(__('ui.priority_objection_pending'))
-                ->form([
-                    Forms\Components\Radio::make('decision')
-                        ->label(__('ui.priority_objection_decision'))
-                        ->options(fn (): array => [
-                            'accept' => __('ui.priority_objection_accept', ['priority' => $this->ticket()->priority_lowered_from?->getLabel()]),
-                            'reject' => __('ui.priority_objection_reject'),
-                        ])
-                        ->required(),
-                    $this->reasonField(),
-                ])
-                ->action(fn (array $data) => $this->run(
-                    fn ($wf, $user) => $wf->decidePriorityObjection($ticket, $user, $data['decision'] === 'accept', $data['reason']),
-                    __('ui.action_done'),
-                )),
-
             Action::make('addComment')
                 ->label(__('ui.add_note'))
                 ->icon('heroicon-o-chat-bubble-left')
@@ -277,26 +239,6 @@ class ViewTeamTicket extends ViewRecord
                 }),
 
             ActionGroup::make([
-                Action::make('changePriority')
-                    ->label(__('ui.action_change_priority'))
-                    ->icon('heroicon-o-arrows-up-down')
-                    ->visible(fn (): bool => $this->isSupervisor() && $this->is(
-                        TaskStatusEnum::OPEN, TaskStatusEnum::ASSIGNED, TaskStatusEnum::IN_PROGRESS, TaskStatusEnum::ON_HOLD,
-                    ))
-                    ->form([
-                        Forms\Components\ToggleButtons::make('priority')
-                            ->label(__('ui.priority'))
-                            ->options(TaskPriorityEnum::class)
-                            ->default(fn () => $ticket->priority?->value)
-                            ->inline()
-                            ->required(),
-                        $this->reasonField(),
-                    ])
-                    ->action(fn (array $data) => $this->run(
-                        fn ($wf, $user) => $wf->changePriority($ticket, TaskPriorityEnum::from((int) $data['priority']), $user, $data['reason']),
-                        __('ui.action_done'),
-                    )),
-
                 Action::make('transfer')
                     ->label(__('ui.action_transfer'))
                     ->icon('heroicon-o-arrows-right-left')

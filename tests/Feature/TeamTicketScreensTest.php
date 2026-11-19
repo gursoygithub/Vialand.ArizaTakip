@@ -321,7 +321,8 @@ class TeamTicketScreensTest extends TestCase
         Livewire::test(ViewTeamTicket::class, ['record' => $ticket->id])
             ->assertActionVisible('assign')
             ->assertActionVisible('reject')
-            ->assertActionVisible('transfer');
+            ->assertActionVisible('transfer')
+            ->assertActionDoesNotExist('changePriority');
 
         $this->actingAs($this->tech);
         Livewire::test(ViewTeamTicket::class, ['record' => $ticket->id])
