@@ -19,7 +19,7 @@ class OpenRequestsByTypeChart extends ChartWidget
 
     public static function canView(): bool
     {
-        return auth()->check();
+        return auth()->user()?->can('widget_OpenRequestsByTypeChart') ?? false;
     }
 
     public function getHeading(): ?string

@@ -34,7 +34,7 @@ class RequestsByStatusChart extends ChartWidget
 
     public static function canView(): bool
     {
-        return auth()->check();
+        return auth()->user()?->can('widget_RequestsByStatusChart') ?? false;
     }
 
     public function getHeading(): ?string

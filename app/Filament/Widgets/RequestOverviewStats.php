@@ -30,7 +30,7 @@ class RequestOverviewStats extends StatsOverviewWidget
 
     public static function canView(): bool
     {
-        return auth()->check();
+        return auth()->user()?->can('widget_RequestOverviewStats') ?? false;
     }
 
     protected function getHeading(): ?string

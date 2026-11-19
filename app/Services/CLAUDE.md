@@ -165,7 +165,7 @@ prerequisites before allowing creation.
 | `reopen` | requester within window | CLOSED → ASSIGNED (resolver) or OPEN | new cycle from now; previous outcome kept |
 | `cancel` | requester before work starts, else supervisor | active → CANCELLED | outcome `cancelled`; a breach already passed stays flagged |
 | `reject` | supervisor, `RejectionReasonEnum` | OPEN/ASSIGNED → REJECTED | outcome `rejected` |
-| `transfer` | supervisor, reason | OPEN/ASSIGNED/IN_PROGRESS → OPEN | old cycle `transferred` (charged to nobody), new team clock from now |
+| `transfer` | supervisor, reason | OPEN/ASSIGNED/IN_PROGRESS → OPEN | old cycle `transferred` (charged to nobody) — or `breached` when its deadline had already passed (charged to whoever held it at the deadline, no resolver); new team clock from now |
 - The priority is the requester's choice at opening and is never changed afterwards (it is the SLA promise). A wrong priority is corrected in the reports through an SLA exemption (`ExemptionReasonEnum::WrongPriority`), not on the request
 - Violations throw `App\Exceptions\TicketWorkflowException` with a Turkish user message
 - Every action writes `ticket_status_histories` and mirrors `sla_deadline` / `sla_breached` on the ticket; saves run with `TicketObserver::$skipReassignNotification` so the legacy assignment notification does not fire

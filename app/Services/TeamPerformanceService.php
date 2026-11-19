@@ -231,7 +231,7 @@ class TeamPerformanceService
     {
         $counts = $cycle->outcome?->countsForPerformance() && ! $cycle->exempted;
         $breached = $counts && $cycle->outcome === SlaCycleOutcomeEnum::Breached;
-        $resolver = $cycle->assignments->sortBy('started_at')->last()?->employee;
+        $resolver = $cycle->resolved_at ? $cycle->assignments->sortBy('started_at')->last()?->employee : null;
 
         $reopened = $counts && TicketSlaCycle::query()
             ->where('ticket_id', $cycle->ticket_id)

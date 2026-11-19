@@ -49,6 +49,10 @@ class DashboardPanelProvider extends PanelProvider
                 PanelsRenderHook::BODY_END,
                 fn (): string => view('filament.fcm-init')->render(),
             )
+            ->renderHook(
+                PanelsRenderHook::BODY_END,
+                fn (): string => view('filament.session-expired')->render(),
+            )
             // Order follows daily use: work first, set-up and system last.
             // ticket_management / panel_management only hold legacy-flow
             // screens (hidden unless config('legacy.enabled')).

@@ -472,8 +472,11 @@ class TicketWorkflowService
             $now = CarbonImmutable::now();
             $old = $this->cycle($ticket);
 
+            // A deadline already missed stays on the old team and on whoever
+            // held the ticket at the deadline; moving it must not erase it.
+            $this->evaluateResolutionBreach($old, $now);
             $this->closeAssignment($ticket, TicketAssignment::END_TRANSFERRED, $now);
-            $old->outcome = SlaCycleOutcomeEnum::Transferred;
+            $old->outcome = $old->resolution_breached ? SlaCycleOutcomeEnum::Breached : SlaCycleOutcomeEnum::Transferred;
             $old->ended_at = $now;
             $old->paused_since = null;
             $old->pause_kind = null;

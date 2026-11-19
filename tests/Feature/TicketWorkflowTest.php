@@ -472,6 +472,35 @@ class TicketWorkflowTest extends TestCase
         $this->assertEquals(now()->addMinutes(120), $new->resolution_due_at);
     }
 
+    public function test_transfer_after_the_deadline_keeps_the_breach_on_who_held_it(): void
+    {
+        $target = Team::factory()->create();
+        $ticket = $this->openAssignedAndStarted(); // Urgent: 120 min, tech1 holds it
+        $this->travel(150)->minutes();
+
+        $ticket = $this->workflow->transfer($ticket, $target, $this->supervisor, 'Elektrik ekibinin işi.');
+
+        $old = $this->cycleOf($ticket, 1);
+        $this->assertSame(SlaCycleOutcomeEnum::Breached, $old->outcome);
+        $this->assertTrue($old->resolution_breached);
+        $this->assertSame(BreachAttributionEnum::Person, $old->breach_attribution);
+        $this->assertSame($this->tech1->employee->id, $old->breach_employee_id);
+        $this->assertFalse($this->cycleOf($ticket)->resolution_breached, 'the new team starts with a clean clock');
+    }
+
+    public function test_reassigning_after_the_deadline_keeps_the_breach_on_who_held_it(): void
+    {
+        $ticket = $this->openAssignedAndStarted();
+        $this->travel(150)->minutes();
+
+        $ticket = $this->workflow->assign($ticket, $this->tech2->employee, $this->supervisor);
+        $ticket = $this->workflow->resolve($this->workflow->startWork($ticket, $this->tech2), $this->tech2, 'Tamamlandı.');
+
+        $cycle = $this->cycleOf($ticket);
+        $this->assertTrue($cycle->resolution_breached);
+        $this->assertSame($this->tech1->employee->id, $cycle->breach_employee_id);
+    }
+
     // ── Isolation from the legacy flow ──────────────────────────────────
 
     public function test_legacy_observer_leaves_team_tickets_alone(): void

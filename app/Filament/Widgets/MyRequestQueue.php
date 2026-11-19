@@ -27,7 +27,7 @@ class MyRequestQueue extends TableWidget
 
     public static function canView(): bool
     {
-        return auth()->check();
+        return auth()->user()?->can('widget_MyRequestQueue') ?? false;
     }
 
     public function table(Table $table): Table

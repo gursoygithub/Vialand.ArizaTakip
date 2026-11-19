@@ -151,6 +151,9 @@ class ViewTeamTicket extends ViewRecord
                 ->icon('heroicon-o-pause')
                 ->color('gray')
                 ->visible(fn (): bool => $this->isAssignee() && $this->is(TaskStatusEnum::IN_PROGRESS))
+                ->modalDescription(fn (): ?string => ($cycle = $this->ticket()->currentCycle) && ($cycle->resolution_breached || $cycle->resolution_due_at?->isPast())
+                    ? __('ui.hold_after_breach_note')
+                    : null)
                 ->form([
                     Forms\Components\Select::make('reason')
                         ->label(__('ui.hold_reason'))
