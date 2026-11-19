@@ -60,25 +60,19 @@ not a custom domain permission.
 **Layer 3 — Shield Widgets**: `widget_X`. For widget classes. `canView()` checks
 `widget_X` on every widget.
 
-**super_admin has NO gate bypass.** `config/filament-shield.php` sets
-`super_admin.define_via_gate = false`, so super_admin can do only what its
-permission rows allow. It holds every permission because `PermissionSeeder`
-(and Shield's role UI) syncs them — a **newly added permission must be synced to
-super_admin** or super_admin gets 403. Code that checks `hasRole('super_admin')`
-explicitly (`ScopedByVisibility`, `TicketPolicy`, ticket actions) is separate from this.
+**super_admin passes every permission check.** `config/filament-shield.php` sets
+`super_admin.define_via_gate = true` (Gate::before), so a newly added permission
+never locks super_admin out. Static `canEdit()` / `canDelete()` overrides that
+return false without asking the gate still apply to super_admin.
 In tests, grant the needed permissions explicitly (see `EmployeeCompanyDisplayTest`).
 
 **Custom permissions (action-level + scope-bypass)**:
 
 Action-level (gates buttons/operations inside a surface):
-- `ticket.assign` — assign action
-- `ticket.close` — close action
 - `ticket.export` — PDF/Excel export (renamed from `report.view` in the May 2026 reform)
-- `sla.manage` — SLA policy CRUD via `SlaPolicyPolicy`
 - `user.role.assign` — role assignment in `UserResource` + `CompanyAccessRelationManager`
 - `view_tc_no` — TC number column visibility
 - `create_custom_*` — inline create-on-the-fly in Select fields
-- `export_tasks` — legacy ExportAction in UnitResource RM (TODO: rename to `export_units`)
 
 Scope-bypass (default scope = `created_by`; permission removes the filter):
 - `view_all_companies`, `view_all_areas`, `view_all_sub_areas`,
@@ -87,8 +81,6 @@ Scope-bypass (default scope = `created_by`; permission removes the filter):
   `view_all_subcontractors`, `view_all_subcontractor_employees`
 
 Ticket has its own scope mechanism (NOT `view_all_tickets`):
-- `ticket.view.own` — fallback branch (creator + assignee + group areas + companies)
-- `ticket.view.group` — adds member-area + supervised-area branches
 - `ticket.view.all` — bypass all scope (canonical; legacy `view_all_tasks` removed)
 
 **Rule of thumb**:
@@ -113,22 +105,6 @@ All non-Ticket resources use the `ScopedByVisibility` trait
 - For resources needing additional WHERE clauses, override `getEloquentQuery()`
   and call `static::applyVisibilityScope(parent::getEloquentQuery())`, then chain
   extra clauses (see `UserResource` for example)
-
-### Ticket Visibility (separate from above)
-
-Ticket uses `Ticket::scopeVisibleBy(User $user)` with 4 branches:
-1. `ticket.view.all` — no filter
-2. `ticket.view.group` — member areas + supervised areas + creator/assignee bypass + scoped companies
-3. `ticket.view.own` or fallback — creator + assignee + group areas + scoped companies
-4. No user (CLI/queue context) — unfiltered (caller is responsible)
-
-`view_all_tickets` does **not** exist — `ticket.view.all` is canonical.
-`view_all_tasks` was the legacy name; it was removed in the May 2026 reform.
-
-**Creator/assignee bypass in `Ticket::scopeVisibleBy`** — Even on the
-`ticket.view.group` branch, a user who is the ticket's `created_by` or current
-`employee_id` always sees that ticket. The bypass is additive (OR condition) and
-never expands visibility for `view.all` users (they already see everything).
 
 ## Commands — always use `sail` prefix (Docker environment)
 The `sail` binary lives at `./vendor/bin/sail` (NOT in PATH). Use it directly:
@@ -194,7 +170,6 @@ real change (Altın Kural #1).
 - Schedule entries: add in `bootstrap/app.php` → `withSchedule()` callback
 - Current schedule:
   - `employee:sync` — every 5 minutes (syncs employees from external SQL Server)
-  - `CheckSlaBreaches` job — every 5 minutes (sweeps + warns on SLA deadlines)
   - Daily log pre-creation — daily at 23:55
 
 ## Files Never to Modify
@@ -236,81 +211,36 @@ timestamps; UNIQUE on `(user_id, company_id)`). Eloquent relation:
 Managed in the panel via the `CompanyAccessRelationManager` on `UserResource`,
 gated behind `user.role.assign`.
 
-Usage rules:
-
-- **In new code, always use `scopedCompanyIds()` with `->whereIn('company_id', $ids)`**.
-- The legacy `scopedCompanyId()` (singular) is `@deprecated` — it returns `null` for
-  admins AND for multi-company users (single id is ambiguous), so callers built
-  on it silently disable scoping for multi-company users. Do not extend its use.
-- `Ticket::scopeVisibleBy` already applies the company filter to the
-  `ticket.view.group` branch. `TicketResource::getEloquentQuery` adds it on
-  top for the panel list — both are correct (idempotent for admins).
-- **Creator/assignee bypass**: within the `ticket.view.group` branch the scope
-  also ORs in tickets where `created_by = $user->id` OR `employee_id = $employee->id`.
-  This ensures creators and current assignees always see their own tickets even
-  when the group/company gate would otherwise exclude them.
+Usage: `Ticket::scopeVisibleInTeamWorkflow` uses it for `ticket.view.company`.
 
 ## Locale & Notifications
 - Carbon locale is `tr` (set in `AppServiceProvider::boot`); use `translatedFormat('d F Y H:i')` for Turkish month names in custom output. Filament tables/infolists already format via `Table::$defaultDateTimeDisplayFormat = 'd F Y - H:i'`
-- Bell uses Filament `databaseNotifications`; mail is opt-in (`config/notifications.php` → `mail_enabled`) but the 8 targeted events always send mail regardless; FCM web-push tokens live in `fcm_tokens` (`user_id`, `token`, `is_active`, `token_hash`), dispatched via `App\Services\FcmService`
-- Per-user `UserNotificationPreference` toggles channels (`mail_enabled`, `database_enabled`) per event type — no separate `push` column (FCM follows `database_enabled`). **Only `database_enabled` is honoured**; the stored `mail_enabled` flag is never read by any notification.
-- Per-ticket mute: `ticket_mutes` (UNIQUE on `ticket_id, user_id`); `Ticket::isMutedBy(User)` short-circuits most sender paths (muted users get **no mail either** on those paths). Exceptions that ignore mutes: SLA warning/breach (`CheckSlaBreaches`), `notifyCreatorOfReassignment`, supervisor copies on resolve/reassign.
+- Bell uses Filament `databaseNotifications`; which notices also mail is decided by `TeamTicketNotifier` (see `app/Notifications/CLAUDE.md`); FCM web-push tokens live in `fcm_tokens` (`user_id`, `token`, `is_active`, `token_hash`), dispatched via `App\Services\FcmService`
+- Per-user `UserNotificationPreference` toggles channels (`mail_enabled`, `database_enabled`) per type — only the types listed on "Bildirim Tercihlerim" exist (`ticket_participant`, `team_hold`, `team_hold_overdue`); FCM follows `database_enabled`.
+- Per-ticket mute: `ticket_mutes` (UNIQUE on `ticket_id, user_id`); `Ticket::isMutedBy(User)` silences informational notices only — notices that ask the person to act are never muted.
 
 ## Gotchas
 
-### Setup chain must be enforced
-The setup chain `company → area → (sub_area | sla | group) → ticket` is
-documented in `app/Services/CLAUDE.md` under "Setup Chain Rules". Breaking
-it at any point causes silent failures (NULL `sla_deadline`, empty group
-selects, invisible tickets). `CompanySetupWizard` enforces this chain via
-hard blocks in step `afterValidation` hooks. **Any new wizard step or
-setup feature must do the same** — validate prerequisites before allowing
-creation.
-
-### shield:generate overwrites custom policies — pass `--ignore-existing-policies`
-`php artisan shield:generate --all` rewrites these files with auto-generated
-stubs that use the wrong permission names (`view_ticket`, `create_ticket`)
-instead of our namespaced ones (`ticket.view.all`, `ticket.create`):
-- `app/Policies/TicketPolicy.php`
-- `app/Policies/GroupPolicy.php`
-- `app/Policies/SlaPolicyPolicy.php`
-
-**Always pass `--ignore-existing-policies`** when running it manually — Shield
-will then skip any policy class that already exists rather than clobbering it:
+### shield:generate — pass `--ignore-existing-policies`
+**Always pass `--ignore-existing-policies`** when running it manually so the
+hand-written policies are not replaced by generated stubs:
 ```bash
 php artisan shield:generate --all --panel=dashboard --ignore-existing-policies
 ```
 `InitSeeder` already passes this flag (plus `--no-interaction --panel=dashboard`),
-so `migrate:fresh --seed` is safe to re-run; the three policies stay untouched.
+so `migrate:fresh --seed` is safe to re-run.
 
-If you ever forget the flag, restore from git:
-```bash
-git checkout HEAD -- app/Policies/TicketPolicy.php app/Policies/GroupPolicy.php app/Policies/SlaPolicyPolicy.php
-```
-Each file has a header comment repeating this warning.
-
-### Permission Reform — May 2026
-
-A 9-phase refactor that established the current permission architecture:
-- Introduced `ScopedByVisibility` trait for consistent created_by scoping across non-Ticket resources
-- Migrated all resources to created_by default + `view_all_X` bypass pattern
-- Aligned `canAccess()` / `shouldRegisterNavigation()` with Shield `page_X` on all pages
-- Simplified widget `canView()` — removed redundant super_admin shortcuts; all widgets check `widget_X`
-- Consolidated TicketResource action gates into `TicketPolicy`
-- Stripped role-permission grants from `PermissionSeeder` (Shield UI is sole assignment manager)
-- Renamed `report.view` → `ticket.export`; all callers updated
-- Migrated `view_all_tasks` → `ticket.view.all` (canonical Ticket scope-bypass)
-- Removed orphans: `manage_settings`, `group.manage`, `view_kpi_dashboard`,
-  `ticket.reopen`, `can_close_task`, `can_assign_task`, `can_reopen_task`,
-  `widget_DailyTaskPerformance`
-- DB migration: `2026_05_10_221815_permission_reform_cleanup.php`
-
+## Old system removed (2026-11-19)
+The original ticket flow (areas → units → groups → area-based SLA policies,
+"Arıza Talepleri", Performans Paneli, Şirket Kurulum Sihirbazı, its widgets,
+notifications, jobs and the `legacy.enabled` switch) and screens taken over
+from other projects (taşeron, rezervasyon, ziyaretçi/araç/kart) were deleted.
+Their **tables and rows were kept** as an archive: old tickets (no `team_id`)
+stay in `tickets` but are never shown. Drop those tables only in a separate,
+later migration once the archive has been exported and confirmed.
 
 ## New Request Model — Phase 1 (2026-11-17, branch `faz-1-veri-modeli`)
 Agreed redesign (agreement doc: https://claude.ai/artifact/Q5eUYYHpfbTgbNZcmjCRyB).
-Phase 1 adds the data model and admin screens **next to** the legacy
-area/unit/group/SlaPolicy flow; tickets are still created the old way until the
-lifecycle phase moves creation onto types and teams.
 - **TicketType** — Arıza, IT, Elektrik… Own extra form fields in `form_fields` JSON
   (`key`, `label`, `type` = `FormFieldTypeEnum`, `required`, `options`, `help`) and a
   `location_requirement` (`LocationRequirementEnum`: hidden / optional / required).
@@ -332,10 +262,8 @@ lifecycle phase moves creation onto types and teams.
   then `php artisan db:seed --class=PermissionSeeder` so super_admin gets them.
 
 ## SLA Engine & Lifecycle — Phase 2 (branch `faz-2-sla-motoru`)
-Team tickets (`tickets.team_id` set, `Ticket::usesTeamWorkflow()`) are driven
-**only** by `App\Services\TicketWorkflowService`; `TicketObserver::saving` /
-SLA part of `creating` and the legacy `CheckSlaBreaches` skip them. Legacy
-tickets keep using `TicketService`. Details: `app/Services/CLAUDE.md`.
+Requests (`tickets.team_id` set) are driven **only** by
+`App\Services\TicketWorkflowService`. Details: `app/Services/CLAUDE.md`.
 - SLA clock starts when the ticket reaches the team (open / transfer / reopen),
   in the team's working time (`WorkingTimeCalculator`, holidays included).
 - `ticket_sla_cycles` = one row per team arrival (targets + calendar snapshot);
@@ -345,25 +273,19 @@ tickets keep using `TicketService`. Details: `app/Services/CLAUDE.md`.
 - `ProcessTeamTicketSla` (every 5 min): response breach, resolution breach
   (+ `TeamTicketSlaBreached`), 80 % warning once per cycle (+ `TeamTicketSlaWarning`),
   auto-close. The two events have no listeners until the notification phase.
-- Not built yet: screens for the new flow (Phase 3), notification matrix
-  (Phase 4), reports / exemptions / satisfaction (Phase 5). Known Issue #2
-  (reassign resets SLA) is solved for team tickets only; legacy flow unchanged.
 
 ## Screens — Phase 3 (branch `faz-3-ekranlar`)
-- New menu **Talepler** (`TeamTicketResource`, slug `/requests`) for team tickets;
-  the legacy `TicketResource` ("Arıza Talepleri") now filters `whereNull('team_id')`
-  everywhere (list, badges, tabs, record routes) so the two engines never mix.
+- Menu **Talepler** (`TeamTicketResource`, slug `/requests`).
 - Visibility: `Ticket::scopeVisibleInTeamWorkflow(User)` — own / assigned (now or
   before) / member teams / supervised teams; `ticket.view.company` adds people of
   the viewer's companies (`scopedCompanyIds()`); `ticket.view.all` / super_admin see all.
   `ticket.view.company` is created by `PermissionSeeder` (run it after deploy).
-- Uses the Ticket policy (`view_any_ticket`, `view_ticket`, `create_ticket`) — the
-  same Shield permissions as the legacy menu.
+- Access: its own Shield permissions `view_any_team::ticket`, `view_team::ticket`,
+  `create_team::ticket` (Roller → "Talepler").
 
 ## Notifications — Phase 4 (branch `faz-4-bildirimler`)
 - Team tickets use one notification class `TeamTicketNotification` and one
   rule book `App\Services\TeamTicketNotifier` (matrix in `app/Notifications/CLAUDE.md`).
-  The legacy notification classes are not used for team tickets.
 - `TicketWorkflowService::moveTo()` dispatches via `DB::afterCommit` — a rolled-back
   step never notifies.
 - SLA escalation: still-open breached cycles older than `general.sla_escalation_hours`
@@ -386,17 +308,10 @@ tickets keep using `TicketService`. Details: `app/Services/CLAUDE.md`.
 - **Report**: `TeamPerformanceService` + page `TeamPerformanceReport`
   (`page_TeamPerformanceReport`; supervisors see their teams, super_admin /
   `ticket.view.all` see all; CSV with `ticket.export`). Rules in `app/Services/CLAUDE.md`.
-- The legacy `PerformanceDashboard` still reports legacy tickets only.
 - Deploy note: run `migrate` together with the code — Filament navigation queries the
   new tables on every page.
 
 ## Panel Layout — branch `faz-6-panel-duzeni`
-- **Legacy switch** `config('legacy.enabled')` (`LEGACY_TICKETS_ENABLED`, default **false**):
-  hides and 403s Arıza Talepleri (`TicketResource`), Performans Paneli, Birimler,
-  SLA Politikaları, Gruplar (via `App\Filament\Concerns\BelongsToLegacyFlow`),
-  Şirket Kurulumu, and the five old dashboard widgets. Code and data are kept.
-  `phpunit.xml` sets it to true so the legacy tests still run; `PanelLayoutTest`
-  checks the off state.
 - **Navigation** (DashboardPanelProvider order): Talepler → Raporlar (Ekip Performans
   Raporu, SLA Muafiyetleri) → Talep Ayarları (`ui.request_settings`: Talep Tipleri,
   Ekipler, Çalışma Takvimleri, Resmi Tatiller, Bölgeler, Lokasyonlar) → Kullanıcı
@@ -407,41 +322,12 @@ tickets keep using `TicketService`. Details: `app/Services/CLAUDE.md`.
   `RequestOverviewStats`, `MyRequestQueue` (assigned to me / my teams' pool /
   waiting for my confirmation), `RequestsByStatusChart` (30 days),
   `OpenRequestsByTypeChart`.
-## Dead / Leftover Code (do not build on it)
-Verified unused on `gg-ticket` @ `b92c364` (audit 2026-11-17). Leftovers from
-other projects or from the pre-Reform Task system:
-- `app/Console/Commands/{StreamReports,ReportStreamCommand,ReportDailyCommand,Reports90DaysCommand,CreateOrUpdateDailyReport}`
-  + `ReportService` / `DailyReportService` — write to `reports` / `daily_reports`,
-  tables that **do not exist** in the schema. `report:stream` is declared twice.
-- `ReservationController` + `ReservationRequest` + `/reservation-form/*` routes + `forms/reservation.blade.php`.
-- Policies with no model/resource: `Card`, `Manager`, `Report`, `Staff`, `Vehicle`, `VisitorCard`, `Visitor`.
-  (`RolePolicy` is **live** — Shield's role resource uses it via auto-discovery.)
-- Enums `CardStatus`, `Gender`, `VehicleStatus`, `VehicleType`, `VisitorStatus` — no references.
-- `TicketRepository` (+ interface) — bound in `AppServiceProvider`, never resolved.
-- `App\Support\NotificationChannels` — never called (see Notifications guide: mail toggles are inert).
-- Events `TicketStatusChanged`, `TicketSlaBreached` — dispatched, no listeners.
-- `Ticket::getTargetDateAttribute`, `Employee::getUnitPerformanceStats`,
-  `Employee::accessibleAreaIds`, `Area::scopeAccessibleByUser`,
-  `SlaService::checkBreach` / `percentElapsed`, `User::scopedCompanyId()` — no callers.
-- Cache keys `dashboard_stats_overview` and `emp_perf_{id}` are `forget()`-ed but never `remember()`-ed.
-- Stray tracked file in repo root: `Employee::find(164)->refreshPerformanceMetrics();`.
-- `Dockerfile_old`, `Dockerfile_old_v1`, `.docker/start_old.sh`, root `supervisord.conf`,
-  `docker-compose(original).yml` — not used by the prod compose file.
-- `lang/fr`, `lang/ar` cover ~150 of 839 `ui` keys; the language-switch plugin is
-  installed but not registered on the panel.
-
 ## Known Issues (audit 2026-11-17)
 Each open item needs an explicit prompt before it is touched (Altın Kural #4).
 1. ✅ **Fixed in Phase 0** — login rate limiting. `AuthRequest` limits failed
    attempts per username+IP (5 / 60 s) and per username across all IPs
    (10 / 15 min, below AD lockout). Checked in `AuthController::login` before
    LDAP is contacted; cleared on success. Tests: `LoginRateLimitTest`.
-2. **`TicketService::reassign` bypasses the transition matrix** — forces
-   `ASSIGNED` from any status (incl. `IN_PROGRESS`, `ON_HOLD`), rebases
-   `sla_deadline` from `now()` and clears `sla_breached`. The current assignee
-   (with `ticket.assign`) can reassign a breaching ticket and reset its SLA.
-   Leaving `ON_HOLD` this way also drops the hold time (not added to
-   `total_on_hold_minutes`).
 3. ✅ **Fixed in Phase 0** — SLA warning spam. The warning de-dupe now uses
    `tickets.sla_warning_sent_at` (once per ticket per calendar day), stamped
    before sending. Tests: `SlaWarningDedupTest`. The breach path still uses
@@ -457,9 +343,6 @@ Each open item needs an explicit prompt before it is touched (Altın Kural #4).
    CLI/queue context if called there.
 8. `User::query()` override also hides users whose `username` is `NULL`
    (`NULL != 'sa'` is not true in SQL).
-9. Relations with hard-coded `->with()` (`Ticket::area/group`, `Group::company/area`,
-   `Company::areas`, `GroupMember::employee` → **all tickets**) cascade large
-   eager loads wherever they are touched.
 10. `ListTickets` renders 9 tab badges + 2 nav-badge counts, each running
     `visibleBy()` (4–5 queries), re-polled every 60 s; bell polls every 5 s.
 11. `ticket_no` = yearly `count()+1` — race-prone under concurrent creates
@@ -467,6 +350,5 @@ Each open item needs an explicit prompt before it is touched (Altın Kural #4).
 12. `UserService::syncFromLdap` stores a bcrypt hash of the user's **AD password**
     in `users.password` on every login.
 13. `notifyCreatorOfReassignment` ignores `ticket_mutes` (other targeted rules honour it).
-14. `TicketService::transition` sends FCM HTTP calls inside the DB transaction.
 15. 18 `__('ui.*')` keys used in code are missing from `lang/tr/ui.php`
     (e.g. `password_min_length`, `phone_numeric`, `unknown`, `email_invalid`).

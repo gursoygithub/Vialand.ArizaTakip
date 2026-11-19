@@ -19,18 +19,14 @@ Examples:
 | Column | Type | Notes |
 |---|---|---|
 | ticket_no | VARCHAR(20) UNIQUE | Auto: TKT-YYYY-NNNNN via Ticket::boot() |
-| sla_deadline | DATETIME NULL | Set on create via TicketObserver + SlaService |
-| sla_breached | BOOLEAN DEFAULT false | Three writers: TicketObserver::saving, TicketService transitions, CheckSlaBreaches job |
 | assigned_at | DATETIME NULL | Set when status → assigned (also stamped by Observer when employee_id is attached) |
 | resolved_at | DATETIME NULL | Set when status → resolved |
 | closed_at | DATETIME NULL | Set when status → closed/completed |
 | closed_by | FK users NULL | User who closed the ticket |
-| on_hold_since | DATETIME NULL | Set when status → on_hold; cleared on resume (by `SlaService::extendDeadlineForOnHold`) |
 | total_on_hold_minutes | INT UNSIGNED DEFAULT 0 | Accumulated paused time for on_hold/resume cycles |
 | reopen_reason | VARCHAR(255) NULL | Optional note on reopen |
 | reopened_by | FK users NULL | User who reopened the ticket |
 | reopened_at | DATETIME NULL | Timestamp of last reopen |
-| sla_warning_sent_at | TIMESTAMP NULL | Last 80% SLA warning; `CheckSlaBreaches` sends at most one per calendar day (`2026_11_17_174453`) |
 
 Composite index `tickets_sla_status_idx (sla_breached, status)` backs the
 "breached" tab, the navigation badge color, and `Ticket::scopeSlaBreached`.
@@ -50,7 +46,6 @@ Always write a new migration file. Schema changes are additive.
 
 ## Schema Quirks (live data)
 - `tasks` table renamed to `tickets` (2026_04_30_000001). There is **no** `App\Models\Task` alias any more — use `Ticket`
-- `sla_policies.sub_area_id` is **NULLABLE** — allows area-wide SLA defaults (sub_area IS NULL); `SlaService::resolvePolicy` L2 fallback matches these rows
 - `users.employee_id` is NULLABLE and holds `employees.employee_id` (external personnel number / `UNIQUE_ID`), **not** `employees.id`. LDAP-synced users get a value; manually-created admins may have NULL. `User::employee()` joins on `email`, not on this column
 - `users.created_by` is NULLABLE — system-created users (seeders, LDAP sync) may have NULL
 - The `2026_01_24_170253_update_employees_unique_constraint` migration was patched to be

@@ -18,8 +18,7 @@ use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Periodic sweep for team tickets (the legacy CheckSlaBreaches handles the
- * rest):
+ * Periodic sweep for team tickets:
  *  1. response SLA breaches of tickets nobody has started,
  *  2. resolution SLA breaches (flag + attribution + event, once),
  *  3. the 80% warning (event, once per cycle),

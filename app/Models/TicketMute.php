@@ -6,11 +6,9 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * Per-(ticket, user) mute. When a row exists for (ticket_id, user_id),
- * that user is removed from the ticket's participant set and skipped by
- * the assignment observer's notification path. Rows are auto-deleted by
- * TicketService::reassign() when a muted user becomes the new assignee
- * so they always hear about the assignment they now own.
+ * Per-(ticket, user) mute: the user stops getting the request's
+ * informational notices (notes, minor steps). Notices that ask them to act
+ * are never muted.
  */
 class TicketMute extends Model
 {

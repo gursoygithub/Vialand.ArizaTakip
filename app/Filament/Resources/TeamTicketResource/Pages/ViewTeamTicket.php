@@ -15,7 +15,7 @@ use App\Models\Team;
 use App\Models\Ticket;
 use App\Models\TicketSlaCycle;
 use App\Services\SlaExemptionService;
-use App\Services\TicketService;
+use App\Services\TicketCommentService;
 use App\Services\TicketWorkflowService;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
@@ -237,7 +237,7 @@ class ViewTeamTicket extends ViewRecord
                 ->visible(fn (): bool => $this->isRequester() || $this->isAssignee() || $this->isSupervisor() || $this->isWatcher())
                 ->form([$this->reasonField('note')])
                 ->action(function (array $data) use ($ticket): void {
-                    app(TicketService::class)->addComment($ticket, auth()->user(), $data['note']);
+                    app(TicketCommentService::class)->addComment($ticket, auth()->user(), $data['note']);
                     Notification::make()->title(__('ui.action_done'))->success()->send();
                 }),
 

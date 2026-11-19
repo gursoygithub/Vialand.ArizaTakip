@@ -5,16 +5,8 @@ namespace Tests\Feature;
 use App\Enums\ActiveStatusEnum;
 use App\Enums\TaskPriorityEnum;
 use App\Enums\UserStatusEnum;
-use App\Filament\Pages\CompanySetupWizard;
-use App\Filament\Pages\PerformanceDashboard;
-use App\Filament\Resources\GroupResource;
-use App\Filament\Resources\SlaPolicyResource;
-use App\Filament\Resources\TicketResource;
-use App\Filament\Resources\UnitResource;
 use App\Filament\Widgets\MyRequestQueue;
-use App\Filament\Widgets\RecentTicketsTable;
 use App\Filament\Widgets\RequestOverviewStats;
-use App\Filament\Widgets\TicketStatsOverview;
 use App\Models\Employee;
 use App\Models\Team;
 use App\Models\User;
@@ -50,42 +42,6 @@ class PanelLayoutTest extends TestCase
         $user = User::factory()->create(['email' => $email, 'username' => 'u'.fake()->unique()->numerify('#######'), 'status' => UserStatusEnum::ACTIVE]);
 
         return [Employee::factory()->create(['email' => $email, 'status' => ActiveStatusEnum::ACTIVE]), $user];
-    }
-
-    public function test_legacy_screens_are_closed_when_the_switch_is_off(): void
-    {
-        config(['legacy.enabled' => false]);
-        $admin = User::factory()->create();
-        $admin->assignRole('super_admin');
-        $this->actingAs($admin);
-
-        foreach ([TicketResource::class, UnitResource::class, SlaPolicyResource::class, GroupResource::class] as $resource) {
-            $this->assertFalse($resource::canAccess(), $resource);
-        }
-
-        $this->assertFalse(PerformanceDashboard::canAccess());
-        $this->assertFalse(CompanySetupWizard::canAccess());
-        $this->assertFalse(CompanySetupWizard::shouldRegisterNavigation());
-        $this->assertFalse(TicketStatsOverview::canView());
-        $this->assertFalse(RecentTicketsTable::canView());
-
-        $this->get('/tickets')->assertForbidden();
-        $this->get('/performance-dashboard')->assertForbidden();
-        $this->get('/')->assertOk()
-            ->assertDontSee(__('ui.tickets'))
-            ->assertDontSee(__('ui.ticket_management'))
-            ->assertSee(__('ui.requests'));
-    }
-
-    public function test_legacy_screens_come_back_when_switched_on(): void
-    {
-        config(['legacy.enabled' => true]);
-        $admin = User::factory()->create();
-        $admin->assignRole('super_admin');
-        $this->actingAs($admin);
-
-        $this->assertTrue(PerformanceDashboard::canAccess());
-        $this->assertTrue(TicketStatsOverview::canView());
     }
 
     public function test_dashboard_shows_only_what_concerns_the_viewer(): void

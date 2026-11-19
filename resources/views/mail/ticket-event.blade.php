@@ -89,12 +89,6 @@
                                     @endif
                                 </td>
                             </tr>
-                            @if($ticket->unit)
-                            <tr>
-                                <td style="padding: 9px 14px; color: #888; border-bottom: 1px solid #f0f0f0;">Birim</td>
-                                <td style="padding: 9px 14px; font-weight: 700; color: #111; border-bottom: 1px solid #f0f0f0;">{{ $ticket->unit->name }}</td>
-                            </tr>
-                            @endif
                             <tr>
                                 <td style="padding: 9px 14px; color: #888; border-bottom: 1px solid #f0f0f0;">Öncelik</td>
                                 <td style="padding: 9px 14px; border-bottom: 1px solid #f0f0f0;">

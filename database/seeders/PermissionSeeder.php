@@ -14,8 +14,8 @@ use Spatie\Permission\Models\Role;
  * from shield:generate) and custom permissions (always seeded).
  *
  * Role assignments are managed exclusively via the Shield UI in
- * production — this seeder does NOT grant permissions to admin,
- * supervisor, manager, technician, or viewer. It only guarantees:
+ * production — this seeder grants nothing except to super_admin. It only
+ * guarantees:
  *
  *   1. All permission rows exist in the DB
  *   2. All role rows exist in the DB
@@ -26,52 +26,26 @@ use Spatie\Permission\Models\Role;
 class PermissionSeeder extends Seeder
 {
     /**
-     * All custom permissions.
-     *
-     * Shield-standard CRUD and page/widget permissions are also listed here
-     * so test DBs (which only run PermissionSeeder, not shield:generate) get
-     * them. firstOrCreate is idempotent in production.
-     *
-     * NOTE: ticket.view.all is the canonical Ticket scope-bypass permission.
-     * view_all_tickets is intentionally NOT added — Ticket has its own
-     * 4-branch scopeVisibleBy() logic and ticket.view.* names document the
-     * levels (own/group/all). Other resources use the view_all_X pattern.
+     * Custom permissions plus the Shield page/widget permissions, so test
+     * DBs (which only run this seeder, not shield:generate) have them.
+     * firstOrCreate is idempotent in production.
      */
     private const CUSTOM_PERMISSIONS = [
-        // Shield-standard CRUD permissions for the Ticket resource.
-        // Listed here so test DBs (which only run PermissionSeeder, not
-        // shield:generate) have them. firstOrCreate is idempotent in prod.
-        'view_any_ticket',
-        'view_ticket',
-        'create_ticket',
-        'update_ticket',
-        'delete_ticket',
-        'delete_any_ticket',
-
         // "Talepler" (TeamTicketResource): its own Shield permissions.
         'view_any_team::ticket',
         'view_team::ticket',
         'create_team::ticket',
 
-        // Ticket visibility scope (3 mutually exclusive levels)
-        'ticket.view.own',
-        'ticket.view.group',
+        // Request visibility beyond one's own involvement.
         'ticket.view.all',
-        // Team-model tickets: see requests raised or handled by people of
-        // the viewer's companies (agreement §7 "Şirket kapsamı").
+        // See requests raised or handled by people of the viewer's companies.
         'ticket.view.company',
-        // Receives escalations of team tickets still open X hours after an SLA breach.
+        // Receives escalations of requests still open X hours after an SLA breach.
         'ticket.sla.escalation',
         // Decides SLA exemption requests (never for the approver's own team).
         'sla.exemption.approve',
-
-        // Ticket actions
-        'ticket.assign',
-        'ticket.close',
+        // Excel / PDF export of the team performance report.
         'ticket.export',
-
-        // SLA
-        'sla.manage',
 
         // User management
         'user.role.assign',
@@ -80,44 +54,26 @@ class PermissionSeeder extends Seeder
         'view_all_companies',
         'view_all_areas',
         'view_all_sub_areas',
-        'view_all_sla_policies',
-        'view_all_groups',
-        'view_all_group_members',
-        'view_all_units',
         'view_all_employees',
         'view_all_users',
-        'view_all_subcontractors',
-        'view_all_subcontractor_employees',
 
         // Misc
         'view_tc_no',
-        'create_custom_area',
-        'create_custom_sub_area',
-        'create_custom_group',
-        'create_custom_group_member',
-        'export_tasks',      // legacy — kept for now; see migration phase for cleanup
 
-        // Widget permissions (listed for test DB compatibility; shield:generate owns these in prod)
-        'widget_TicketStatsOverview',
-        'widget_TicketsByStatusChart',
-        'widget_TicketsByPriorityChart',
-        'widget_SlaComplianceTrendChart',
-        'widget_RecentTicketsTable',
+        // Dashboard widgets (Shield layer 3; listed for test DB compatibility)
         'widget_RequestOverviewStats',
         'widget_MyRequestQueue',
         'widget_RequestsByStatusChart',
         'widget_OpenRequestsByTypeChart',
 
         // Page access (Shield layer 2; listed for test DB compatibility)
-        'page_PerformanceDashboard',
         'page_ManageGeneralSettings',
-        'page_CompanySetupWizard',
         'page_NotificationPreferences',
         'page_TeamPerformanceReport',
     ];
 
     private const ROLES = [
-        'super_admin', 'admin', 'supervisor', 'manager', 'technician', 'viewer', 'default',
+        'super_admin', 'manager', 'default',
     ];
 
     public function run(): void
@@ -132,10 +88,9 @@ class PermissionSeeder extends Seeder
             Role::firstOrCreate(['name' => $name, 'guard_name' => 'web']);
         }
 
-        // 3. super_admin gets EVERY permission in the table (custom + Shield-generated).
-        //    Required because Shield's `define_via_gate` is false — there is no
-        //    Gate::before bypass for super_admin, so $user->can() needs the permission
-        //    to be directly assigned via role. This is the ONLY syncPermissions call.
+        // 3. super_admin also holds every permission row, so the role screen
+        //    shows it fully ticked (access itself comes from Shield's
+        //    Gate::before). This is the ONLY syncPermissions call.
         Role::where('name', 'super_admin')->first()
             ->syncPermissions(Permission::pluck('name')->all());
     }

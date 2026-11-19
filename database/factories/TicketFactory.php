@@ -7,7 +7,6 @@ use App\Enums\TaskStatusEnum;
 use App\Enums\TaskTypeEnum;
 use App\Models\Area;
 use App\Models\SubArea;
-use App\Models\Unit;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -21,7 +20,6 @@ class TicketFactory extends Factory
             'user_id'     => User::factory(),
             'area_id'     => Area::factory(),
             'sub_area_id' => SubArea::factory(),
-            'unit_id'     => Unit::factory(),
             'type_id'     => TaskTypeEnum::cases()[array_rand(TaskTypeEnum::cases())],
             'priority'    => TaskPriorityEnum::Medium,
             'status'      => TaskStatusEnum::OPEN,

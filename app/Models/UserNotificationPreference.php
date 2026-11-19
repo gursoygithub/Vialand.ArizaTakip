@@ -10,35 +10,15 @@ use Illuminate\Database\Eloquent\Model;
  * (database / mail). One row per (user_id, notification_type) — unique
  * indexed. Absence of a row means "use the default" (true), so users only
  * carry rows for the types they've actively touched in the UI.
- *
- * Critical types (ticket_assigned, sla_breach) ignore database_enabled at
- * the UI level — the toggle is rendered disabled — but the column is
- * still here so the row shape stays uniform.
  */
 class UserNotificationPreference extends Model
 {
     use HasFactory;
 
     public const TYPES = [
-        'ticket_assigned',
         'ticket_participant',
-        'ticket_closed',
-        'ticket_reopened',
-        'ticket_reassigned',
-        'sla_warning',
-        'sla_breach',
         'team_hold',
         'team_hold_overdue',
-    ];
-
-    /**
-     * Notification types whose database (in-app) channel is mandatory and
-     * cannot be opted out of. Mail is still per-user.
-     */
-    public const ALWAYS_ON_DATABASE = [
-        'ticket_assigned',
-        'ticket_cancelled',
-        'sla_breach',
     ];
 
     protected $fillable = [

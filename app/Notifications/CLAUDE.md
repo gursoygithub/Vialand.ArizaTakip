@@ -7,27 +7,6 @@
 - FCM push is always **data-only** (no `notification` key in the payload) so the browser's `onMessage` handler fires in the foreground and Filament renders its own toast. All payload goes in the `data` field: `{ title, body, url }`
 - Database channel is added in `via()` only when `$user->wantsNotification(type, 'database')` is true. `ALWAYS_ON_DATABASE` (`ticket_assigned`, `ticket_cancelled`, `sla_breach`) cannot be opted out
 
-## Targeted Event Rules
-
-| Event | Recipient(s) | Class | Channels |
-|---|---|---|---|
-| Created already-assigned | Assignee | `TicketAssignedNotification` | mail + bell + FCM |
-| Created with group, no assignee | Group supervisor | `TicketAssignedNotification` | mail + bell + FCM ("Grubunuza Atandı") |
-| OPEN → ASSIGNED via transition | Assignee | `TicketAssignedNotification` | mail + bell + FCM |
-| Reassigned (`TicketService::reassign`) | New assignee | `TicketAssignedNotification` | mail + bell + FCM |
-| | Creator (unless actor / new assignee) | `TicketReassignedNotification` | mail + bell + FCM |
-| | Group supervisor (unless actor / new assignee / creator) | `TicketReassignedNotification` | mail + bell (no FCM) |
-| Resolved | Creator | `TicketResolvedNotification` | mail + bell + FCM |
-| | Group supervisor (unless creator / actor) | `TicketResolvedNotification` | mail + bell (no FCM) |
-| Cancelled | Current assignee | `TicketCancelledNotification` | mail + bell + FCM |
-| Reopened | Assignee + creator | `TicketReopenedNotification` | mail + bell + FCM |
-| ON_HOLD | Participants | `TicketStatusChangedNotification` | bell + FCM |
-| | Group supervisor (if not a participant) | `TicketStatusChangedNotification` + `TicketOnHoldMail` | mail + bell + FCM |
-| SLA warning (80%) | Assignee + creator (+ supervisor if unassigned & grouped) | `SlaWarningNotification` | mail + bell + FCM |
-| SLA breached | Assignee + creator (+ supervisor if unassigned & grouped) | `SlaBreachedNotification` | mail + bell + FCM |
-
-Other transitions (IN_PROGRESS, CLOSED, …), comments, comment edits and priority changes → `TicketStatusChangedNotification` / `TicketCommentNotification` to the participant set, **bell + FCM only, never mail**.
-
 ## Mail Template
 All ticket mails (7 classes + `TicketOnHoldMail`) render `resources/views/mail/ticket-event.blade.php`. Variables used by the template:
 - `$ticket` — Ticket model (ticket_no, area, subArea, unit, priority, sla_deadline, sla_breached, employee, createdBy)
@@ -39,17 +18,12 @@ All ticket mails (7 classes + `TicketOnHoldMail`) render `resources/views/mail/t
 
 ## Mute & Recipient Rules
 - Mute short-circuits the **whole** notification (bell, FCM **and mail**) on: observer assignment paths, `notifyResolved` (creator), `notifyCancelled`, `notifyReopened`, `notifyParticipants` (via `getTicketParticipants`)
-- Mutes are **ignored** by: `CheckSlaBreaches` (warning + breach), `notifyCreatorOfReassignment`, supervisor copies on resolve / reassign / on-hold, `notifyAssignee` in `reassign()` (the new assignee's mute is deleted first anyway)
 - Self-actions never notify the actor (per-method checks + `notifyParticipants`)
 
 ## Preferences page (`Filament/Pages/NotificationPreferences`)
 - Rows: `ticket_assigned`, `ticket_participant`, `ticket_closed`, `ticket_reopened`, `ticket_reassigned`, `sla_warning`, `sla_breach` — each with a bell and a mail toggle
 - Mail toggles are stored but **never read**; `ticket_closed` matches no notification class; `ticket_resolved` and `ticket_cancelled` are not listed (resolved is therefore always on)
 - Accessible to every logged-in user (`canAccess()` = authenticated, no `page_` permission)
-
-## Daily De-dupe (in CheckSlaBreaches)
-- **SLA warning:** one per ticket per calendar day via `tickets.sla_warning_sent_at`, independent of bell preferences (Phase 0 fix)
-- **SLA breach:** `alreadySentToday(Ticket, SlaBreachedNotification::class)` reads today's `notifications` rows of that class and inspects `data.actions[*].url` for `/tickets/{id}`; portable across MySQL/SQLite, loads all of today's rows of that class per ticket
 
 ## Date Formatting
 - Use `translatedFormat('d F Y H:i')` in `mail.ticket-event` for Turkish month names (Carbon locale is `tr`)
@@ -74,7 +48,7 @@ Levels: **action** = bell + mail (+ push where marked), ignores preferences and 
 | SlaBreached (once per cycle) | assignee + supervisor: important |
 | SlaEscalated (once per cycle) | users with `ticket.sla.escalation`: important |
 
-Mail uses `mail.ticket-event` with `ticketUrl` (→ `/requests/{id}`) and a "Tür / Ekip" row; the template falls back to `/tickets/{id}` for legacy notifications. "Not Ekle" on team tickets still uses the legacy `TicketCommentNotification` via `TicketService::addComment`.
+Mail uses `mail.ticket-event` with `ticketUrl` (→ `/requests/{id}`) and a "Tür / Ekip" row. "Not Ekle" goes through `TicketCommentService::addComment` (bell only, `TicketCommentNotification`).
 
 ## Links
-Always link to a ticket with `$ticket->panelUrl()` (team tickets → `/requests/{id}`, legacy → `/tickets/{id}`) in bell actions, mails and FCM pushes. Never build the path by hand — the legacy comment notification once sent team-ticket readers to a 404.
+Always link to a ticket with `$ticket->panelUrl()` (→ `/requests/{id}`) in bell actions, mails and FCM pushes. Never build the path by hand — the legacy comment notification once sent team-ticket readers to a 404.

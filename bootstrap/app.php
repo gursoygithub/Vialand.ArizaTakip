@@ -1,6 +1,5 @@
 <?php
 
-use App\Jobs\CheckSlaBreaches;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -25,12 +24,6 @@ return Application::configure(basePath: dirname(__DIR__))
             ->onFailure(callback: function ():void {
                 info(message: 'Personel senkronizasyon komutu başarısız oldu.');
             });
-
-        $schedule->job(new CheckSlaBreaches())
-            ->everyFiveMinutes()
-            ->timezone(config('app.timezone', 'UTC'))
-            ->name('check-sla-breaches')
-            ->withoutOverlapping();
 
         // Team tickets: response/resolution breaches, 80% warning, auto-close.
         $schedule->job(new \App\Jobs\ProcessTeamTicketSla())

@@ -28,13 +28,13 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\HtmlString;
 
 /**
- * "Talepler": tickets of the type/team model. Legacy tickets stay in
- * TicketResource; the two never show each other's records.
+ * "Talepler": requests of the type/team model. Rows left from the old
+ * system (no team) are never shown.
  *
  * Access follows this resource's own Shield permissions (Roller →
- * "Talepler": view_any / view / create_team::ticket), not the legacy
- * Ticket ones the shared TicketPolicy checks. Everything else a person may
- * do on a request comes from their place in the team, not from the role.
+ * "Talepler": view_any / view / create_team::ticket). Everything else a
+ * person may do on a request comes from their place in the team, not from
+ * the role.
  */
 class TeamTicketResource extends Resource implements HasShieldPermissions
 {

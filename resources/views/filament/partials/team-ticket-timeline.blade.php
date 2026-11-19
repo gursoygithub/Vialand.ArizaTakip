@@ -21,8 +21,8 @@
                     · {{ $history->changedBy?->name ?? __('ui.system') }} · {{ $history->created_at?->translatedFormat('d M Y H:i') }}
                 </span>
             </div>
-            @if (filled($history->note) && $history->note !== 'Ticket created')
-                <div style="margin-top:4px;font-size:.875rem;white-space:pre-line;opacity:.9;">{{ \Illuminate\Support\Str::after($history->note, \App\Services\TicketService::REASSIGN_NOTE_PREFIX) }}</div>
+            @if (filled($history->note))
+                <div style="margin-top:4px;font-size:.875rem;white-space:pre-line;opacity:.9;">{{ $history->note }}</div>
             @endif
         </div>
     @empty

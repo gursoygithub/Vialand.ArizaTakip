@@ -24,7 +24,7 @@ use App\Notifications\TeamTicketNotification;
 use App\Notifications\TicketCommentNotification;
 use App\Services\FcmService;
 use App\Services\TeamTicketNotifier;
-use App\Services\TicketService;
+use App\Services\TicketCommentService;
 use App\Services\TicketWorkflowService;
 use Carbon\CarbonImmutable;
 use Database\Seeders\PermissionSeeder;
@@ -219,7 +219,7 @@ class TicketWatchersTest extends TestCase
         Notification::fake();
         $ticket = $this->open([$this->manager->employee->id]);
 
-        app(TicketService::class)->addComment($ticket, $this->requester, 'Yöneticim bilgilendirildi.');
+        app(TicketCommentService::class)->addComment($ticket, $this->requester, 'Yöneticim bilgilendirildi.');
 
         Notification::assertSentTo($this->manager, TicketCommentNotification::class);
     }

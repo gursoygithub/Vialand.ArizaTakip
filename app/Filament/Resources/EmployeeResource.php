@@ -7,7 +7,6 @@ use App\Filament\Concerns\ScopedByVisibility;
 use App\Filament\Resources\EmployeeResource\Pages;
 use App\Filament\Resources\EmployeeResource\RelationManagers;
 use App\Models\Employee;
-use App\Models\SlaPolicy;
 use App\Models\Team;
 use App\Services\TeamPerformanceService;
 use Filament\Forms;
@@ -61,102 +60,7 @@ class EmployeeResource extends Resource
 
     public static function table(Table $table): Table
     {
-        if (! config('legacy.enabled')) {
-            return static::teamTable($table);
-        }
-
-        return $table
-            // "Worst-performers first" — managers open this list to find
-            // who needs attention. nulls (no data yet) sort first by
-            // default for asc, surfacing untracked employees too.
-            ->defaultSort('performance_score', 'asc')
-            ->paginated([5, 10, 25, 50])
-            ->columns([
-                Tables\Columns\TextColumn::make('name')
-                    ->label(__('ui.name'))
-                    ->searchable()
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('email')
-                    ->label(__('ui.email'))
-                    ->searchable()
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('company.name')
-                    ->label(__('ui.company'))
-                    ->icon('heroicon-o-building-office-2')
-                    ->placeholder('—')
-                    ->searchable()
-                    ->sortable()
-                    ->toggleable(),
-
-                // Active workload — currently on this person's plate.
-                Tables\Columns\TextColumn::make('active_tickets_count')
-                    ->label(__('ui.employee_active_tickets'))
-                    ->counts([
-                        'tickets as active_tickets_count' => fn (Builder $q) =>
-                            $q->whereIn('status', [
-                                TaskStatusEnum::OPEN,
-                                TaskStatusEnum::ASSIGNED,
-                                TaskStatusEnum::IN_PROGRESS,
-                                TaskStatusEnum::ON_HOLD,
-                            ]),
-                    ])
-                    ->badge()
-                    ->color(fn ($state) => $state > 0 ? 'warning' : 'gray')
-                    ->sortable(),
-
-                // SLA breaches still on the assignee — terminal-statuses
-                // excluded so this is "active breach surface", not history.
-                Tables\Columns\TextColumn::make('breached_tickets_count')
-                    ->label(__('ui.employee_breached_tickets'))
-                    ->counts([
-                        'tickets as breached_tickets_count' => fn (Builder $q) =>
-                            $q->where('sla_breached', true)
-                              ->whereNotIn('status', [
-                                  TaskStatusEnum::RESOLVED,
-                                  TaskStatusEnum::CLOSED,
-                                  TaskStatusEnum::CANCELLED,
-                              ]),
-                    ])
-                    ->badge()
-                    ->color(fn ($state) => $state > 0 ? 'danger' : 'gray')
-                    ->sortable(),
-
-                // SLA score. Null = no sealed data yet → render "—" rather
-                // than a misleading "0%".
-                Tables\Columns\TextColumn::make('performance_score')
-                    ->label(__('ui.employee_sla_success'))
-                    ->formatStateUsing(fn ($state) => is_null($state) ? '—' : '%' . number_format($state, 1, ',', '.'))
-                    ->badge()
-                    ->sortable()
-                    ->color(function ($record) {
-                        if (is_null($record->performance_score)) return 'gray';
-                        if (is_null($record->current_threshold)) return 'gray';
-                        $t = $record->current_threshold;
-                        return $record->performance_score >= $t
-                            ? 'success'
-                            : ($record->performance_score >= $t * 0.75
-                                ? 'warning' : 'danger');
-                    }),
-
-                Tables\Columns\TextColumn::make('current_threshold')
-                    ->label(__('ui.sla_target_threshold'))
-                    ->formatStateUsing(fn ($state) => is_null($state) ? '—' : '%' . number_format($state, 1, ',', '.'))
-                    ->sortable(),
-            ])
-            ->filters([
-                Tables\Filters\SelectFilter::make('company_id')
-                    ->label(__('ui.company'))
-                    ->relationship('company', 'name')
-                    ->multiple()
-                    ->searchable()
-                    ->preload(),
-            ])
-            ->actions([
-                Tables\Actions\ViewAction::make(),
-            ])
-            ->bulkActions([
-                //
-            ]);
+        return static::teamTable($table);
     }
 
     /**
@@ -260,16 +164,9 @@ class EmployeeResource extends Resource
 
     public static function getRelations(): array
     {
-        if (! config('legacy.enabled')) {
-            return [
-                RelationManagers\TeamTicketsRelationManager::class,
-                RelationManagers\TeamMembershipsRelationManager::class,
-            ];
-        }
-
         return [
-            RelationManagers\TicketsRelationManager::class,
-            RelationManagers\GroupMembershipsRelationManager::class,
+            RelationManagers\TeamTicketsRelationManager::class,
+            RelationManagers\TeamMembershipsRelationManager::class,
         ];
     }
 

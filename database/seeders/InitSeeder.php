@@ -49,12 +49,7 @@ class InitSeeder extends Seeder
         // Pass the panel and the non-interaction flag explicitly so the
         // seeder is callable from CI / migrate:fresh without manual prep.
         //
-        // --ignore-existing-policies is critical: without it, --all would
-        // overwrite TicketPolicy / GroupPolicy / SlaPolicyPolicy with
-        // auto-generated stubs that use the WRONG permission names
-        // (`view_ticket` instead of our namespaced `ticket.view.all`).
-        // The project root CLAUDE.md documents the manual `git checkout`
-        // workaround for this; the flag obviates it entirely.
+        // --ignore-existing-policies keeps the hand-written policies intact.
         Artisan::call('shield:generate', [
             '--all'                       => true,
             '--panel'                     => 'dashboard',

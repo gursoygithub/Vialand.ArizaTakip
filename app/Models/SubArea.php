@@ -47,7 +47,6 @@ class SubArea extends Model
         return $this->hasMany(\App\Models\Ticket::class, 'sub_area_id');
     }
 
-
     public static function query()
     {
         $hasPermission = auth()->user()->hasRole('super_admin') || auth()->user()->can('view_all_sub_areas');
@@ -70,8 +69,4 @@ class SubArea extends Model
             ->useLogName(static::$logName);
     }
 
-    public function slaPolicies()
-    {
-        return $this->hasMany(SlaPolicy::class, 'sub_area_id');
-    }
 }

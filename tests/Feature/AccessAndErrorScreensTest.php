@@ -20,6 +20,7 @@ use App\Models\User;
 use App\Services\TicketWorkflowService;
 use Carbon\CarbonImmutable;
 use Database\Seeders\PermissionSeeder;
+use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Notification;
@@ -48,7 +49,7 @@ class AccessAndErrorScreensTest extends TestCase
     {
         parent::setUp();
 
-        config(['legacy.enabled' => false, 'app.debug' => false]);
+        config(['app.debug' => false]);
         $this->travelTo(CarbonImmutable::parse('2026-11-16 10:00:00'));
         Notification::fake();
         $this->seed(PermissionSeeder::class);
@@ -106,11 +107,9 @@ class AccessAndErrorScreensTest extends TestCase
         $this->get('/')->assertOk()->assertSeeLivewire(MyRequestQueue::class);
     }
 
-    public function test_super_admin_sees_every_widget(): void
+    public function test_super_admin_sees_every_widget_even_before_its_permission_exists(): void
     {
-        foreach (self::WIDGETS as $widget) {
-            Permission::findOrCreate('widget_'.class_basename($widget), 'web');
-        }
+        Permission::query()->where('name', 'like', 'widget_%')->delete();
         $admin = User::factory()->create();
         $admin->assignRole('super_admin');
         $this->actingAs($admin);
@@ -124,6 +123,9 @@ class AccessAndErrorScreensTest extends TestCase
 
     public function test_requests_screen_follows_its_own_role_permissions(): void
     {
+        foreach (['view_any_ticket', 'view_ticket', 'create_ticket'] as $name) {
+            Permission::findOrCreate($name, 'web');
+        }
         $legacyOnly = User::factory()->create(['status' => UserStatusEnum::ACTIVE]);
         $legacyOnly->givePermissionTo(['view_any_ticket', 'view_ticket', 'create_ticket']);
         $this->actingAs($legacyOnly);
@@ -141,6 +143,9 @@ class AccessAndErrorScreensTest extends TestCase
 
     public function test_migration_keeps_each_roles_access_and_drops_empty_leftover_roles(): void
     {
+        foreach (['view_any_ticket', 'view_ticket', 'create_ticket'] as $name) {
+            Permission::findOrCreate($name, 'web');
+        }
         $role = Role::findOrCreate('default', 'web');
         $role->syncPermissions(['view_any_ticket', 'view_ticket', 'create_ticket']);
         $used = Role::findOrCreate('technician', 'web');
@@ -154,6 +159,38 @@ class AccessAndErrorScreensTest extends TestCase
         $this->assertTrue(Role::findByName('super_admin')->hasPermissionTo('view_team::ticket'));
         $this->assertNull(Role::query()->where('name', 'viewer')->first());
         $this->assertNotNull(Role::query()->where('name', 'technician')->first(), 'a role with users stays');
+    }
+
+    public function test_old_system_permissions_are_removed(): void
+    {
+        foreach (['view_any_ticket', 'ticket.assign', 'view_unit', 'delete_any_sla::policy', 'widget_TicketStatsOverview'] as $name) {
+            Permission::findOrCreate($name, 'web');
+        }
+
+        (require database_path('migrations/2026_11_19_171344_remove_old_system_permissions.php'))->up();
+
+        $this->assertSame(0, Permission::query()->whereIn('name', ['view_any_ticket', 'ticket.assign', 'view_unit', 'delete_any_sla::policy', 'widget_TicketStatsOverview'])->count());
+        $this->assertTrue(Permission::query()->where('name', 'view_any_team::ticket')->exists(), 'Talepler permissions stay');
+    }
+
+    public function test_every_screen_opens_for_super_admin(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole('super_admin');
+        $this->actingAs($admin);
+        $panel = Filament::getPanel('dashboard');
+
+        $this->get('/')->assertOk();
+
+        foreach ($panel->getResources() as $resource) {
+            if ($resource::hasPage('index')) {
+                $this->get($resource::getUrl('index'))->assertOk();
+            }
+        }
+
+        foreach ($panel->getPages() as $page) {
+            $this->get($page::getUrl())->assertOk();
+        }
     }
 
     // ── Error pages ─────────────────────────────────────────────────────

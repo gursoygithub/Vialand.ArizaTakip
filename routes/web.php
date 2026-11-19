@@ -1,7 +1,6 @@
 <?php
 
 use App\Http\Controllers\AuthController;
-use App\Http\Controllers\ReservationController;
 use Illuminate\Support\Facades\Route;
 
 
@@ -9,12 +8,6 @@ use Illuminate\Support\Facades\Route;
 //    return view('forms/reservation_forms');
 //});
 //
-Route::post("/reservation-form/store", [ReservationController::class, 'store'])
-    ->name('reservation-form.store');
-
-Route::get('/reservation-form/create', [ReservationController::class, 'create'])
-    ->name('reservation-form.create');
-
 Route::prefix('auth')
     ->controller(AuthController::class)
     ->middleware('guest')

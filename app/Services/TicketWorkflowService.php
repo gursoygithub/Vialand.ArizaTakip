@@ -19,7 +19,6 @@ use App\Models\TicketHold;
 use App\Models\TicketSlaCycle;
 use App\Models\TicketStatusHistory;
 use App\Models\User;
-use App\Observers\TicketObserver;
 use App\Settings\GeneralSettings;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
@@ -33,8 +32,6 @@ use Illuminate\Support\Facades\DB;
  * current SLA cycle and assignment periods consistent, writes a
  * ticket_status_histories row and mirrors the headline SLA state onto the
  * ticket (sla_deadline / sla_breached) for the existing list screens.
- *
- * Legacy tickets (no team_id) are still handled by TicketService.
  */
 class TicketWorkflowService
 {
@@ -93,7 +90,7 @@ class TicketWorkflowService
         $ticket = DB::transaction(function () use ($requester, $team, $priority, $description, $customFields, $attributes, $watchers): Ticket {
             $now = CarbonImmutable::now();
 
-            $ticket = $this->quietly(fn (): Ticket => Ticket::create(array_merge($attributes, [
+            $ticket = Ticket::create(array_merge($attributes, [
                 'ticket_type_id' => $team->ticket_type_id,
                 'team_id' => $team->id,
                 'type_id' => TaskTypeEnum::OPERATION,
@@ -104,7 +101,14 @@ class TicketWorkflowService
                 'created_by' => $requester->id,
                 'user_id' => $requester->id,
                 'task_date' => $attributes['task_date'] ?? $now->toDateString(),
-            ])));
+            ]));
+
+            TicketStatusHistory::create([
+                'ticket_id' => $ticket->id,
+                'from_status' => null,
+                'to_status' => TaskStatusEnum::OPEN->value,
+                'changed_by' => $requester->id,
+            ]);
 
             $cycle = $this->startCycle($ticket, $team, $priority, $now, 1);
             $this->mirror($ticket, $cycle);
@@ -799,7 +803,7 @@ class TicketWorkflowService
         $from = $ticket->status;
         $ticket->status = $to;
         $this->mirror($ticket, $cycle, save: false);
-        $this->quietly(fn () => $ticket->save());
+        $ticket->save();
 
         TicketStatusHistory::create([
             'ticket_id' => $ticket->id,
@@ -830,29 +834,7 @@ class TicketWorkflowService
         $ticket->sla_breached = $cycle->resolution_breached;
 
         if ($save) {
-            $this->quietly(fn () => $ticket->save());
-        }
-    }
-
-    /**
-     * The legacy observer would send its own assignment notification on
-     * employee_id changes; notifications for team tickets come from the
-     * notification matrix instead.
-     *
-     * @template T
-     *
-     * @param  callable(): T  $callback
-     * @return T
-     */
-    private function quietly(callable $callback): mixed
-    {
-        $previous = TicketObserver::$skipReassignNotification;
-        TicketObserver::$skipReassignNotification = true;
-
-        try {
-            return $callback();
-        } finally {
-            TicketObserver::$skipReassignNotification = $previous;
+            $ticket->save();
         }
     }
 

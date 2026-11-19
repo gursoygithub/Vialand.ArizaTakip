@@ -16,7 +16,6 @@ use App\Models\TicketMute;
 use App\Models\User;
 use App\Models\UserNotificationPreference;
 use App\Notifications\TeamTicketNotification;
-use App\Notifications\TicketAssignedNotification;
 use App\Services\FcmService;
 use App\Services\TeamTicketNotifier;
 use App\Services\TicketWorkflowService;
@@ -144,13 +143,6 @@ class TeamTicketNotificationsTest extends TestCase
         $this->assertNotified($this->requester, TeamTicketEventEnum::Assigned, ['database']);
         $this->assertNotNotified($this->supervisor, TeamTicketEventEnum::Assigned);
         $this->assertContains($this->tech->id, $this->pushed);
-    }
-
-    public function test_legacy_assignment_notification_is_not_sent_for_team_tickets(): void
-    {
-        $this->assigned();
-
-        Notification::assertNotSentTo($this->tech, TicketAssignedNotification::class);
     }
 
     public function test_starting_work_informs_the_requester(): void

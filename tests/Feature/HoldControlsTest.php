@@ -55,7 +55,6 @@ class HoldControlsTest extends TestCase
     {
         parent::setUp();
 
-        config(['legacy.enabled' => false]);
         $this->travelTo(CarbonImmutable::parse('2026-11-16 10:00:00'));
         Notification::fake();
         $this->seed(PermissionSeeder::class);

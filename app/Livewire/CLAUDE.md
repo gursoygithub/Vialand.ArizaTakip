@@ -15,12 +15,6 @@
 - One Widget per chart/metric
 - Business logic stays in `app/Services/` — never inline in Resources
 
-## SLA Auto-Resolution
-The ticket form's `area_id` / `sub_area_id` / `unit_id` / `priority` fields are `->live()`;
-their `afterStateUpdated()` hooks only reset downstream fields. The SLA preview is a
-reactive `Placeholder::make('sla_preview')` whose `content()` calls
-`SlaService::resolvePolicy()` on each re-render (see `TicketResource::form`).
-
 ## Validation Patterns
 ```php
 Forms\Components\Select::make('area_id')

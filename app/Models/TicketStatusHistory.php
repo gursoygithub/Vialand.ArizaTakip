@@ -6,10 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class TicketStatusHistory extends Model
 {
-    // Auto-managed timestamps. created_at is the immutable audit point;
-    // updated_at is bumped only when a comment row is edited via
-    // TicketService::updateComment (status / reassign rows are never
-    // mutated, so their updated_at stays equal to created_at).
+    // Auto-managed timestamps; history rows are never edited.
     public $timestamps = true;
 
     protected $fillable = [

@@ -10,7 +10,6 @@ use App\Enums\TaskStatusEnum;
 use App\Enums\UserStatusEnum;
 use App\Events\TeamTicketSlaBreached;
 use App\Events\TeamTicketSlaWarning;
-use App\Jobs\CheckSlaBreaches;
 use App\Jobs\ProcessTeamTicketSla;
 use App\Models\Employee;
 use App\Models\Team;
@@ -148,15 +147,5 @@ class ProcessTeamTicketSlaTest extends TestCase
         $this->travel(1)->minutes();
         $this->runJob();
         $this->assertSame(TaskStatusEnum::CLOSED, $ticket->fresh()->status);
-    }
-
-    public function test_legacy_sweep_ignores_team_tickets(): void
-    {
-        $ticket = $this->open();
-        $this->travel(500)->minutes();
-
-        (new CheckSlaBreaches)->handle();
-
-        $this->assertFalse($ticket->fresh()->sla_breached, 'legacy job must not flip team tickets');
     }
 }

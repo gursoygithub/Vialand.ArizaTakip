@@ -47,27 +47,6 @@ class Area extends Model
         return $this->belongsTo(User::class, 'deleted_by');
     }
 
-    public function scopeAccessibleByUser($query, $user)
-    {
-        if ($user->hasRole('super_admin') || $user->can('view_all_areas')) {
-            return $query;
-        }
-
-        $employee = $user->employee;
-
-        if (!$employee) {
-            return $query->whereRaw('1 = 0');
-        }
-
-        $areaIds = $employee->accessibleAreaIds();
-
-        if ($areaIds->isEmpty()) {
-            return $query->whereRaw('1 = 0');
-        }
-
-        return $query->whereIn('id', $areaIds);
-    }
-
 //    public static function query()
 //    {
 //        $hasPermission = auth()->user()->hasRole('super_admin') || auth()->user()->can('view_all_areas');
@@ -96,19 +75,9 @@ class Area extends Model
         return $this->belongsTo(Company::class);
     }
 
-    // relation with group
-    public function groups()
-    {
-        return $this->hasMany(Group::class);
-    }
-
     public function tickets(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(\App\Models\Ticket::class, 'area_id');
     }
 
-    public function slaPolicies()
-    {
-        return $this->hasMany(SlaPolicy::class, 'area_id');
-    }
 }

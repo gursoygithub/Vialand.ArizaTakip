@@ -175,17 +175,10 @@ class User extends Authenticatable implements FilamentUser
 
     /**
      * Whether this user wants the given notification type on the given channel.
-     * Default is true when no preference row exists. Critical types
-     * (UserNotificationPreference::ALWAYS_ON_DATABASE) ignore database opt-out
-     * — the in-app bell is mandatory for those.
+     * Default is true when no preference row exists.
      */
     public function wantsNotification(string $type, string $channel = 'database'): bool
     {
-        if ($channel === 'database'
-            && in_array($type, UserNotificationPreference::ALWAYS_ON_DATABASE, true)) {
-            return true;
-        }
-
         $pref = $this->notificationPreferences()
             ->where('notification_type', $type)
             ->first();

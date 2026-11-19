@@ -27,21 +27,7 @@ class NotificationPreferences extends Page implements HasForms
     public ?array $data = [];
 
     /**
-     * Display order + Turkish labels for each notification type.
-     * Kept in one place so the UI grid and the save-handler agree.
-     */
-    public const ROWS = [
-        'ticket_assigned'    => 'Bana atanan talepler',
-        'ticket_participant' => 'Takip ettiğim talepler',
-        'ticket_closed'      => 'Talep kapatıldı',
-        'ticket_reopened'    => 'Talep yeniden açıldı',
-        'ticket_reassigned'  => 'Personel değişikliği',
-        'sla_warning'        => 'SLA Uyarısı',
-        'sla_breach'         => 'SLA İhlali',
-    ];
-
-    /**
-     * The team model only honours these switches: the bell for steps of
+     * Only these switches exist: the bell for steps of
      * requests the person follows (never mailed), and the supervisor's hold
      * notices. Action notices and SLA alerts cannot be switched off.
      *
@@ -49,12 +35,6 @@ class NotificationPreferences extends Page implements HasForms
      */
     public static function rows(): array
     {
-        if (config('legacy.enabled')) {
-            return collect(self::ROWS)
-                ->map(fn (string $label): array => ['label' => $label, 'channels' => ['database', 'mail']])
-                ->all();
-        }
-
         $rows = [
             'ticket_participant' => ['label' => __('ui.pref_ticket_participant'), 'channels' => ['database']],
         ];
@@ -126,7 +106,7 @@ class NotificationPreferences extends Page implements HasForms
                 ->hiddenLabel()
                 ->content(new \Illuminate\Support\HtmlString(
                     '<div class="border-l-4 border-amber-400 rounded-md bg-amber-50 dark:bg-amber-900/30 p-4">'
-                    . '<span class="text-amber-800 dark:text-amber-200">⚠️ '.e(config('legacy.enabled') ? 'Kritik bildirimler (Atama ve SLA İhlali) kapatılamaz.' : __('ui.pref_mandatory_note')).'</span>'
+                    . '<span class="text-amber-800 dark:text-amber-200">⚠️ '.e(__('ui.pref_mandatory_note')).'</span>'
                     . '</div>'
                 )),
         ];
@@ -144,8 +124,6 @@ class NotificationPreferences extends Page implements HasForms
         $rows = [];
 
         foreach (self::rows() as $type => ['label' => $label, 'channels' => $channels]) {
-            $alwaysOnDb = in_array($type, UserNotificationPreference::ALWAYS_ON_DATABASE, true);
-
             $rows[] = \Filament\Forms\Components\Grid::make([
                 'default' => 1,
                 'md'      => 3,
@@ -155,13 +133,11 @@ class NotificationPreferences extends Page implements HasForms
                     ->content(new \Illuminate\Support\HtmlString(
                         '<div class="font-semibold text-gray-900 dark:text-white" style="padding-top:6px;">'
                         . e($label)
-                        . ($alwaysOnDb ? ' <span class="text-red-600 dark:text-red-400" style="font-size:0.75em;font-weight:500;">(zorunlu)</span>' : '')
                         . '</div>'
                     )),
 
                 Toggle::make($type . '_database')
                     ->label('Uygulama İçi')
-                    ->disabled($alwaysOnDb)
                     ->default(true)
                     ->live()
                     ->afterStateUpdated(fn (bool $state) => $this->savePreference($type, 'database', $state)),
@@ -191,21 +167,13 @@ class NotificationPreferences extends Page implements HasForms
             return;
         }
 
-        // Critical types ignore the database opt-out at the storage layer too.
-        if ($channel === 'database'
-            && in_array($type, UserNotificationPreference::ALWAYS_ON_DATABASE, true)) {
-            $state = true;
-        }
-
         $databaseEnabled = (bool) ($this->data[$type . '_database'] ?? true);
         $mailEnabled     = (bool) ($this->data[$type . '_mail']     ?? true);
 
         UserNotificationPreference::updateOrCreate(
             ['user_id' => $userId, 'notification_type' => $type],
             [
-                'database_enabled' => in_array($type, UserNotificationPreference::ALWAYS_ON_DATABASE, true)
-                    ? true
-                    : $databaseEnabled,
+                'database_enabled' => $databaseEnabled,
                 'mail_enabled'     => $mailEnabled,
             ],
         );

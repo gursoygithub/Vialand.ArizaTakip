@@ -12,7 +12,6 @@ use App\Filament\Resources\TeamTicketResource;
 use App\Filament\Resources\TeamTicketResource\Pages\CreateTeamTicket;
 use App\Filament\Resources\TeamTicketResource\Pages\ListTeamTickets;
 use App\Filament\Resources\TeamTicketResource\Pages\ViewTeamTicket;
-use App\Filament\Resources\TicketResource;
 use App\Models\Company;
 use App\Models\Employee;
 use App\Models\Team;
@@ -285,13 +284,17 @@ class TeamTicketScreensTest extends TestCase
             ->assertCanSeeTableRecords([$ticket]);
     }
 
-    public function test_legacy_ticket_screens_never_show_team_tickets(): void
+    public function test_rows_from_the_old_system_are_never_shown(): void
     {
+        $archived = Ticket::factory()->create(['created_by' => $this->requester->id]);
         $ticket = $this->openTicket();
         $this->requester->givePermissionTo('ticket.view.all');
 
-        $this->assertFalse(TicketResource::getEloquentQuery()->whereKey($ticket->id)->exists());
-        $this->get(TicketResource::getUrl('view', ['record' => $ticket]))->assertNotFound();
+        Livewire::test(ListTeamTickets::class)
+            ->set('activeTab', 'all')
+            ->assertCanSeeTableRecords([$ticket])
+            ->assertCanNotSeeTableRecords([$archived]);
+        $this->get(TeamTicketResource::getUrl('view', ['record' => $archived]))->assertNotFound();
     }
 
     public function test_region_and_location_columns_can_be_shown(): void
@@ -387,9 +390,6 @@ class TeamTicketScreensTest extends TestCase
         $ticket = $this->openTicket();
 
         $this->assertSame(url('/requests/'.$ticket->id), $ticket->panelUrl());
-
-        $legacy = Ticket::factory()->create();
-        $this->assertSame(url('/tickets/'.$legacy->id), $legacy->panelUrl());
 
         $data = (new TicketCommentNotification($ticket, $this->requester, 'Not'))->toDatabase($this->tech);
         $this->assertSame(url('/requests/'.$ticket->id), $data['actions'][0]['url']);

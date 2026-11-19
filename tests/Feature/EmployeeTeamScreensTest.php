@@ -8,10 +8,8 @@ use App\Enums\UserStatusEnum;
 use App\Filament\Resources\EmployeeResource;
 use App\Filament\Resources\EmployeeResource\Pages\ListEmployees;
 use App\Filament\Resources\EmployeeResource\Pages\ViewEmployee;
-use App\Filament\Resources\EmployeeResource\RelationManagers\GroupMembershipsRelationManager;
 use App\Filament\Resources\EmployeeResource\RelationManagers\TeamMembershipsRelationManager;
 use App\Filament\Resources\EmployeeResource\RelationManagers\TeamTicketsRelationManager;
-use App\Filament\Resources\EmployeeResource\RelationManagers\TicketsRelationManager;
 use App\Models\Employee;
 use App\Models\Team;
 use App\Models\Ticket;
@@ -53,7 +51,6 @@ class EmployeeTeamScreensTest extends TestCase
     {
         parent::setUp();
 
-        config(['legacy.enabled' => false]);
         $this->travelTo(CarbonImmutable::parse('2026-11-02 09:00:00'));
         Notification::fake();
         $this->seed(PermissionSeeder::class);
@@ -298,12 +295,8 @@ class EmployeeTeamScreensTest extends TestCase
             ->assertTableColumnStateSet('role', __('ui.employee_team_role_both'), $both);
     }
 
-    public function test_relation_managers_follow_the_legacy_switch(): void
+    public function test_relation_managers_are_requests_and_teams(): void
     {
         $this->assertSame([TeamTicketsRelationManager::class, TeamMembershipsRelationManager::class], EmployeeResource::getRelations());
-
-        config(['legacy.enabled' => true]);
-
-        $this->assertSame([TicketsRelationManager::class, GroupMembershipsRelationManager::class], EmployeeResource::getRelations());
     }
 }

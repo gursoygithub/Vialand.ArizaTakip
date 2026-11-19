@@ -54,16 +54,12 @@ class DashboardPanelProvider extends PanelProvider
                 fn (): string => view('filament.session-expired')->render(),
             )
             // Order follows daily use: work first, set-up and system last.
-            // ticket_management / panel_management only hold legacy-flow
-            // screens (hidden unless config('legacy.enabled')).
             ->navigationGroups([
                 __('ui.requests'),
                 __('ui.reports'),
                 __('ui.request_settings'),
                 __('ui.user_management'),
                 __('ui.system'),
-                __('ui.ticket_management'),
-                __('ui.panel_management'),
             ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
@@ -71,8 +67,6 @@ class DashboardPanelProvider extends PanelProvider
                 Pages\Dashboard::class,
             ])
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\\Filament\\Widgets')
-            // Legacy widgets stay discoverable but hide themselves unless
-            // config('legacy.enabled'); the team-model widgets lead.
             ->widgets([
                 \App\Filament\Widgets\RequestOverviewStats::class,
                 \App\Filament\Widgets\MyRequestQueue::class,
