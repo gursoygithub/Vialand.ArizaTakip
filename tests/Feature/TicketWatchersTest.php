@@ -97,7 +97,7 @@ class TicketWatchersTest extends TestCase
             'username' => 'u'.fake()->unique()->numerify('#######'),
             'status' => UserStatusEnum::ACTIVE,
         ]);
-        $user->givePermissionTo(['view_any_ticket', 'view_ticket', 'create_ticket']);
+        $user->givePermissionTo(['view_any_team::ticket', 'view_team::ticket', 'create_team::ticket']);
 
         return [Employee::factory()->create(['email' => $email, 'status' => ActiveStatusEnum::ACTIVE]), $user];
     }

@@ -48,6 +48,11 @@ class PermissionSeeder extends Seeder
         'delete_ticket',
         'delete_any_ticket',
 
+        // "Talepler" (TeamTicketResource): its own Shield permissions.
+        'view_any_team::ticket',
+        'view_team::ticket',
+        'create_team::ticket',
+
         // Ticket visibility scope (3 mutually exclusive levels)
         'ticket.view.own',
         'ticket.view.group',
@@ -98,6 +103,10 @@ class PermissionSeeder extends Seeder
         'widget_TicketsByPriorityChart',
         'widget_SlaComplianceTrendChart',
         'widget_RecentTicketsTable',
+        'widget_RequestOverviewStats',
+        'widget_MyRequestQueue',
+        'widget_RequestsByStatusChart',
+        'widget_OpenRequestsByTypeChart',
 
         // Page access (Shield layer 2; listed for test DB compatibility)
         'page_PerformanceDashboard',

@@ -64,10 +64,10 @@ class EmployeeTeamScreensTest extends TestCase
         [$tech2Employee, $this->tech2] = $this->person();
 
         $this->viewer = $this->person()[1];
-        foreach (['view_any_employee', 'view_employee', 'view_all_employees', 'view_any_ticket', 'view_ticket', 'view_any_team', 'view_team'] as $permission) {
+        foreach (['view_any_employee', 'view_employee', 'view_all_employees', 'view_any_team::ticket', 'view_team::ticket', 'view_any_team', 'view_team'] as $permission) {
             Permission::findOrCreate($permission, 'web');
         }
-        $this->viewer->givePermissionTo(['view_any_employee', 'view_employee', 'view_all_employees', 'view_any_ticket', 'view_ticket', 'view_any_team', 'view_team', 'ticket.view.all']);
+        $this->viewer->givePermissionTo(['view_any_employee', 'view_employee', 'view_all_employees', 'view_any_team::ticket', 'view_team::ticket', 'view_any_team', 'view_team', 'ticket.view.all']);
 
         $this->actingAs($this->requester);
         $this->team = Team::factory()->create(['name' => 'Teknik', 'supervisor_employee_id' => $supervisorEmployee->id]);
@@ -275,7 +275,7 @@ class EmployeeTeamScreensTest extends TestCase
     {
         $this->startedBy($this->tech1);
         [, $outsider] = $this->person();
-        $outsider->givePermissionTo(['view_any_ticket']);
+        $outsider->givePermissionTo(['view_any_team::ticket']);
         $this->actingAs($outsider);
 
         Livewire::test(TeamTicketsRelationManager::class, ['ownerRecord' => $this->tech1->employee, 'pageClass' => ViewEmployee::class])

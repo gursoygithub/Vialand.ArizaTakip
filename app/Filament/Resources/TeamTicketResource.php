@@ -15,6 +15,7 @@ use App\Models\Team;
 use App\Models\Ticket;
 use App\Models\TicketType;
 use App\Services\TicketWorkflowService;
+use BezhanSalleh\FilamentShield\Contracts\HasShieldPermissions;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Forms\Get;
@@ -23,13 +24,19 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\HtmlString;
 
 /**
  * "Talepler": tickets of the type/team model. Legacy tickets stay in
  * TicketResource; the two never show each other's records.
+ *
+ * Access follows this resource's own Shield permissions (Roller →
+ * "Talepler": view_any / view / create_team::ticket), not the legacy
+ * Ticket ones the shared TicketPolicy checks. Everything else a person may
+ * do on a request comes from their place in the team, not from the role.
  */
-class TeamTicketResource extends Resource
+class TeamTicketResource extends Resource implements HasShieldPermissions
 {
     protected static ?string $model = Ticket::class;
 
@@ -40,6 +47,44 @@ class TeamTicketResource extends Resource
     protected static ?int $navigationSort = 10;
 
     protected static ?string $recordTitleAttribute = 'ticket_no';
+
+    /**
+     * @return array<int, string>
+     */
+    public static function getPermissionPrefixes(): array
+    {
+        return ['view', 'view_any', 'create'];
+    }
+
+    public static function canViewAny(): bool
+    {
+        return auth()->user()?->can('view_any_team::ticket') ?? false;
+    }
+
+    public static function canView(Model $record): bool
+    {
+        return auth()->user()?->can('view_team::ticket') ?? false;
+    }
+
+    public static function canCreate(): bool
+    {
+        return auth()->user()?->can('create_team::ticket') ?? false;
+    }
+
+    public static function canEdit(Model $record): bool
+    {
+        return false;
+    }
+
+    public static function canDelete(Model $record): bool
+    {
+        return false;
+    }
+
+    public static function canDeleteAny(): bool
+    {
+        return false;
+    }
 
     public static function getModelLabel(): string
     {

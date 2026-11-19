@@ -26,6 +26,7 @@ use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 /**
@@ -60,7 +61,7 @@ class AccessAndErrorScreensTest extends TestCase
     {
         $email = fake()->unique()->safeEmail();
         $user = User::factory()->create(['email' => $email, 'username' => 'u'.fake()->unique()->numerify('#######'), 'status' => UserStatusEnum::ACTIVE]);
-        $user->givePermissionTo(['view_any_ticket', 'view_ticket', 'create_ticket']);
+        $user->givePermissionTo(['view_any_team::ticket', 'view_team::ticket', 'create_team::ticket']);
 
         return [Employee::factory()->create(['email' => $email, 'status' => ActiveStatusEnum::ACTIVE]), $user];
     }
@@ -117,6 +118,42 @@ class AccessAndErrorScreensTest extends TestCase
         foreach (self::WIDGETS as $widget) {
             $this->assertTrue($widget::canView(), $widget);
         }
+    }
+
+    // ── Talepler follows its own permissions ────────────────────────────
+
+    public function test_requests_screen_follows_its_own_role_permissions(): void
+    {
+        $legacyOnly = User::factory()->create(['status' => UserStatusEnum::ACTIVE]);
+        $legacyOnly->givePermissionTo(['view_any_ticket', 'view_ticket', 'create_ticket']);
+        $this->actingAs($legacyOnly);
+
+        $this->assertFalse(TeamTicketResource::canViewAny());
+        $this->assertFalse(TeamTicketResource::canCreate());
+        $this->get(TeamTicketResource::getUrl('index'))->assertForbidden();
+
+        $user = $this->person()[1];
+        $this->actingAs($user);
+        $this->assertTrue(TeamTicketResource::canViewAny());
+        $this->assertTrue(TeamTicketResource::canCreate());
+        $this->assertSame(['view', 'view_any', 'create'], TeamTicketResource::getPermissionPrefixes());
+    }
+
+    public function test_migration_keeps_each_roles_access_and_drops_empty_leftover_roles(): void
+    {
+        $role = Role::findOrCreate('default', 'web');
+        $role->syncPermissions(['view_any_ticket', 'view_ticket', 'create_ticket']);
+        $used = Role::findOrCreate('technician', 'web');
+        User::factory()->create()->assignRole($used);
+        Role::findOrCreate('viewer', 'web');
+
+        (require database_path('migrations/2026_11_19_145938_align_roles_with_team_model.php'))->up();
+
+        $this->assertTrue($role->fresh()->hasPermissionTo('view_any_team::ticket'));
+        $this->assertTrue($role->fresh()->hasPermissionTo('create_team::ticket'));
+        $this->assertTrue(Role::findByName('super_admin')->hasPermissionTo('view_team::ticket'));
+        $this->assertNull(Role::query()->where('name', 'viewer')->first());
+        $this->assertNotNull(Role::query()->where('name', 'technician')->first(), 'a role with users stays');
     }
 
     // ── Error pages ─────────────────────────────────────────────────────
