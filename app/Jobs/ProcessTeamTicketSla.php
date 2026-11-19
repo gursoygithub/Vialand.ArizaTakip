@@ -7,6 +7,7 @@ use App\Events\TeamTicketSlaBreached;
 use App\Events\TeamTicketSlaWarning;
 use App\Exceptions\TicketWorkflowException;
 use App\Models\Ticket;
+use App\Models\TicketHold;
 use App\Models\TicketSlaCycle;
 use App\Services\TeamTicketNotifier;
 use App\Services\TicketWorkflowService;
@@ -24,7 +25,9 @@ use Illuminate\Support\Facades\Log;
  *  3. the 80% warning (event, once per cycle),
  *  4. escalation to managers when a breached ticket is still open after
  *     `general.sla_escalation_hours` (once per cycle, 0 = off),
- *  5. auto-closing resolutions the requester never confirmed.
+ *  5. auto-closing resolutions the requester never confirmed,
+ *  6. alerting the supervisor once when a hold outlasts the team's
+ *     `hold_alert_minutes` (working minutes, 0 = off).
  */
 class ProcessTeamTicketSla implements ShouldQueue
 {
@@ -85,6 +88,21 @@ class ProcessTeamTicketSla implements ShouldQueue
                     }
                 });
         }
+
+        TicketHold::query()
+            ->open()
+            ->whereNull('alerted_at')
+            ->whereHas('team', fn ($query) => $query->where('hold_alert_minutes', '>', 0))
+            ->whereHas('ticket', fn ($query) => $query->where('status', TaskStatusEnum::ON_HOLD))
+            ->with(['team.workCalendar', 'ticket'])
+            ->chunkById(100, function ($holds) use ($workflow, $notifier, $now): void {
+                foreach ($holds as $hold) {
+                    if ($workflow->holdWorkingMinutes($hold, $now) >= $hold->team->hold_alert_minutes) {
+                        $hold->forceFill(['alerted_at' => $now])->save();
+                        $notifier->holdOverdue($hold);
+                    }
+                }
+            });
 
         Ticket::query()
             ->whereNotNull('team_id')

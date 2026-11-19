@@ -2,7 +2,9 @@
 
 namespace App\Filament\Pages;
 
+use App\Models\Team;
 use App\Models\UserNotificationPreference;
+use App\Services\TeamTicketNotifier;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Toggle;
@@ -37,6 +39,35 @@ class NotificationPreferences extends Page implements HasForms
         'sla_warning'        => 'SLA Uyarısı',
         'sla_breach'         => 'SLA İhlali',
     ];
+
+    /**
+     * The team model only honours these switches: the bell for steps of
+     * requests the person follows (never mailed), and the supervisor's hold
+     * notices. Action notices and SLA alerts cannot be switched off.
+     *
+     * @return array<string, array{label: string, channels: array<int, string>}>
+     */
+    public static function rows(): array
+    {
+        if (config('legacy.enabled')) {
+            return collect(self::ROWS)
+                ->map(fn (string $label): array => ['label' => $label, 'channels' => ['database', 'mail']])
+                ->all();
+        }
+
+        $rows = [
+            'ticket_participant' => ['label' => __('ui.pref_ticket_participant'), 'channels' => ['database']],
+        ];
+
+        $employeeId = auth()->user()?->employee?->id;
+
+        if ($employeeId && Team::query()->where('supervisor_employee_id', $employeeId)->exists()) {
+            $rows[TeamTicketNotifier::PREFERENCE_TEAM_HOLD] = ['label' => __('ui.pref_team_hold'), 'channels' => ['database', 'mail']];
+            $rows[TeamTicketNotifier::PREFERENCE_TEAM_HOLD_OVERDUE] = ['label' => __('ui.pref_team_hold_overdue'), 'channels' => ['database', 'mail']];
+        }
+
+        return $rows;
+    }
 
     public static function getNavigationLabel(): string
     {
@@ -80,7 +111,7 @@ class NotificationPreferences extends Page implements HasForms
             ->keyBy('notification_type');
 
         $state = [];
-        foreach (array_keys(self::ROWS) as $type) {
+        foreach (array_keys(self::rows()) as $type) {
             $row = $existing->get($type);
             $state[$type . '_database'] = $row ? (bool) $row->database_enabled : true;
             $state[$type . '_mail']     = $row ? (bool) $row->mail_enabled     : true;
@@ -95,7 +126,7 @@ class NotificationPreferences extends Page implements HasForms
                 ->hiddenLabel()
                 ->content(new \Illuminate\Support\HtmlString(
                     '<div class="border-l-4 border-amber-400 rounded-md bg-amber-50 dark:bg-amber-900/30 p-4">'
-                    . '<span class="text-amber-800 dark:text-amber-200">⚠️ <strong>Kritik bildirimler</strong> (Atama ve SLA İhlali) kapatılamaz.</span>'
+                    . '<span class="text-amber-800 dark:text-amber-200">⚠️ '.e(config('legacy.enabled') ? 'Kritik bildirimler (Atama ve SLA İhlali) kapatılamaz.' : __('ui.pref_mandatory_note')).'</span>'
                     . '</div>'
                 )),
         ];
@@ -112,7 +143,7 @@ class NotificationPreferences extends Page implements HasForms
     {
         $rows = [];
 
-        foreach (self::ROWS as $type => $label) {
+        foreach (self::rows() as $type => ['label' => $label, 'channels' => $channels]) {
             $alwaysOnDb = in_array($type, UserNotificationPreference::ALWAYS_ON_DATABASE, true);
 
             $rows[] = \Filament\Forms\Components\Grid::make([
@@ -137,6 +168,7 @@ class NotificationPreferences extends Page implements HasForms
 
                 Toggle::make($type . '_mail')
                     ->label('E-posta')
+                    ->visible(in_array('mail', $channels, true))
                     ->default(true)
                     ->live()
                     ->afterStateUpdated(fn (bool $state) => $this->savePreference($type, 'mail', $state)),

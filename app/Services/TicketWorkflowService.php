@@ -15,6 +15,7 @@ use App\Models\Employee;
 use App\Models\Team;
 use App\Models\Ticket;
 use App\Models\TicketAssignment;
+use App\Models\TicketHold;
 use App\Models\TicketSlaCycle;
 use App\Models\TicketStatusHistory;
 use App\Models\User;
@@ -230,6 +231,15 @@ class TicketWorkflowService
 
             $this->evaluateResolutionBreach($cycle, $now);
             $this->pause($cycle, TicketSlaCycle::PAUSE_HOLD, $now);
+
+            TicketHold::create([
+                'ticket_id' => $ticket->id,
+                'team_id' => $cycle->team_id,
+                'employee_id' => $actor->employee?->id,
+                'reason' => $reason,
+                'note' => $note,
+                'started_at' => $now,
+            ]);
 
             $ticket->hold_reason = $reason;
             $ticket->on_hold_since = $now;
@@ -656,6 +666,11 @@ class TicketWorkflowService
             $cycle = $this->cycle($ticket);
 
             $this->evaluateResolutionBreach($cycle, $now);
+
+            if ($cycle->pause_kind === TicketSlaCycle::PAUSE_HOLD) {
+                $this->endHold($ticket, $cycle, $now);
+            }
+
             $cycle->paused_since = null;
             $cycle->pause_kind = null;
             $cycle->outcome = $outcome;
@@ -719,6 +734,24 @@ class TicketWorkflowService
      * Resume the clock and push the deadlines back by the paused working
      * time. Returns the paused working minutes.
      */
+    private function endHold(Ticket $ticket, TicketSlaCycle $cycle, CarbonImmutable $at): void
+    {
+        $hold = TicketHold::query()->where('ticket_id', $ticket->id)->open()->latest('id')->first();
+
+        $hold?->update([
+            'ended_at' => $at,
+            'working_minutes' => $this->calculator->workingMinutesBetween($hold->started_at, $at, $cycle->workCalendar),
+        ]);
+    }
+
+    /**
+     * Working minutes an open hold has lasted so far.
+     */
+    public function holdWorkingMinutes(TicketHold $hold, ?CarbonImmutable $now = null): int
+    {
+        return $this->calculator->workingMinutesBetween($hold->started_at, $now ?? CarbonImmutable::now(), $hold->team?->workCalendar);
+    }
+
     private function unpause(TicketSlaCycle $cycle, CarbonImmutable $at): int
     {
         if ($cycle->paused_since === null) {
@@ -727,6 +760,10 @@ class TicketWorkflowService
 
         $calendar = $cycle->workCalendar;
         $minutes = $this->calculator->workingMinutesBetween($cycle->paused_since, $at, $calendar);
+
+        if ($cycle->pause_kind === TicketSlaCycle::PAUSE_HOLD) {
+            $this->endHold($cycle->ticket, $cycle, $at);
+        }
 
         if ($minutes > 0) {
             $cycle->paused_minutes += $minutes;

@@ -8,6 +8,7 @@ use App\Enums\TaskStatusEnum;
 use App\Models\Employee;
 use App\Models\Team;
 use App\Models\Ticket;
+use App\Models\TicketHold;
 use App\Models\TicketSlaCycle;
 use App\Models\User;
 use Carbon\CarbonInterface;
@@ -108,7 +109,7 @@ class TeamPerformanceService
      * charged to them, and only breaches attributed to them count against
      * them.
      *
-     * @return array{summary: array<string, mixed>, last30: array<string, mixed>, teams: array<int, array<string, mixed>>, priorities: array<int, array<string, mixed>>}
+     * @return array{summary: array<string, mixed>, last30: array<string, mixed>, teams: array<int, array<string, mixed>>, priorities: array<int, array<string, mixed>>, holds: array<string, mixed>, holds_last30: array<string, mixed>}
      */
     public function personReport(Employee $employee): array
     {
@@ -142,6 +143,36 @@ class TeamPerformanceService
                     'priority' => $group->first()['priority'],
                 ] + $this->personFigures($group, $employee))
                 ->values()->all(),
+            'holds' => $this->holdFigures($employee),
+            'holds_last30' => $this->holdFigures($employee, $since),
+        ];
+    }
+
+    /**
+     * Holds the person started: how often, how long in working minutes (an
+     * open hold counts up to now), how many outlasted the team's alert
+     * limit, and the split by reason.
+     *
+     * @return array{count: int, open: int, minutes: int, overdue: int, reasons: array<string, int>}
+     */
+    public function holdFigures(Employee $employee, ?CarbonInterface $since = null): array
+    {
+        $holds = TicketHold::query()
+            ->where('employee_id', $employee->id)
+            ->when($since, fn (Builder $q) => $q->where('started_at', '>=', $since))
+            ->with('team.workCalendar')
+            ->get();
+
+        $now = now();
+
+        return [
+            'count' => $holds->count(),
+            'open' => $holds->whereNull('ended_at')->count(),
+            'minutes' => (int) $holds->sum(fn (TicketHold $hold): int => $hold->working_minutes
+                ?? $this->calculator->workingMinutesBetween($hold->started_at, $now, $hold->team?->workCalendar)),
+            'overdue' => $holds->whereNotNull('alerted_at')->count(),
+            'reasons' => $holds->groupBy(fn (TicketHold $hold): string => $hold->reason->getLabel())
+                ->map->count()->sortDesc()->all(),
         ];
     }
 

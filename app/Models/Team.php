@@ -42,6 +42,7 @@ class Team extends Model
         'supervisor_employee_id',
         'work_calendar_id',
         'allow_self_assign',
+        'hold_alert_minutes',
         'is_active',
     ];
 
@@ -49,6 +50,7 @@ class Team extends Model
     {
         return [
             'allow_self_assign' => 'boolean',
+            'hold_alert_minutes' => 'integer',
             'is_active' => 'boolean',
         ];
     }

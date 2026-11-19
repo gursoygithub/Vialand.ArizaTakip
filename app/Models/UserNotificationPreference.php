@@ -27,6 +27,8 @@ class UserNotificationPreference extends Model
         'ticket_reassigned',
         'sla_warning',
         'sla_breach',
+        'team_hold',
+        'team_hold_overdue',
     ];
 
     /**

@@ -165,7 +165,7 @@ class TeamTicketNotificationsTest extends TestCase
         $this->workflow()->hold($this->started(), $this->tech, HoldReasonEnum::AwaitingRequester, 'Hangi kat?');
 
         $this->assertNotified($this->requester, TeamTicketEventEnum::Held, ['database', 'mail']);
-        $this->assertNotified($this->supervisor, TeamTicketEventEnum::Held, ['database']);
+        $this->assertNotified($this->supervisor, TeamTicketEventEnum::Held, ['database', 'mail']);
     }
 
     public function test_other_holds_only_inform_the_requester(): void

@@ -11,6 +11,7 @@ enum TeamTicketEventEnum: string
     case Assigned = 'assigned';
     case Started = 'started';
     case Held = 'held';
+    case HoldOverdue = 'hold_overdue';
     case Resolved = 'resolved';
     case ResolutionRejected = 'resolution_rejected';
     case Closed = 'closed';
@@ -38,7 +39,7 @@ enum TeamTicketEventEnum: string
     {
         return match ($this) {
             self::Resolved, self::Closed => '#198754',
-            self::SlaWarning, self::Held => '#d97706',
+            self::SlaWarning, self::Held, self::HoldOverdue => '#d97706',
             self::SlaBreached, self::SlaEscalated, self::ResolutionRejected, self::Cancelled, self::Rejected => '#dc3545',
             self::ExemptionRequested, self::ExemptionDecided => '#6f42c1',
             default => '#0d6efd',
@@ -49,7 +50,7 @@ enum TeamTicketEventEnum: string
     {
         return match ($this) {
             self::Resolved, self::Closed => 'success',
-            self::SlaWarning, self::Held => 'warning',
+            self::SlaWarning, self::Held, self::HoldOverdue => 'warning',
             self::SlaBreached, self::SlaEscalated, self::ResolutionRejected, self::Cancelled, self::Rejected => 'danger',
             default => 'info',
         };
@@ -62,6 +63,7 @@ enum TeamTicketEventEnum: string
             self::Assigned => 'heroicon-o-user-plus',
             self::Started => 'heroicon-o-play',
             self::Held => 'heroicon-o-pause',
+            self::HoldOverdue => 'heroicon-o-clock',
             self::Resolved => 'heroicon-o-check-badge',
             self::ResolutionRejected => 'heroicon-o-hand-thumb-down',
             self::Closed => 'heroicon-o-lock-closed',

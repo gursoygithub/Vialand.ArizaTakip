@@ -8,6 +8,7 @@ use App\Models\Employee;
 use App\Models\SlaExemption;
 use App\Models\Team;
 use App\Models\Ticket;
+use App\Models\TicketHold;
 use App\Models\TicketSlaCycle;
 use App\Models\User;
 use App\Notifications\TeamTicketNotification;
@@ -28,12 +29,19 @@ use Spatie\Permission\Models\Permission;
  *    requester's confirmation when a ticket is opened).
  *  - Each person gets at most one notice per event (strongest role wins).
  *  - Push (FCM) goes only with action notices that the matrix marks as push.
+ *  - A matrix row may name a preference type (4th element): the person can
+ *    then switch its bell and mail off on "Bildirim Tercihlerim" (e.g. the
+ *    supervisor's hold notices).
  */
 class TeamTicketNotifier
 {
     public const PERMISSION_ESCALATION = 'ticket.sla.escalation';
 
     private const INFO_PREFERENCE = 'ticket_participant';
+
+    public const PREFERENCE_TEAM_HOLD = 'team_hold';
+
+    public const PREFERENCE_TEAM_HOLD_OVERDUE = 'team_hold_overdue';
 
     public function __construct(private FcmService $fcm) {}
 
@@ -64,7 +72,10 @@ class TeamTicketNotifier
                 ($context['hold_reason'] ?? null) === HoldReasonEnum::AwaitingRequester
                     ? [$requester, 'action', true]
                     : [$requester, 'info', false],
-                [$supervisor, 'info', false],
+                [$supervisor, 'important', false, self::PREFERENCE_TEAM_HOLD],
+            ],
+            TeamTicketEventEnum::HoldOverdue => [
+                [$supervisor, 'important', false, self::PREFERENCE_TEAM_HOLD_OVERDUE],
             ],
             TeamTicketEventEnum::Resolved => [
                 [$requester, 'action', true],
@@ -185,6 +196,13 @@ class TeamTicketNotifier
         ]);
     }
 
+    public function holdOverdue(TicketHold $hold): void
+    {
+        $this->dispatch(TeamTicketEventEnum::HoldOverdue, $hold->ticket, null, [
+            'note' => $hold->reason->getLabel().($hold->note ? ': '.$hold->note : ''),
+        ]);
+    }
+
     public function slaWarning(TicketSlaCycle $cycle): void
     {
         $this->dispatch(TeamTicketEventEnum::SlaWarning, $cycle->ticket, null);
@@ -201,7 +219,7 @@ class TeamTicketNotifier
     }
 
     /**
-     * @param  array<int, array{0: ?User, 1: string, 2: bool}>  $plan  [recipient, level, push]
+     * @param  array<int, array{0: ?User, 1: string, 2: bool, 3?: string}>  $plan  [recipient, level, push, preference]
      */
     private function deliver(TeamTicketEventEnum $event, Ticket $ticket, ?User $actor, array $plan, ?string $note, bool $excludeActor = true): void
     {
@@ -211,18 +229,26 @@ class TeamTicketNotifier
         $recipients = collect($plan)
             ->filter(fn (array $row): bool => $row[0] instanceof User)
             ->reject(fn (array $row): bool => $excludeActor && $actor !== null && (int) $row[0]->id === (int) $actor->id)
-            ->map(fn (array $row): array => ['user' => $row[0], 'level' => $row[1], 'push' => $row[2]])
+            ->map(fn (array $row): array => ['user' => $row[0], 'level' => $row[1], 'push' => $row[2], 'preference' => $row[3] ?? null])
             ->sortByDesc(fn (array $row): int => $rank[$row['level']])
             ->unique(fn (array $row): int => $row['user']->id);
 
         $actorName = $actor?->employee?->name ?? $actor?->name;
 
-        foreach ($recipients as ['user' => $user, 'level' => $level, 'push' => $push]) {
+        foreach ($recipients as ['user' => $user, 'level' => $level, 'push' => $push, 'preference' => $preference]) {
             if ($level === 'info' && ! $this->wantsInfo($ticket, $user)) {
                 continue;
             }
 
             $channels = $level === 'info' ? ['database'] : ['database', 'mail'];
+
+            if ($preference !== null) {
+                $channels = array_values(array_filter($channels, fn (string $channel): bool => $user->wantsNotification($preference, $channel)));
+
+                if ($channels === []) {
+                    continue;
+                }
+            }
 
             if (blank($user->email) && in_array('mail', $channels, true)) {
                 $channels = ['database'];

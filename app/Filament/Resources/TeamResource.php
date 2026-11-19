@@ -165,6 +165,18 @@ class TeamResource extends Resource
                             ->default(true)
                             ->inline(false),
 
+                        Forms\Components\TextInput::make('hold_alert_minutes')
+                            ->label(__('ui.hold_alert_hours'))
+                            ->helperText(__('ui.hold_alert_hours_help'))
+                            ->numeric()
+                            ->minValue(0)
+                            ->step(0.5)
+                            ->suffix(__('ui.hours_short'))
+                            ->default(8)
+                            ->required()
+                            ->formatStateUsing(fn ($state): float|int => $state === null ? 8 : $state / 60)
+                            ->dehydrateStateUsing(fn ($state): int => (int) round(((float) $state) * 60)),
+
                         Forms\Components\Toggle::make('is_active')
                             ->label(__('ui.active'))
                             ->default(true)

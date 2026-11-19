@@ -45,6 +45,14 @@ class ViewEmployee extends ViewRecord
         $last30 = $report['last30'];
 
         $pct = fn (?float $value): string => $value === null ? '—' : '%'.number_format($value, 1, ',', '.');
+        $holdText = fn (array $holds): string => $holds['count'] === 0
+            ? __('ui.employee_holds_none')
+            : __('ui.employee_holds_value', ['count' => $holds['count'], 'time' => TeamTicketResource::workingDuration($holds['minutes'])]);
+        $holdHint = fn (array $holds): ?string => $holds['count'] === 0 ? null : collect($holds['reasons'])
+            ->map(fn (int $count, string $reason): string => $reason.': '.$count)
+            ->push($holds['overdue'] > 0 ? __('ui.employee_holds_overdue', ['count' => $holds['overdue']]) : null)
+            ->filter()
+            ->implode(' · ');
         $tone = fn (?float $value, ?float $target): string => match (true) {
             $value === null || $target === null => 'gray',
             $value >= $target => 'success',
@@ -148,6 +156,11 @@ class ViewEmployee extends ViewRecord
                                         ->state($workload['breached'])
                                         ->color($workload['breached'] > 0 ? 'danger' : 'gray')
                                         ->badge(),
+                                    TextEntry::make('open_holds')
+                                        ->label(__('ui.employee_holds_open'))
+                                        ->state($report['holds']['open'])
+                                        ->color($report['holds']['open'] > 0 ? 'warning' : 'gray')
+                                        ->badge(),
                                 ]),
 
                             Section::make(__('ui.employee_last30'))
@@ -171,6 +184,10 @@ class ViewEmployee extends ViewRecord
                                         ->state($last30['personal_breaches'])
                                         ->color($last30['personal_breaches'] > 0 ? 'danger' : 'gray')
                                         ->badge(),
+                                    TextEntry::make('last30_holds')
+                                        ->label(__('ui.employee_holds'))
+                                        ->state($holdText($report['holds_last30']))
+                                        ->helperText($holdHint($report['holds_last30'])),
                                 ]),
 
                             Section::make(__('ui.employee_all_time'))
@@ -202,6 +219,10 @@ class ViewEmployee extends ViewRecord
                                     TextEntry::make('all_quality')
                                         ->label(__('ui.employee_quality'))
                                         ->state(__('ui.employee_quality_value', ['reopened' => $all['reopened'], 'rejections' => $all['rejections']])),
+                                    TextEntry::make('all_holds')
+                                        ->label(__('ui.employee_holds'))
+                                        ->state($holdText($report['holds']))
+                                        ->helperText($holdHint($report['holds'])),
                                 ]),
                         ]),
                     ]),
