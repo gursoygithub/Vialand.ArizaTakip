@@ -22,7 +22,9 @@ return [
     'super_admin' => [
         'enabled' => true,
         'name' => 'super_admin',
-        'define_via_gate' => false,
+        // super_admin passes every permission check (Gate::before), so a
+        // newly added permission can never lock the system owner out.
+        'define_via_gate' => true,
         'intercept_gate' => 'before', // after
     ],
 
