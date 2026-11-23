@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\TaskPriorityEnum;
 use App\Models\Concerns\RecordsAuthors;
+use App\Services\SupervisorRoleService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -58,6 +59,26 @@ class Team extends Model
     public function ticketType(): BelongsTo
     {
         return $this->belongsTo(TicketType::class);
+    }
+
+    /**
+     * Whoever becomes or stops being a supervisor gets or loses the
+     * "Ekip Amiri" role (SupervisorRoleService).
+     */
+    protected static function booted(): void
+    {
+        static::saved(function (Team $team): void {
+            if (! $team->wasRecentlyCreated && ! $team->wasChanged('supervisor_employee_id')) {
+                return;
+            }
+
+            $roles = app(SupervisorRoleService::class);
+            $roles->syncEmployee($team->supervisor_employee_id);
+            $roles->syncEmployee($team->getPrevious()['supervisor_employee_id'] ?? null);
+        });
+
+        static::deleted(fn (Team $team) => app(SupervisorRoleService::class)->syncEmployee($team->supervisor_employee_id));
+        static::restored(fn (Team $team) => app(SupervisorRoleService::class)->syncEmployee($team->supervisor_employee_id));
     }
 
     public function supervisor(): BelongsTo

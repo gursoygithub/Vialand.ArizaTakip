@@ -39,6 +39,10 @@ class UserService
             $this->assignDefaultRole($user);
         }
 
+        // A supervisor picked on the Ekipler screen before their first login
+        // gets the "Ekip Amiri" role now.
+        app(SupervisorRoleService::class)->syncUser($user);
+
         return $user;
     }
 
