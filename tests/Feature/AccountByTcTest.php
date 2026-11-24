@@ -17,6 +17,7 @@ use App\Services\UserService;
 use Carbon\CarbonImmutable;
 use Database\Seeders\PermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 use LdapRecord\Models\ActiveDirectory\User as LdapUser;
 use Tests\TestCase;
@@ -80,6 +81,29 @@ class AccountByTcTest extends TestCase
 
         $this->assertSame('11111111110', $attributes['tc_no']);
         $this->assertSame($employee->employee_id, $attributes['employee_id']);
+    }
+
+    public function test_a_tc_that_contradicts_the_email_is_ignored_and_logged(): void
+    {
+        Log::spy();
+        Employee::factory()->create(['tc_no' => '11111111110', 'email' => 'baskasi@example.com']);
+        $own = Employee::factory()->create(['tc_no' => '22222222220', 'email' => 'ali.veli@example.com']);
+        $ldap = (new LdapUser)->setRawAttributes([
+            'samaccountname' => ['ali.veli'],
+            'mail' => ['ali.veli@example.com'],
+            'employeeid' => ['11111111110'],
+            'displayname' => ['Ali Veli'],
+        ]);
+
+        $attributes = (new \ReflectionMethod(UserService::class, 'mapLdapAttributes'))
+            ->invoke(app(UserService::class), $ldap, 'secret');
+
+        $this->assertNull($attributes['tc_no']);
+        $this->assertSame($own->employee_id, $attributes['employee_id']);
+        Log::shouldHaveReceived('warning')->withArgs(fn (string $message, array $context): bool => $context === ['username' => 'ali.veli'])->once();
+
+        $this->assertSame('22222222220', UserService::trustedTc('22222222220', 'ali.veli@example.com'));
+        $this->assertSame('11111111110', UserService::trustedTc('11111111110', 'ik-bilmiyor@example.com'));
     }
 
     public function test_account_finds_its_person_by_tc_when_hr_email_differs(): void

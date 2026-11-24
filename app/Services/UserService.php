@@ -63,7 +63,11 @@ class UserService
 
         // AD keeps the TC kimlik no in employeeID: it links the account to
         // the person even when the HR e-mail is missing or personal.
-        $tcNo = self::tcFrom($ldapUser->getFirstAttribute('employeeid'));
+        $tcNo = self::trustedTc(
+            self::tcFrom($ldapUser->getFirstAttribute('employeeid')),
+            $email,
+            $ldapUser->getFirstAttribute('samaccountname'),
+        );
 
         $employee = ($tcNo ? \App\Models\Employee::where('tc_no', $tcNo)->orderByDesc('status')->orderByDesc('id')->first() : null)
             ?? ($email ? \App\Models\Employee::where('email', $email)->orderByDesc('status')->orderByDesc('id')->first() : null);
@@ -88,6 +92,35 @@ class UserService
             'employee_id' => $employee?->employee_id,
             'tc_no' => $tcNo,
         ];
+    }
+
+    /**
+     * AD's TC is not trusted when HR knows the account's e-mail as somebody
+     * else: a wrong employeeID would hand over another person's requests and
+     * rights. The account then links by e-mail, and the clash is logged
+     * (without the TC itself).
+     */
+    public static function trustedTc(?string $tcNo, ?string $email, ?string $username = null): ?string
+    {
+        if ($tcNo === null || blank($email)) {
+            return $tcNo;
+        }
+
+        $tcsOfEmail = \App\Models\Employee::query()
+            ->where('email', $email)
+            ->whereNotNull('tc_no')
+            ->where('tc_no', '!=', '')
+            ->pluck('tc_no');
+
+        if ($tcsOfEmail->isEmpty() || $tcsOfEmail->contains($tcNo)) {
+            return $tcNo;
+        }
+
+        \Illuminate\Support\Facades\Log::warning('AD employeeID ile e-posta farklı kişileri gösteriyor; hesap e-postayla eşleştirildi.', [
+            'username' => $username,
+        ]);
+
+        return null;
     }
 
     /**
