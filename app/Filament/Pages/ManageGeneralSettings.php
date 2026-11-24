@@ -4,6 +4,7 @@ namespace App\Filament\Pages;
 
 use App\Settings\GeneralSettings;
 use Filament\Forms\Components\Section;
+use Filament\Forms\Components\TagsInput;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Form;
 use Filament\Pages\SettingsPage;
@@ -83,6 +84,20 @@ class ManageGeneralSettings extends SettingsPage
                             ->suffix(__('ui.hours_short'))
                             ->required()
                             ->helperText(__('ui.sla_escalation_hours_help')),
+                    ]),
+
+                Section::make(__('ui.mail_settings'))
+                    ->description(__('ui.mail_settings_help'))
+                    ->schema([
+                        TagsInput::make('mail_allowed_domains')
+                            ->label(__('ui.mail_allowed_domains'))
+                            ->placeholder('ornek.com.tr')
+                            ->helperText(__('ui.mail_allowed_domains_help'))
+                            ->nestedRecursiveRules(['regex:/^@?[a-z0-9.-]+\.[a-z]{2,}$/i'])
+                            ->dehydrateStateUsing(fn (?array $state): array => collect($state)
+                                ->map(fn (string $domain): string => strtolower(ltrim(trim($domain), '@')))
+                                ->filter()->unique()->values()->all())
+                            ->required(),
                     ]),
             ]);
     }

@@ -7,6 +7,7 @@ use App\Enums\TaskPriorityEnum;
 use App\Filament\Resources\TeamResource\Pages;
 use App\Models\Employee;
 use App\Models\Team;
+use App\Support\CompanyEmail;
 use Closure;
 use Filament\Forms;
 use Filament\Forms\Form;
@@ -75,14 +76,16 @@ class TeamResource extends Resource
 
     /**
      * Team people are reached by e-mail and log in through the account that
-     * shares their e-mail, so someone without one would silently get nothing.
+     * shares their e-mail, so someone without a company address would get
+     * nothing (mail only goes to the domains on Sistem Ayarları).
      */
     private static function requireEmail(): Closure
     {
         return fn (): Closure => function (string $attribute, mixed $value, Closure $fail): void {
             $names = Employee::query()
                 ->whereKey((array) $value)
-                ->where(fn (Builder $query) => $query->whereNull('email')->orWhere('email', ''))
+                ->get(['id', 'name', 'email'])
+                ->reject(fn (Employee $employee): bool => CompanyEmail::isCorporate($employee->email))
                 ->pluck('name');
 
             if ($names->isNotEmpty()) {
@@ -239,12 +242,8 @@ class TeamResource extends Resource
     {
         return $table
             ->modifyQueryUsing(fn (Builder $query) => $query
-                ->with(['ticketType', 'supervisor.company', 'workCalendar'])
-                ->withCount([
-                    'members',
-                    'members as members_without_email_count' => fn (Builder $query) => $query
-                        ->where(fn (Builder $query) => $query->whereNull('email')->orWhere('email', '')),
-                ]))
+                ->with(['ticketType', 'supervisor.company', 'workCalendar', 'members:id,email'])
+                ->withCount('members'))
             ->defaultSort('name')
             ->columns([
                 Tables\Columns\TextColumn::make('name')
@@ -299,13 +298,12 @@ class TeamResource extends Resource
     }
 
     /**
-     * Supervisor plus members who have no e-mail (list rows carry the member
-     * count from withCount, the supervisor is already eager loaded).
+     * Supervisor plus members without a company e-mail address.
      */
     private static function peopleWithoutEmail(Team $team): int
     {
-        return (int) ($team->members_without_email_count ?? 0)
-            + ($team->supervisor && blank($team->supervisor->email) ? 1 : 0);
+        return $team->members->reject(fn (Employee $employee): bool => CompanyEmail::isCorporate($employee->email))->count()
+            + ($team->supervisor && ! CompanyEmail::isCorporate($team->supervisor->email) ? 1 : 0);
     }
 
     /**

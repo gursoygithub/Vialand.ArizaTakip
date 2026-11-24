@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\ActiveStatusEnum;
 use App\Models\Employee;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -21,6 +22,7 @@ class EmployeeService
         $batchSize = 1000;
         $buffer = [];
         $totalProcessed = 0;
+        $seenIds = [];
 
         try {
             foreach ($this->sqlsrvConnection
@@ -39,6 +41,8 @@ class EmployeeService
                     ]);
                     continue;
                 }
+
+                $seenIds[] = trim($data->UNIQUE_ID);
 
                 $buffer[] = [
                     'employee_id'    => trim($data->UNIQUE_ID),  // 👈 Trim ekleyin
@@ -68,6 +72,8 @@ class EmployeeService
                 $totalProcessed += count($buffer);
             }
 
+            $deactivated = $this->deactivateMissing($seenIds);
+
             // Relink orphan users whose email matches an employee.
             $relinked = 0;
             User::whereNull('employee_id')
@@ -90,6 +96,7 @@ class EmployeeService
             Log::info("Personel senkronizasyonu tamamlandı", [
                 'total_processed' => $totalProcessed,
                 'relinked_users'  => $relinked,
+                'deactivated'     => $deactivated,
             ]);
 
             return $totalProcessed;
@@ -101,6 +108,50 @@ class EmployeeService
             ]);
             throw $e;
         }
+    }
+
+    /**
+     * People who left the company no longer come from HR (only active ones
+     * are read), so mark everyone active here but missing from this run as
+     * inactive: they drop out of the team, CC and assignee pickers.
+     *
+     * Only after a complete run, and only when HR returned at least half of
+     * the people currently active here — an empty or cut-off result must
+     * never switch the whole company off.
+     *
+     * @param  array<int, string>  $seenIds  HR UNIQUE_IDs read in this run
+     */
+    public function deactivateMissing(array $seenIds): int
+    {
+        $active = Employee::query()->where('status', ActiveStatusEnum::ACTIVE)->whereNotNull('employee_id');
+        $activeCount = (clone $active)->count();
+        $seenIds = array_values(array_unique(array_filter($seenIds)));
+
+        if ($activeCount === 0) {
+            return 0;
+        }
+
+        if (count($seenIds) < $activeCount / 2) {
+            Log::warning('Personel senkronizasyonu: pasife alma atlandı, İK çok az kayıt döndürdü.', [
+                'hr_records' => count($seenIds),
+                'active_here' => $activeCount,
+            ]);
+
+            return 0;
+        }
+
+        $missing = (clone $active)->whereNotIn('employee_id', $seenIds);
+        $names = (clone $missing)->limit(50)->pluck('name');
+        $count = $missing->update(['status' => ActiveStatusEnum::INACTIVE, 'updated_at' => now()]);
+
+        if ($count > 0) {
+            Log::info('Personel senkronizasyonu: İK listesinde olmayanlar pasife alındı.', [
+                'count' => $count,
+                'names' => $names->all(),
+            ]);
+        }
+
+        return $count;
     }
 
     protected function processBatch(array $buffer): void

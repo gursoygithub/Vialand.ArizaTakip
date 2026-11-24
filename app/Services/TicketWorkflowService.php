@@ -20,6 +20,7 @@ use App\Models\TicketSlaCycle;
 use App\Models\TicketStatusHistory;
 use App\Models\User;
 use App\Settings\GeneralSettings;
+use App\Support\CompanyEmail;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -140,7 +141,7 @@ class TicketWorkflowService
             ->when($requester->employee?->id, fn ($query, $ownId) => $query->whereKeyNot($ownId))
             ->get();
 
-        $withoutEmail = $watchers->filter(fn (Employee $employee): bool => blank($employee->email));
+        $withoutEmail = $watchers->reject(fn (Employee $employee): bool => CompanyEmail::isCorporate($employee->email));
 
         if ($withoutEmail->isNotEmpty()) {
             throw TicketWorkflowException::watcherWithoutEmail($withoutEmail->pluck('name')->implode(', '));

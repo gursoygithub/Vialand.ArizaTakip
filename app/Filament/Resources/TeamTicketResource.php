@@ -15,6 +15,7 @@ use App\Models\Team;
 use App\Models\Ticket;
 use App\Models\TicketType;
 use App\Services\TicketWorkflowService;
+use App\Support\CompanyEmail;
 use BezhanSalleh\FilamentShield\Contracts\HasShieldPermissions;
 use Filament\Forms;
 use Filament\Forms\Form;
@@ -325,8 +326,9 @@ class TeamTicketResource extends Resource implements HasShieldPermissions
         return Employee::query()
             ->with('company')
             ->where('status', ActiveStatusEnum::ACTIVE)
-            ->whereNotNull('email')
-            ->where('email', '!=', '')
+            ->where(fn (Builder $query) => CompanyEmail::domains() === []
+                ? $query->whereRaw('1 = 0')
+                : collect(CompanyEmail::domains())->each(fn (string $domain) => $query->orWhere('email', 'like', '%@'.$domain)))
             ->when(auth()->user()?->employee?->id, fn (Builder $query, int $ownId) => $query->whereKeyNot($ownId))
             ->orderBy('name');
     }

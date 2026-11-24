@@ -27,6 +27,13 @@ class GeneralSettings extends Settings
      */
     public int $sla_escalation_hours;
 
+    /**
+     * Company e-mail domains mail may be sent to (lower case, no "@").
+     *
+     * @var array<int, string>
+     */
+    public array $mail_allowed_domains;
+
     public static function group(): string
     {
         return 'general'; // Grubu 'general' yaptık

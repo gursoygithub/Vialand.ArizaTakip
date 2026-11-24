@@ -2,21 +2,19 @@
 
 namespace App\Filament\Resources;
 
-use App\Enums\TaskStatusEnum;
 use App\Filament\Concerns\ScopedByVisibility;
 use App\Filament\Resources\EmployeeResource\Pages;
 use App\Filament\Resources\EmployeeResource\RelationManagers;
 use App\Models\Employee;
 use App\Models\Team;
 use App\Services\TeamPerformanceService;
-use Filament\Forms;
+use App\Support\CompanyEmail;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class EmployeeResource extends Resource
 {
@@ -84,6 +82,19 @@ class EmployeeResource extends Resource
                     ->sortable(),
                 Tables\Columns\TextColumn::make('email')
                     ->label(__('ui.email'))
+                    ->placeholder(__('ui.email_status_missing'))
+                    ->icon(fn (Employee $record): ?string => CompanyEmail::isCorporate($record->email) ? null : 'heroicon-m-exclamation-triangle')
+                    ->color(fn (Employee $record): ?string => match (CompanyEmail::status($record->email)) {
+                        CompanyEmail::CORPORATE => null,
+                        CompanyEmail::PERSONAL => 'warning',
+                        default => 'danger',
+                    })
+                    ->tooltip(fn (Employee $record): ?string => match (CompanyEmail::status($record->email)) {
+                        CompanyEmail::PERSONAL => __('ui.email_status_personal_hint'),
+                        CompanyEmail::INVALID => __('ui.email_status_invalid_hint'),
+                        CompanyEmail::MISSING => __('ui.email_status_missing_hint'),
+                        default => null,
+                    })
                     ->searchable()
                     ->toggleable(),
                 Tables\Columns\TextColumn::make('company.name')
@@ -114,6 +125,12 @@ class EmployeeResource extends Resource
                     ->sortable(),
             ])
             ->filters([
+                Tables\Filters\SelectFilter::make('email_status')
+                    ->label(__('ui.email_status'))
+                    ->options(self::emailStatusOptions())
+                    ->query(fn (Builder $query, array $data): Builder => filled($data['value'] ?? null)
+                        ? $query->emailStatus($data['value'])
+                        : $query),
                 Tables\Filters\SelectFilter::make('company_id')
                     ->label(__('ui.company'))
                     ->relationship('company', 'name')
@@ -136,6 +153,20 @@ class EmployeeResource extends Resource
     /**
      * "4 ekip · 2 amir" — names are in the tooltip and on the detail page.
      */
+    /**
+     * @return array<string, string>
+     */
+    public static function emailStatusOptions(): array
+    {
+        return [
+            CompanyEmail::CORPORATE => __('ui.email_status_corporate'),
+            CompanyEmail::PERSONAL => __('ui.email_status_personal'),
+            CompanyEmail::INVALID => __('ui.email_status_invalid'),
+            CompanyEmail::MISSING => __('ui.email_status_missing'),
+            'duplicate' => __('ui.email_status_duplicate'),
+        ];
+    }
+
     public static function teamCountLabel(int $count, Employee $employee): string
     {
         $supervised = $employee->supervisedTeams->count();
@@ -178,7 +209,7 @@ class EmployeeResource extends Resource
         // form that would persist a half-empty record.
         return [
             'index' => Pages\ListEmployees::route('/'),
-            'view'  => Pages\ViewEmployee::route('/{record}'),
+            'view' => Pages\ViewEmployee::route('/{record}'),
         ];
     }
 
