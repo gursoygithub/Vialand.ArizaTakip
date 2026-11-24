@@ -158,9 +158,15 @@ class User extends Authenticatable implements FilamentUser
     }
 
     //relation with employee
+    /**
+     * The person behind this account, matched by e-mail. When HR keeps more
+     * than one record for the same address, the active (and newest) one wins.
+     */
     public function employee()
     {
-        return $this->hasOne(Employee::class, 'email', 'email');
+        return $this->hasOne(Employee::class, 'email', 'email')
+            ->orderByDesc('status')
+            ->orderByDesc('id');
     }
 
     public function notificationPreferences(): \Illuminate\Database\Eloquent\Relations\HasMany

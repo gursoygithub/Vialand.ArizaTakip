@@ -122,10 +122,16 @@ class CompanyEmailTest extends TestCase
             ->assertSee(__('ui.team_people_without_email_named', ['names' => 'Ulaş Demir']));
 
         $this->assertSame('Ulaş Demir ⚠ '.__('ui.no_company_email'), TeamResource::employeeLabel($personal));
+
+        $personal->update(['status' => ActiveStatusEnum::INACTIVE]);
+        $this->assertSame('Ulaş Demir ⚠ '.__('ui.employee_inactive_short'), TeamResource::employeeLabel($personal->fresh()));
+        Livewire::test(ViewTeam::class, ['record' => $team->getKey()])
+            ->assertSee(__('ui.team_people_inactive_named', ['names' => 'Ulaş Demir']))
+            ->assertFormSet(fn (array $state): bool => in_array($personal->id, $state['members']));
         $this->assertSame('Ali Kurumsal', TeamResource::employeeLabel($company));
 
         Livewire::test(ListTeams::class)
-            ->assertSeeHtml(trim(json_encode(__('ui.team_people_without_email_named', ['names' => 'Ulaş Demir'])), '"'));
+            ->assertSeeHtml(trim(json_encode('aktif değil (ayrılmış olabilir): Ulaş Demir'), '"'));
     }
 
     public function test_cc_needs_a_company_address_and_the_picker_offers_only_those(): void

@@ -16,6 +16,7 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Collection;
 
 class TeamResource extends Resource
 {
@@ -49,6 +50,10 @@ class TeamResource extends Resource
         $company = $employee->company?->name ?? $employee->company_name;
         $label = $company ? "{$employee->name} ({$company})" : $employee->name;
 
+        if ($employee->status === ActiveStatusEnum::INACTIVE) {
+            return $label.' ⚠ '.__('ui.employee_inactive_short');
+        }
+
         return CompanyEmail::isCorporate($employee->email) ? $label : $label.' ⚠ '.__('ui.no_company_email');
     }
 
@@ -70,9 +75,17 @@ class TeamResource extends Resource
             ->all();
     }
 
-    private static function activeEmployees(Builder $query): Builder
+    /**
+     * Pickers offer active people; people already on the team stay listed
+     * (marked "pasif") so a leaver is visible and can be removed.
+     *
+     * @param  array<int, int>  $keep
+     */
+    private static function activeEmployees(Builder $query, array $keep = []): Builder
     {
-        return $query->with('company')->where('status', ActiveStatusEnum::ACTIVE);
+        return $query->with('company')->where(fn (Builder $q) => $q
+            ->where('status', ActiveStatusEnum::ACTIVE)
+            ->when($keep !== [], fn (Builder $w) => $w->orWhereIn('employees.id', $keep)));
     }
 
     /**
@@ -126,17 +139,15 @@ class TeamResource extends Resource
                             ->relationship(
                                 'supervisor',
                                 'name',
-                                fn (Builder $query) => self::activeEmployees($query),
+                                fn (Builder $query, ?Team $record) => self::activeEmployees($query, array_filter([$record?->supervisor_employee_id])),
                             )
                             ->getOptionLabelFromRecordUsing(fn (Employee $record): string => self::employeeLabel($record))
                             ->searchable(['name', 'email'])
                             ->required()
                             ->rule(self::requireEmail())
-                            ->hint(fn (?Team $record): ?string => $record?->supervisor && ! CompanyEmail::isCorporate($record->supervisor->email)
-                                ? __('ui.team_people_without_email_named', ['names' => $record->supervisor->name])
-                                : null)
+                            ->hint(fn (?Team $record): ?string => self::peopleProblem($record?->supervisor ? collect([$record->supervisor]) : collect()))
                             ->hintColor('danger')
-                            ->hintIcon(fn (?Team $record): ?string => $record?->supervisor && ! CompanyEmail::isCorporate($record->supervisor->email) ? 'heroicon-m-exclamation-triangle' : null)
+                            ->hintIcon(fn (?Team $record): ?string => self::peopleProblem($record?->supervisor ? collect([$record->supervisor]) : collect()) ? 'heroicon-m-exclamation-triangle' : null)
                             ->validationMessages(['required' => __('ui.required')]),
 
                         Forms\Components\Select::make('work_calendar_id')
@@ -155,17 +166,15 @@ class TeamResource extends Resource
                             ->relationship(
                                 'members',
                                 'name',
-                                fn (Builder $query) => self::activeEmployees($query),
+                                fn (Builder $query, ?Team $record) => self::activeEmployees($query, $record?->members()->pluck('employees.id')->all() ?? []),
                             )
                             ->getOptionLabelFromRecordUsing(fn (Employee $record): string => self::employeeLabel($record))
                             ->multiple()
                             ->searchable(['name', 'email'])
                             ->rule(self::requireEmail())
-                            ->hint(fn (?Team $record): ?string => ($names = self::membersWithoutCompanyEmail($record)) !== []
-                                ? __('ui.team_people_without_email_named', ['names' => implode(', ', $names)])
-                                : null)
+                            ->hint(fn (?Team $record): ?string => self::peopleProblem($record?->members ?? collect()))
                             ->hintColor('danger')
-                            ->hintIcon(fn (?Team $record): ?string => self::membersWithoutCompanyEmail($record) !== [] ? 'heroicon-m-exclamation-triangle' : null)
+                            ->hintIcon(fn (?Team $record): ?string => self::peopleProblem($record?->members ?? collect()) ? 'heroicon-m-exclamation-triangle' : null)
                             ->columnSpanFull(),
 
                         Forms\Components\Textarea::make('description')
@@ -253,7 +262,7 @@ class TeamResource extends Resource
     {
         return $table
             ->modifyQueryUsing(fn (Builder $query) => $query
-                ->with(['ticketType', 'supervisor.company', 'workCalendar', 'members:id,name,email'])
+                ->with(['ticketType', 'supervisor.company', 'workCalendar', 'members:id,name,email,status'])
                 ->withCount('members'))
             ->defaultSort('name')
             ->columns([
@@ -278,9 +287,7 @@ class TeamResource extends Resource
                     ->badge()
                     ->color(fn (Team $record): string => self::peopleWithoutEmail($record) > 0 ? 'danger' : 'primary')
                     ->icon(fn (Team $record): ?string => self::peopleWithoutEmail($record) > 0 ? 'heroicon-m-exclamation-triangle' : null)
-                    ->tooltip(fn (Team $record): ?string => self::peopleWithoutEmail($record) > 0
-                        ? __('ui.team_people_without_email_named', ['names' => implode(', ', self::peopleWithoutCompanyEmail($record))])
-                        : null)
+                    ->tooltip(fn (Team $record): ?string => self::peopleProblem(self::teamPeople($record)))
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('workCalendar.name')
@@ -313,29 +320,34 @@ class TeamResource extends Resource
      */
     private static function peopleWithoutEmail(Team $team): int
     {
-        return count(self::peopleWithoutCompanyEmail($team));
+        return self::teamPeople($team)
+            ->filter(fn (Employee $employee): bool => $employee->status === ActiveStatusEnum::INACTIVE || ! CompanyEmail::isCorporate($employee->email))
+            ->count();
     }
 
     /**
-     * Names of the supervisor and members without a company e-mail address.
+     * @return Collection<int, Employee>
+     */
+    private static function teamPeople(Team $team): Collection
+    {
+        return collect([$team->supervisor])->filter()->merge($team->members);
+    }
+
+    /**
+     * One line naming who has left HR ("pasif") and who has no company
+     * e-mail, or null when everyone is fine.
      *
-     * @return array<int, string>
+     * @param  Collection<int, Employee>  $people
      */
-    private static function peopleWithoutCompanyEmail(Team $team): array
+    private static function peopleProblem(Collection $people): ?string
     {
-        $supervisor = $team->supervisor && ! CompanyEmail::isCorporate($team->supervisor->email) ? [$team->supervisor->name] : [];
+        $inactive = $people->filter(fn (Employee $employee): bool => $employee->status === ActiveStatusEnum::INACTIVE)->pluck('name');
+        $noEmail = $people->reject(fn (Employee $employee): bool => $employee->status === ActiveStatusEnum::INACTIVE || CompanyEmail::isCorporate($employee->email))->pluck('name');
 
-        return array_merge($supervisor, self::membersWithoutCompanyEmail($team));
-    }
-
-    /**
-     * @return array<int, string>
-     */
-    private static function membersWithoutCompanyEmail(?Team $team): array
-    {
-        return $team?->members
-            ->reject(fn (Employee $employee): bool => CompanyEmail::isCorporate($employee->email))
-            ->pluck('name')->values()->all() ?? [];
+        return collect([
+            $inactive->isNotEmpty() ? __('ui.team_people_inactive_named', ['names' => $inactive->implode(', ')]) : null,
+            $noEmail->isNotEmpty() ? __('ui.team_people_without_email_named', ['names' => $noEmail->implode(', ')]) : null,
+        ])->filter()->implode(' · ') ?: null;
     }
 
     /**

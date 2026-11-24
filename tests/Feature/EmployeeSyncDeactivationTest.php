@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Enums\ActiveStatusEnum;
 use App\Filament\Resources\TeamTicketResource;
 use App\Models\Employee;
+use App\Models\Team;
 use App\Models\User;
 use App\Services\EmployeeService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -73,5 +74,33 @@ class EmployeeSyncDeactivationTest extends TestCase
         $candidates = TeamTicketResource::watcherCandidates()->pluck('id');
         $this->assertTrue($candidates->contains($people[0]->id));
         $this->assertFalse($candidates->contains($people[2]->id));
+    }
+
+    public function test_team_links_move_to_the_persons_new_record(): void
+    {
+        $old = Employee::factory()->create(['email' => 'anil@example.com', 'status' => ActiveStatusEnum::INACTIVE]);
+        $new = Employee::factory()->create(['email' => 'anil@example.com', 'status' => ActiveStatusEnum::ACTIVE]);
+        $leaver = Employee::factory()->create(['email' => 'ulas@example.com', 'status' => ActiveStatusEnum::INACTIVE]);
+        $led = Team::factory()->create(['supervisor_employee_id' => $old->id]);
+        $joined = Team::factory()->create();
+        $joined->members()->attach([$old->id, $leaver->id]);
+        $both = Team::factory()->create();
+        $both->members()->attach([$old->id, $new->id]);
+
+        $this->service->moveTeamLinksToActiveRecords();
+
+        $this->assertSame($new->id, $led->fresh()->supervisor_employee_id);
+        $this->assertEqualsCanonicalizing([$new->id, $leaver->id], $joined->members()->pluck('employees.id')->all());
+        $this->assertSame([$new->id], $both->members()->pluck('employees.id')->all());
+    }
+
+    public function test_account_matches_the_active_record_of_the_same_address(): void
+    {
+        Employee::factory()->create(['email' => 'anil@example.com', 'status' => ActiveStatusEnum::ACTIVE]);
+        Employee::factory()->create(['email' => 'anil@example.com', 'status' => ActiveStatusEnum::INACTIVE]);
+        $user = User::factory()->create(['email' => 'anil@example.com']);
+
+        $this->assertSame(ActiveStatusEnum::ACTIVE, $user->employee->status);
+        $this->assertSame(ActiveStatusEnum::ACTIVE, $user->fresh()->load('employee')->employee->status);
     }
 }

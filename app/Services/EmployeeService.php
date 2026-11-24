@@ -73,6 +73,7 @@ class EmployeeService
             }
 
             $deactivated = $this->deactivateMissing($seenIds);
+            $moved = $this->moveTeamLinksToActiveRecords();
 
             // Relink orphan users whose email matches an employee.
             $relinked = 0;
@@ -97,6 +98,7 @@ class EmployeeService
                 'total_processed' => $totalProcessed,
                 'relinked_users'  => $relinked,
                 'deactivated'     => $deactivated,
+                'team_links_moved' => $moved,
             ]);
 
             return $totalProcessed;
@@ -152,6 +154,63 @@ class EmployeeService
         }
 
         return $count;
+    }
+
+    /**
+     * HR sometimes gives a person a new record (new UNIQUE_ID): the old one
+     * goes inactive, a new active one carries the same e-mail. Teams still
+     * point at the old record, so move their supervisor and member links to
+     * the active record of the same person. People who really left (no
+     * active record) stay where they are and show up as "pasif" on the
+     * team screens.
+     */
+    public function moveTeamLinksToActiveRecords(): int
+    {
+        $linked = DB::table('teams')->whereNull('deleted_at')->whereNotNull('supervisor_employee_id')->pluck('supervisor_employee_id')
+            ->merge(DB::table('team_members')->pluck('employee_id'))
+            ->unique();
+
+        $moved = 0;
+
+        Employee::query()
+            ->whereKey($linked)
+            ->where('status', ActiveStatusEnum::INACTIVE)
+            ->where('email', '!=', '')
+            ->whereNotNull('email')
+            ->get(['id', 'name', 'email'])
+            ->each(function (Employee $old) use (&$moved): void {
+                $current = Employee::query()
+                    ->where('email', $old->email)
+                    ->where('status', ActiveStatusEnum::ACTIVE)
+                    ->orderByDesc('id')
+                    ->value('id');
+
+                if (! $current) {
+                    return;
+                }
+
+                DB::transaction(function () use ($old, $current, &$moved): void {
+                    $moved += DB::table('teams')->where('supervisor_employee_id', $old->id)->update(['supervisor_employee_id' => $current]);
+
+                    foreach (DB::table('team_members')->where('employee_id', $old->id)->pluck('team_id') as $teamId) {
+                        $alreadyMember = DB::table('team_members')->where('team_id', $teamId)->where('employee_id', $current)->exists();
+
+                        $alreadyMember
+                            ? DB::table('team_members')->where('team_id', $teamId)->where('employee_id', $old->id)->delete()
+                            : DB::table('team_members')->where('team_id', $teamId)->where('employee_id', $old->id)->update(['employee_id' => $current]);
+
+                        $moved++;
+                    }
+                });
+
+                Log::info('Personel senkronizasyonu: ekip bağlantısı yeni kayda taşındı.', [
+                    'name' => $old->name,
+                    'from' => $old->id,
+                    'to' => $current,
+                ]);
+            });
+
+        return $moved;
     }
 
     protected function processBatch(array $buffer): void
