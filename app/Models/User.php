@@ -76,6 +76,7 @@ class User extends Authenticatable implements FilamentUser
     protected $hidden = [
         'password',
         'remember_token',
+        'tc_no',
     ];
 
     /**
@@ -158,11 +159,6 @@ class User extends Authenticatable implements FilamentUser
             ->useLogName(static::$logName);
     }
 
-    //relation with employee
-    /**
-     * The person behind this account, matched by e-mail. When HR keeps more
-     * than one record for the same address, the active (and newest) one wins.
-     */
     /**
      * Record ids of the person behind this account across all their HR
      * records (see Employee::personIds()); empty without a linked person.
@@ -174,9 +170,19 @@ class User extends Authenticatable implements FilamentUser
         return $this->employee?->personIds() ?? [];
     }
 
+    /**
+     * The person behind this account: by the TC kimlik no from AD
+     * (employeeID) when HR has it, otherwise by e-mail. Among several HR
+     * records of the person the active (and newest) one wins.
+     *
+     * Eager loading runs on a blank model and so always matches by e-mail;
+     * access checks use the lazy relation / employeeIds().
+     */
     public function employee()
     {
-        return $this->hasOne(Employee::class, 'email', 'email')
+        $byTc = filled($this->tc_no) && Employee::query()->where('tc_no', $this->tc_no)->exists();
+
+        return $this->hasOne(Employee::class, $byTc ? 'tc_no' : 'email', $byTc ? 'tc_no' : 'email')
             ->orderByDesc('status')
             ->orderByDesc('id');
     }

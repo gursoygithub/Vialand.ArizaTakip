@@ -74,6 +74,43 @@ class Employee extends Model
     }
 
     /**
+     * The panel account of this person: the one carrying the same TC (from
+     * AD) first, otherwise the one with the same e-mail. Use this, not the
+     * e-mail-only `user` relation, to reach the person (bell, roles).
+     */
+    public function panelUser(): ?User
+    {
+        $active = fn () => User::query()
+            ->where('status', ActiveStatusEnum::ACTIVE)
+            ->whereNotNull('username')
+            ->whereNull('deleted_at');
+
+        if (filled($this->tc_no) && ($byTc = $active()->where('tc_no', $this->tc_no)->first())) {
+            return $byTc;
+        }
+
+        return $this->user;
+    }
+
+    /**
+     * Ids of every panel account of the person (by TC or by any of their
+     * records' e-mails).
+     *
+     * @return array<int, int>
+     */
+    public function personUserIds(): array
+    {
+        $emails = $this->personRecords()->pluck('email')->filter()->unique();
+
+        return User::query()
+            ->where(fn ($q) => $q
+                ->when(filled($this->tc_no), fn ($w) => $w->orWhere('tc_no', $this->tc_no))
+                ->when($emails->isNotEmpty(), fn ($w) => $w->orWhereIn('email', $emails))
+                ->when(blank($this->tc_no) && $emails->isEmpty(), fn ($w) => $w->whereRaw('1 = 0')))
+            ->pluck('id')->map(fn ($id): int => (int) $id)->all();
+    }
+
+    /**
      * Every record of the same person, newest first.
      *
      * @return \Illuminate\Database\Eloquent\Collection<int, Employee>

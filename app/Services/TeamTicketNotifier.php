@@ -119,11 +119,11 @@ class TeamTicketNotifier
         };
 
         $watcherLevel = $this->watcherLevel($event);
-        $watchers = $watcherLevel ? $ticket->watchers()->with('user')->get() : collect();
+        $watchers = $watcherLevel ? $ticket->watchers()->get() : collect();
 
         foreach ($watchers as $watcher) {
-            if ($watcher->user) {
-                $plan[] = [$watcher->user, $watcherLevel, false];
+            if ($account = $watcher->panelUser()) {
+                $plan[] = [$account, $watcherLevel, false];
             }
         }
 
@@ -172,7 +172,7 @@ class TeamTicketNotifier
         $actorName = $actor?->employee?->name ?? $actor?->name;
 
         $watchers
-            ->filter(fn (Employee $watcher): bool => $watcher->user === null && filled($watcher->email))
+            ->filter(fn (Employee $watcher): bool => $watcher->panelUser() === null && filled($watcher->email))
             ->each(fn (Employee $watcher) => Notification::route('mail', $watcher->email)
                 ->notify(new TeamTicketNotification($ticket, $event, ['mail'], $actorName, $note)));
     }
@@ -282,7 +282,7 @@ class TeamTicketNotifier
 
     private function userOf(?Employee $employee): ?User
     {
-        return $employee?->user;
+        return $employee?->panelUser();
     }
 
     /**

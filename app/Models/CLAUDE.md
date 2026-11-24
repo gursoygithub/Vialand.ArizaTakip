@@ -75,3 +75,12 @@ HR opens a new `employees` row each time someone moves company or project
   (newest active record). `User::employee()` prefers the active record.
 - `employee:sync` moves team supervisor/member links from an old record to
   the person's active one (same TC) and switches off people HR no longer lists.
+
+## Account ↔ person (TC first, e-mail second)
+AD stores the TC kimlik no in `employeeID`; `UserService` writes it to
+`users.tc_no` at every LDAP login (`UserService::tcFrom()` accepts 11 digits
+only; the column is `$hidden`). `User::employee()` links by `tc_no` when HR
+has that TC, else by e-mail; `Employee::panelUser()` / `personUserIds()` go the
+other way (TC first). Use `panelUser()`, not the e-mail-only `user` relation,
+to reach a person's account (bell, roles). Mail always goes to the AD address
+of the account; the HR address is only used for CC people without an account.

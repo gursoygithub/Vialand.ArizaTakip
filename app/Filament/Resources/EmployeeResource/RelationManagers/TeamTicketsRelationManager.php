@@ -8,7 +8,6 @@ use App\Filament\Resources\TeamTicketResource;
 use App\Filament\Resources\TeamTicketResource\Pages\ListTeamTickets;
 use App\Models\Team;
 use App\Models\Ticket;
-use App\Models\User;
 use App\Services\TeamPerformanceService;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables;
@@ -78,16 +77,13 @@ class TeamTicketsRelationManager extends RelationManager
     }
 
     /**
-     * Panel accounts of this person (any of their HR records), matched by
-     * e-mail like User::employee().
+     * Panel accounts of this person (by TC or by any record's e-mail).
      *
      * @return array<int, int>
      */
     private function requesterUserIds(): array
     {
-        $emails = $this->getOwnerRecord()->personRecords()->pluck('email')->filter()->unique();
-
-        return $emails->isNotEmpty() ? User::query()->whereIn('email', $emails)->pluck('id')->map(fn ($id): int => (int) $id)->all() : [];
+        return $this->getOwnerRecord()->personUserIds();
     }
 
     /**

@@ -60,9 +60,13 @@ class UserService
             ?? trim("{$firstName} {$lastName}");
 
         $email = $ldapUser->getFirstAttribute('mail');
-        $employee = $email
-            ? \App\Models\Employee::where('email', $email)->first()
-            : null;
+
+        // AD keeps the TC kimlik no in employeeID: it links the account to
+        // the person even when the HR e-mail is missing or personal.
+        $tcNo = self::tcFrom($ldapUser->getFirstAttribute('employeeid'));
+
+        $employee = ($tcNo ? \App\Models\Employee::where('tc_no', $tcNo)->orderByDesc('status')->orderByDesc('id')->first() : null)
+            ?? ($email ? \App\Models\Employee::where('email', $email)->orderByDesc('status')->orderByDesc('id')->first() : null);
 
         return [
             'username' => $ldapUser->getFirstAttribute('samaccountname'),
@@ -82,7 +86,19 @@ class UserService
             'status' => UserStatusEnum::ACTIVE,
             'password' => Hash::make($password),
             'employee_id' => $employee?->employee_id,
+            'tc_no' => $tcNo,
         ];
+    }
+
+    /**
+     * An 11-digit TC kimlik no, or null for anything else (empty, a sicil
+     * number, spaces).
+     */
+    public static function tcFrom(mixed $value): ?string
+    {
+        $value = preg_replace('/\s+/', '', (string) $value);
+
+        return preg_match('/^\d{11}$/', $value) ? $value : null;
     }
 
     /**

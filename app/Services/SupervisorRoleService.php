@@ -44,23 +44,24 @@ class SupervisorRoleService
 
     public function syncEmployee(?int $employeeId): void
     {
-        $emails = $employeeId ? Employee::query()->find($employeeId)?->personRecords()->pluck('email')->filter()->unique() : null;
+        $userIds = $employeeId ? Employee::query()->find($employeeId)?->personUserIds() : [];
 
-        if (blank($emails) || $emails->isEmpty()) {
+        if (blank($userIds)) {
             return;
         }
 
-        User::query()->whereIn('email', $emails)->get()->each(fn (User $user) => $this->syncUser($user));
+        User::query()->whereKey($userIds)->get()->each(fn (User $user) => $this->syncUser($user));
     }
 
     public function syncAll(): void
     {
-        $emails = Employee::query()
+        $supervisors = Employee::query()
             ->whereIn('id', Team::query()->whereNotNull('supervisor_employee_id')->select('supervisor_employee_id'))
-            ->pluck('email');
+            ->get(['email', 'tc_no']);
 
         User::query()
-            ->whereIn('email', $emails)
+            ->whereIn('email', $supervisors->pluck('email')->filter())
+            ->orWhereIn('tc_no', $supervisors->pluck('tc_no')->filter())
             ->orWhereHas('roles', fn ($query) => $query->where('name', self::ROLE))
             ->get()
             ->each(fn (User $user) => $this->syncUser($user));
