@@ -36,12 +36,10 @@ class SlaExemptionService
             return true;
         }
 
-        $employeeId = $user->employee?->id;
+        $employeeIds = $user->employeeIds();
 
-        return $employeeId !== null && (
-            (int) $cycle->breach_employee_id === (int) $employeeId
-            || (int) $cycle->team?->supervisor_employee_id === (int) $employeeId
-        );
+        return in_array((int) $cycle->breach_employee_id, $employeeIds, true)
+            || in_array((int) $cycle->team?->supervisor_employee_id, $employeeIds, true);
     }
 
     public function request(TicketSlaCycle $cycle, User $user, ExemptionReasonEnum $reason, string $note): SlaExemption
@@ -85,18 +83,18 @@ class SlaExemptionService
             return false;
         }
 
-        $employeeId = $user->employee?->id;
+        $employeeIds = $user->employeeIds();
 
-        if ($employeeId === null) {
+        if ($employeeIds === []) {
             return true;
         }
 
         $cycle = $exemption->cycle;
         $team = $cycle->team;
 
-        return (int) $cycle->breach_employee_id !== (int) $employeeId
-            && (int) $team->supervisor_employee_id !== (int) $employeeId
-            && ! $team->members()->whereKey($employeeId)->exists();
+        return ! in_array((int) $cycle->breach_employee_id, $employeeIds, true)
+            && ! in_array((int) $team->supervisor_employee_id, $employeeIds, true)
+            && ! $team->members()->whereKey($employeeIds)->exists();
     }
 
     public function approve(SlaExemption $exemption, User $user, ?string $note = null): SlaExemption

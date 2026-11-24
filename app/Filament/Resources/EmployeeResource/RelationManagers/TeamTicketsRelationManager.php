@@ -64,29 +64,30 @@ class TeamTicketsRelationManager extends RelationManager
 
     private function applyInvolvement(Builder $query, string $involvement): Builder
     {
-        $employeeId = $this->getOwnerRecord()->getKey();
+        $employeeIds = $this->getOwnerRecord()->personIds();
 
         return match ($involvement) {
-            'holder' => $query->where('employee_id', $employeeId),
+            'holder' => $query->whereIn('employee_id', $employeeIds),
             'previously' => $query
-                ->whereHas('assignments', fn (Builder $a) => $a->where('employee_id', $employeeId))
-                ->where(fn (Builder $q) => $q->whereNull('employee_id')->orWhere('employee_id', '!=', $employeeId)),
+                ->whereHas('assignments', fn (Builder $a) => $a->whereIn('employee_id', $employeeIds))
+                ->where(fn (Builder $q) => $q->whereNull('employee_id')->orWhereNotIn('employee_id', $employeeIds)),
             'requester' => $query->whereIn('created_by', $this->requesterUserIds()),
-            'supervisor' => $query->whereIn('team_id', Team::query()->where('supervisor_employee_id', $employeeId)->select('id')),
-            'watcher' => $query->whereIn('id', DB::table('ticket_watchers')->where('employee_id', $employeeId)->select('ticket_id')),
+            'supervisor' => $query->whereIn('team_id', Team::query()->whereIn('supervisor_employee_id', $employeeIds)->select('id')),
+            'watcher' => $query->whereIn('id', DB::table('ticket_watchers')->whereIn('employee_id', $employeeIds)->select('ticket_id')),
         };
     }
 
     /**
-     * Panel accounts of this person, matched by e-mail like User::employee().
+     * Panel accounts of this person (any of their HR records), matched by
+     * e-mail like User::employee().
      *
      * @return array<int, int>
      */
     private function requesterUserIds(): array
     {
-        $email = $this->getOwnerRecord()->email;
+        $emails = $this->getOwnerRecord()->personRecords()->pluck('email')->filter()->unique();
 
-        return filled($email) ? User::query()->where('email', $email)->pluck('id')->all() : [];
+        return $emails->isNotEmpty() ? User::query()->whereIn('email', $emails)->pluck('id')->map(fn ($id): int => (int) $id)->all() : [];
     }
 
     /**
@@ -94,27 +95,27 @@ class TeamTicketsRelationManager extends RelationManager
      */
     private function involvementsOf(Ticket $record): array
     {
-        $employeeId = (int) $this->getOwnerRecord()->getKey();
-        $holds = (int) $record->employee_id === $employeeId;
+        $employeeIds = $this->getOwnerRecord()->personIds();
+        $holds = in_array((int) $record->employee_id, $employeeIds, true);
 
         return array_values(array_filter([
             $holds ? __('ui.employee_request_on_them') : null,
             ! $holds && $record->assignments->isNotEmpty() ? __('ui.employee_request_previously') : null,
             in_array((int) $record->created_by, $this->requesterUserIds(), true) ? __('ui.employee_involvement_requester') : null,
-            (int) $record->team?->supervisor_employee_id === $employeeId ? __('ui.employee_involvement_supervisor') : null,
+            in_array((int) $record->team?->supervisor_employee_id, $employeeIds, true) ? __('ui.employee_involvement_supervisor') : null,
             $record->watchers->isNotEmpty() ? __('ui.employee_involvement_watcher') : null,
         ]));
     }
 
     public function table(Table $table): Table
     {
-        $employeeId = $this->getOwnerRecord()->getKey();
+        $employeeIds = $this->getOwnerRecord()->personIds();
 
         return $table
             ->modifyQueryUsing(fn (Builder $query) => $query->with([
                 'ticketType', 'team', 'employee', 'currentCycle.workCalendar',
-                'assignments' => fn ($a) => $a->where('employee_id', $employeeId),
-                'watchers' => fn ($w) => $w->whereKey($employeeId),
+                'assignments' => fn ($a) => $a->whereIn('employee_id', $employeeIds),
+                'watchers' => fn ($w) => $w->whereKey($employeeIds),
             ]))
             ->defaultSort('created_at', 'desc')
             ->columns([
@@ -144,10 +145,10 @@ class TeamTicketsRelationManager extends RelationManager
 
                 Tables\Columns\TextColumn::make('holder')
                     ->label(__('ui.employee_request_holder'))
-                    ->state(fn (Ticket $record): string => (int) $record->employee_id === (int) $employeeId
+                    ->state(fn (Ticket $record): string => in_array((int) $record->employee_id, $employeeIds, true)
                         ? __('ui.employee_request_on_them')
                         : ($record->employee?->name ?? __('ui.request_in_pool')))
-                    ->color(fn (Ticket $record): string => (int) $record->employee_id === (int) $employeeId ? 'primary' : 'gray')
+                    ->color(fn (Ticket $record): string => in_array((int) $record->employee_id, $employeeIds, true) ? 'primary' : 'gray')
                     ->badge(),
 
                 Tables\Columns\TextColumn::make('involvement')

@@ -347,13 +347,14 @@ class ViewTeamTicket extends ViewRecord
     private function assignableEmployees(): array
     {
         $team = $this->ticket()->team()->with(['members.company', 'supervisor.company'])->first();
+        $holderIds = $this->ticket()->employee?->personIds() ?? [];
 
         return $team->members
             ->push($team->supervisor)
             ->filter(fn (?Employee $employee): bool => $employee !== null
                 && $employee->status === ActiveStatusEnum::ACTIVE
-                && (int) $employee->id !== (int) $this->ticket()->employee_id)
-            ->unique('id')
+                && ! in_array((int) $employee->id, $holderIds, true))
+            ->unique(fn (Employee $employee): string => filled($employee->tc_no) ? $employee->tc_no : 'id:'.$employee->id)
             ->sortBy('name')
             ->mapWithKeys(fn (Employee $employee): array => [$employee->id => TeamResource::employeeLabel($employee)])
             ->all();

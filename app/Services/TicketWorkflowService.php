@@ -138,7 +138,7 @@ class TicketWorkflowService
     {
         $watchers = Employee::query()
             ->whereKey(array_unique(array_map('intval', $employeeIds)))
-            ->when($requester->employee?->id, fn ($query, $ownId) => $query->whereKeyNot($ownId))
+            ->when($requester->employeeIds(), fn ($query, array $ownIds) => $query->whereKeyNot($ownIds))
             ->get();
 
         $withoutEmail = $watchers->reject(fn (Employee $employee): bool => CompanyEmail::isCorporate($employee->email));
@@ -935,8 +935,10 @@ class TicketWorkflowService
 
     public function canWorkInTeam(Team $team, Employee $employee): bool
     {
-        return (int) $team->supervisor_employee_id === (int) $employee->id
-            || $team->members()->whereKey($employee->id)->exists();
+        $ids = $employee->personIds();
+
+        return in_array((int) $team->supervisor_employee_id, $ids, true)
+            || $team->members()->whereKey($ids)->exists();
     }
 
     public function isSupervisor(Ticket $ticket, User $user): bool
@@ -945,16 +947,12 @@ class TicketWorkflowService
             return true;
         }
 
-        $employeeId = $user->employee?->id;
-
-        return $employeeId !== null && (int) $ticket->team?->supervisor_employee_id === (int) $employeeId;
+        return in_array((int) $ticket->team?->supervisor_employee_id, $user->employeeIds(), true);
     }
 
     public function isAssignee(Ticket $ticket, User $user): bool
     {
-        $employeeId = $user->employee?->id;
-
-        return $employeeId !== null && (int) $ticket->employee_id === (int) $employeeId;
+        return $ticket->employee_id !== null && in_array((int) $ticket->employee_id, $user->employeeIds(), true);
     }
 
     public function isRequester(Ticket $ticket, User $user): bool

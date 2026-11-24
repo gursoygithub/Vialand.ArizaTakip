@@ -46,21 +46,21 @@ class ListTeamTickets extends ListRecords
     public function getTabs(): array
     {
         $user = auth()->user();
-        $employeeId = $user?->employee?->id;
+        $employeeIds = $user?->employeeIds() ?? [];
         $tabs = [];
 
-        if ($employeeId) {
+        if ($employeeIds !== []) {
             $tabs['assigned'] = $this->tab(__('ui.tab_assigned_to_me'), 'heroicon-o-user',
-                fn (Builder $q) => $q->where('employee_id', $employeeId), activeOnly: true);
+                fn (Builder $q) => $q->whereIn('employee_id', $employeeIds), activeOnly: true);
 
-            $memberTeams = DB::table('team_members')->where('employee_id', $employeeId)->pluck('team_id');
+            $memberTeams = DB::table('team_members')->whereIn('employee_id', $employeeIds)->pluck('team_id');
 
             if ($memberTeams->isNotEmpty()) {
                 $tabs['team'] = $this->tab(__('ui.tab_my_teams'), 'heroicon-o-user-group',
                     fn (Builder $q) => $q->whereIn('team_id', $memberTeams), activeOnly: true);
             }
 
-            $supervised = Team::query()->where('supervisor_employee_id', $employeeId)->pluck('id');
+            $supervised = Team::query()->whereIn('supervisor_employee_id', $employeeIds)->pluck('id');
 
             if ($supervised->isNotEmpty()) {
                 $tabs['supervised'] = $this->tab(__('ui.tab_supervised_teams'), 'heroicon-o-shield-check',
@@ -71,9 +71,9 @@ class ListTeamTickets extends ListRecords
         $tabs['created'] = $this->tab(__('ui.tab_created_by_me'), 'heroicon-o-pencil-square',
             fn (Builder $q) => $q->where('created_by', $user?->id));
 
-        if ($employeeId && DB::table('ticket_watchers')->where('employee_id', $employeeId)->exists()) {
+        if ($employeeIds !== [] && DB::table('ticket_watchers')->whereIn('employee_id', $employeeIds)->exists()) {
             $tabs['watching'] = $this->tab(__('ui.tab_watching'), 'heroicon-o-eye',
-                fn (Builder $q) => $q->whereIn('id', DB::table('ticket_watchers')->where('employee_id', $employeeId)->select('ticket_id')));
+                fn (Builder $q) => $q->whereIn('id', DB::table('ticket_watchers')->whereIn('employee_id', $employeeIds)->select('ticket_id')));
         }
 
         $tabs['all'] = Tab::make(__('ui.all'))->icon('heroicon-o-queue-list');

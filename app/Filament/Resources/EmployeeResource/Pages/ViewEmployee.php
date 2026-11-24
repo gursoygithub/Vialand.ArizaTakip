@@ -122,6 +122,39 @@ class ViewEmployee extends ViewRecord
                             ->columnSpanFull(),
                     ]),
 
+                Section::make(__('ui.employee_company_history'))
+                    ->description(__('ui.employee_company_history_hint'))
+                    ->icon('heroicon-o-building-office-2')
+                    ->visible(count($record->personIds()) > 1)
+                    ->collapsible()
+                    ->schema([
+                        Infolists\Components\RepeatableEntry::make('company_history')
+                            ->label('')
+                            ->state($record->personRecords()->map(fn (Employee $employee): array => [
+                                'company' => $employee->company?->name ?? $employee->company_name ?? '—',
+                                'title' => $employee->title,
+                                'status' => $employee->status,
+                                'since' => $employee->created_at,
+                                'current' => (int) $employee->id === (int) $record->id,
+                            ])->all())
+                            ->columns(4)
+                            ->schema([
+                                TextEntry::make('company')
+                                    ->label(__('ui.company'))
+                                    ->weight('bold')
+                                    ->helperText(fn (TextEntry $component): ?string => $row($component)['current'] ? __('ui.employee_record_shown') : null),
+                                TextEntry::make('title')
+                                    ->label(__('ui.title'))
+                                    ->placeholder('—'),
+                                TextEntry::make('status')
+                                    ->label(__('ui.status'))
+                                    ->badge(),
+                                TextEntry::make('since')
+                                    ->label(__('ui.employee_record_since'))
+                                    ->date(),
+                            ]),
+                    ]),
+
                 Section::make(__('ui.employee_sla_analysis'))
                     ->description(__('ui.report_people_hint'))
                     ->icon('heroicon-o-presentation-chart-line')

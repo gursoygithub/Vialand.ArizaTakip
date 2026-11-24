@@ -42,22 +42,22 @@ class TeamMembershipsRelationManager extends RelationManager
 
     protected function getTableQuery(): Builder
     {
-        $employeeId = $this->getOwnerRecord()->getKey();
+        $employeeIds = $this->getOwnerRecord()->personIds();
 
         return Team::query()
-            ->where(fn (Builder $q) => $q->where('supervisor_employee_id', $employeeId)
-                ->orWhereHas('members', fn (Builder $m) => $m->where('employees.id', $employeeId)));
+            ->where(fn (Builder $q) => $q->whereIn('supervisor_employee_id', $employeeIds)
+                ->orWhereHas('members', fn (Builder $m) => $m->whereIn('employees.id', $employeeIds)));
     }
 
     public function table(Table $table): Table
     {
-        $employeeId = $this->getOwnerRecord()->getKey();
+        $employeeIds = $this->getOwnerRecord()->personIds();
 
         return $table
             ->modifyQueryUsing(fn (Builder $query) => $query
                 ->with(['ticketType', 'supervisor.company', 'workCalendar'])
                 ->withCount('members')
-                ->withExists(['members as is_member' => fn (Builder $m) => $m->where('employees.id', $employeeId)]))
+                ->withExists(['members as is_member' => fn (Builder $m) => $m->whereIn('employees.id', $employeeIds)]))
             ->defaultSort('name')
             ->columns([
                 Tables\Columns\TextColumn::make('name')
@@ -73,8 +73,8 @@ class TeamMembershipsRelationManager extends RelationManager
 
                 Tables\Columns\TextColumn::make('role')
                     ->label(__('ui.employee_team_role'))
-                    ->state(fn (Team $record): string => self::roleLabel($record, $employeeId))
-                    ->color(fn (Team $record): string => (int) $record->supervisor_employee_id === (int) $employeeId ? 'warning' : 'info')
+                    ->state(fn (Team $record): string => self::roleLabel($record, $employeeIds))
+                    ->color(fn (Team $record): string => in_array((int) $record->supervisor_employee_id, $employeeIds, true) ? 'warning' : 'info')
                     ->badge(),
 
                 Tables\Columns\TextColumn::make('supervisor.name')
@@ -97,10 +97,10 @@ class TeamMembershipsRelationManager extends RelationManager
             ->emptyStateIcon('heroicon-o-user-group');
     }
 
-    public static function roleLabel(Team $team, int $employeeId): string
+    public static function roleLabel(Team $team, array $employeeIds): string
     {
-        $supervises = (int) $team->supervisor_employee_id === $employeeId;
-        $member = (bool) ($team->is_member ?? $team->members()->whereKey($employeeId)->exists());
+        $supervises = in_array((int) $team->supervisor_employee_id, $employeeIds, true);
+        $member = (bool) ($team->is_member ?? $team->members()->whereKey($employeeIds)->exists());
 
         return match (true) {
             $supervises && $member => __('ui.employee_team_role_both'),

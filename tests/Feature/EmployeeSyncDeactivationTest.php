@@ -78,9 +78,9 @@ class EmployeeSyncDeactivationTest extends TestCase
 
     public function test_team_links_move_to_the_persons_new_record(): void
     {
-        $old = Employee::factory()->create(['email' => 'anil@example.com', 'status' => ActiveStatusEnum::INACTIVE]);
-        $new = Employee::factory()->create(['email' => 'anil@example.com', 'status' => ActiveStatusEnum::ACTIVE]);
-        $leaver = Employee::factory()->create(['email' => 'ulas@example.com', 'status' => ActiveStatusEnum::INACTIVE]);
+        $old = Employee::factory()->create(['tc_no' => '11111111110', 'status' => ActiveStatusEnum::INACTIVE]);
+        $new = Employee::factory()->create(['tc_no' => '11111111110', 'status' => ActiveStatusEnum::ACTIVE]);
+        $leaver = Employee::factory()->create(['tc_no' => '22222222220', 'status' => ActiveStatusEnum::INACTIVE]);
         $led = Team::factory()->create(['supervisor_employee_id' => $old->id]);
         $joined = Team::factory()->create();
         $joined->members()->attach([$old->id, $leaver->id]);

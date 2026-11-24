@@ -157,10 +157,11 @@ class EmployeeService
     }
 
     /**
-     * HR sometimes gives a person a new record (new UNIQUE_ID): the old one
-     * goes inactive, a new active one carries the same e-mail. Teams still
-     * point at the old record, so move their supervisor and member links to
-     * the active record of the same person. People who really left (no
+     * HR gives a person a new record (new UNIQUE_ID) when they move to
+     * another company or project: the old one goes inactive, a new active
+     * one carries the same TC kimlik no. Teams still point at the old
+     * record, so move their supervisor and member links to the active
+     * record of the same person (tickets keep their history as it is). People who really left (no
      * active record) stay where they are and show up as "pasif" on the
      * team screens.
      */
@@ -175,12 +176,12 @@ class EmployeeService
         Employee::query()
             ->whereKey($linked)
             ->where('status', ActiveStatusEnum::INACTIVE)
-            ->where('email', '!=', '')
-            ->whereNotNull('email')
-            ->get(['id', 'name', 'email'])
+            ->where('tc_no', '!=', '')
+            ->whereNotNull('tc_no')
+            ->get(['id', 'name', 'tc_no'])
             ->each(function (Employee $old) use (&$moved): void {
                 $current = Employee::query()
-                    ->where('email', $old->email)
+                    ->where('tc_no', $old->tc_no)
                     ->where('status', ActiveStatusEnum::ACTIVE)
                     ->orderByDesc('id')
                     ->value('id');

@@ -39,9 +39,9 @@ class NotificationPreferences extends Page implements HasForms
             'ticket_participant' => ['label' => __('ui.pref_ticket_participant'), 'channels' => ['database']],
         ];
 
-        $employeeId = auth()->user()?->employee?->id;
+        $employeeIds = auth()->user()?->employeeIds() ?? [];
 
-        if ($employeeId && Team::query()->where('supervisor_employee_id', $employeeId)->exists()) {
+        if ($employeeIds !== [] && Team::query()->whereIn('supervisor_employee_id', $employeeIds)->exists()) {
             $rows[TeamTicketNotifier::PREFERENCE_TEAM_HOLD] = ['label' => __('ui.pref_team_hold'), 'channels' => ['database', 'mail']];
             $rows[TeamTicketNotifier::PREFERENCE_TEAM_HOLD_OVERDUE] = ['label' => __('ui.pref_team_hold_overdue'), 'channels' => ['database', 'mail']];
         }

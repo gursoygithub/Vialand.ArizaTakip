@@ -78,24 +78,24 @@ class MyRequestQueue extends TableWidget
     private function query(): Builder
     {
         $user = auth()->user();
-        $employeeId = $user?->employee?->id;
-        $teamIds = $employeeId
-            ? DB::table('team_members')->where('employee_id', $employeeId)->pluck('team_id')
-                ->merge(Team::query()->where('supervisor_employee_id', $employeeId)->pluck('id'))
+        $employeeIds = $user?->employeeIds() ?? [];
+        $teamIds = $employeeIds !== []
+            ? DB::table('team_members')->whereIn('employee_id', $employeeIds)->pluck('team_id')
+                ->merge(Team::query()->whereIn('supervisor_employee_id', $employeeIds)->pluck('id'))
                 ->unique()
             : collect();
 
         return Ticket::query()
             ->visibleInTeamWorkflow($user)
             ->with(['ticketType', 'team', 'currentCycle.workCalendar'])
-            ->where(function (Builder $q) use ($user, $employeeId, $teamIds): void {
+            ->where(function (Builder $q) use ($user, $employeeIds, $teamIds): void {
                 $q->where(fn (Builder $mine) => $mine
                     ->where('status', TaskStatusEnum::RESOLVED)
                     ->where('created_by', $user?->id));
 
-                if ($employeeId) {
+                if ($employeeIds !== []) {
                     $q->orWhere(fn (Builder $assigned) => $assigned
-                        ->where('employee_id', $employeeId)
+                        ->whereIn('employee_id', $employeeIds)
                         ->whereIn('status', [TaskStatusEnum::ASSIGNED, TaskStatusEnum::IN_PROGRESS, TaskStatusEnum::ON_HOLD]));
                 }
 

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources;
 
+use App\Enums\ActiveStatusEnum;
 use App\Filament\Concerns\ScopedByVisibility;
 use App\Filament\Resources\EmployeeResource\Pages;
 use App\Filament\Resources\EmployeeResource\RelationManagers;
@@ -125,6 +126,12 @@ class EmployeeResource extends Resource
                     ->sortable(),
             ])
             ->filters([
+                // Old HR records of people who moved company are kept as
+                // history; the list shows current records unless asked.
+                Tables\Filters\SelectFilter::make('status')
+                    ->label(__('ui.employee_show_inactive'))
+                    ->options(ActiveStatusEnum::class)
+                    ->default(ActiveStatusEnum::ACTIVE->value),
                 Tables\Filters\SelectFilter::make('email_status')
                     ->label(__('ui.email_status'))
                     ->options(self::emailStatusOptions())

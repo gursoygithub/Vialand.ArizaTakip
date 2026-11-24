@@ -46,15 +46,15 @@ class RequestOverviewStats extends StatsOverviewWidget
     protected function getStats(): array
     {
         $user = auth()->user();
-        $employeeId = $user?->employee?->id;
+        $employeeIds = $user?->employeeIds() ?? [];
         $url = TeamTicketResource::getUrl('index');
 
         $active = $this->visible()->whereIn('status', self::ACTIVE);
         $activeCount = (clone $active)->count();
         $pool = (clone $active)->where('status', TaskStatusEnum::OPEN)->whereNull('employee_id')->count();
 
-        $mine = $employeeId ? (clone $active)->where('employee_id', $employeeId)->count() : 0;
-        $mineInProgress = $employeeId ? (clone $active)->where('employee_id', $employeeId)->where('status', TaskStatusEnum::IN_PROGRESS)->count() : 0;
+        $mine = $employeeIds !== [] ? (clone $active)->whereIn('employee_id', $employeeIds)->count() : 0;
+        $mineInProgress = $employeeIds !== [] ? (clone $active)->whereIn('employee_id', $employeeIds)->where('status', TaskStatusEnum::IN_PROGRESS)->count() : 0;
 
         [$breached, $atRisk] = $this->slaRisk();
 

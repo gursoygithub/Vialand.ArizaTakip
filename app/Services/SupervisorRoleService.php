@@ -13,8 +13,8 @@ use Spatie\Permission\Models\Role;
  * decides what supervisors see on the panel (dashboard charts …); what
  * they may do on a request still comes from the team itself.
  *
- * People are matched to panel accounts by e-mail (like User::employee()),
- * so a person with two employee records is still treated as one.
+ * A person is all their HR records (same TC, see Employee::personIds()),
+ * matched to panel accounts by e-mail like User::employee().
  */
 class SupervisorRoleService
 {
@@ -28,9 +28,12 @@ class SupervisorRoleService
 
         $role = Role::findOrCreate(self::ROLE, 'web');
 
-        $supervises = Team::query()
-            ->whereIn('supervisor_employee_id', Employee::query()->where('email', $user->email)->select('id'))
-            ->exists();
+        $employeeIds = array_unique(array_merge(
+            $user->employeeIds(),
+            Employee::query()->where('email', $user->email)->pluck('id')->map(fn ($id): int => (int) $id)->all(),
+        ));
+
+        $supervises = $employeeIds !== [] && Team::query()->whereIn('supervisor_employee_id', $employeeIds)->exists();
 
         if ($supervises && ! $user->hasRole($role)) {
             $user->assignRole($role);
@@ -41,13 +44,13 @@ class SupervisorRoleService
 
     public function syncEmployee(?int $employeeId): void
     {
-        $email = $employeeId ? Employee::query()->whereKey($employeeId)->value('email') : null;
+        $emails = $employeeId ? Employee::query()->find($employeeId)?->personRecords()->pluck('email')->filter()->unique() : null;
 
-        if (blank($email)) {
+        if (blank($emails) || $emails->isEmpty()) {
             return;
         }
 
-        User::query()->where('email', $email)->get()->each(fn (User $user) => $this->syncUser($user));
+        User::query()->whereIn('email', $emails)->get()->each(fn (User $user) => $this->syncUser($user));
     }
 
     public function syncAll(): void

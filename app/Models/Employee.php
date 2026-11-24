@@ -56,6 +56,51 @@ class Employee extends Model
     }
 
     /**
+     * HR opens a new record each time someone moves to another company or
+     * project, so one person can have several records (old ones inactive,
+     * sometimes two active at once). The TC kimlik no stays the same, so it
+     * is what makes them one person. Records stay as they are (history);
+     * access, history and reports look at all of them together.
+     *
+     * @return array<int, int>
+     */
+    public function personIds(): array
+    {
+        if (blank($this->tc_no)) {
+            return [(int) $this->getKey()];
+        }
+
+        return static::query()->where('tc_no', $this->tc_no)->pluck('id')->map(fn ($id): int => (int) $id)->all();
+    }
+
+    /**
+     * Every record of the same person, newest first.
+     *
+     * @return \Illuminate\Database\Eloquent\Collection<int, Employee>
+     */
+    public function personRecords(): \Illuminate\Database\Eloquent\Collection
+    {
+        return static::query()->with('company')->whereKey($this->personIds())->orderByDesc('status')->orderByDesc('id')->get();
+    }
+
+    /**
+     * One row per person in pickers: the newest record of each TC among the
+     * rows the query already allows (records without a TC stand alone).
+     */
+    public function scopeOnePerPerson(Builder $query): Builder
+    {
+        $table = $this->getTable();
+
+        return $query->whereIn("{$table}.id", static::query()
+            ->toBase()
+            ->selectRaw('MAX(id)')
+            ->where('status', ActiveStatusEnum::ACTIVE->value)
+            ->groupByRaw($this->getConnection()->getDriverName() === 'sqlite'
+                ? "COALESCE(NULLIF(tc_no, ''), 'id-' || id)"
+                : "COALESCE(NULLIF(tc_no, ''), CONCAT('id-', id))"));
+    }
+
+    /**
      * Filter by e-mail quality, the same classes as CompanyEmail::status():
      * corporate / personal / invalid / missing, plus "duplicate" (the same
      * address on more than one record).

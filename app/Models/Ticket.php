@@ -118,9 +118,9 @@ class Ticket extends Model implements HasMedia
 
     public function isWatchedBy(?User $user): bool
     {
-        $employeeId = $user?->employee?->id;
+        $employeeIds = $user?->employeeIds() ?? [];
 
-        return $employeeId !== null && $this->watchers()->whereKey($employeeId)->exists();
+        return $employeeIds !== [] && $this->watchers()->whereKey($employeeIds)->exists();
     }
 
     public function currentAssignment(): \Illuminate\Database\Eloquent\Relations\HasOne
@@ -241,18 +241,20 @@ class Ticket extends Model implements HasMedia
             return $query;
         }
 
-        $employeeId = $user->employee?->id;
+        // All HR records of the person count (they change company and get a
+        // new record, but keep what they handled before).
+        $employeeIds = $user->employeeIds();
         $companyIds = $user->can('ticket.view.company') ? $user->scopedCompanyIds() : [];
 
-        return $query->where(function (Builder $q) use ($user, $employeeId, $companyIds): void {
+        return $query->where(function (Builder $q) use ($user, $employeeIds, $companyIds): void {
             $q->where('created_by', $user->id);
 
-            if ($employeeId) {
-                $q->orWhere('employee_id', $employeeId)
-                    ->orWhereHas('assignments', fn (Builder $a) => $a->where('employee_id', $employeeId))
-                    ->orWhereIn('id', \Illuminate\Support\Facades\DB::table('ticket_watchers')->where('employee_id', $employeeId)->select('ticket_id'))
-                    ->orWhereIn('team_id', \Illuminate\Support\Facades\DB::table('team_members')->where('employee_id', $employeeId)->select('team_id'))
-                    ->orWhereIn('team_id', Team::query()->where('supervisor_employee_id', $employeeId)->select('id'));
+            if ($employeeIds !== []) {
+                $q->orWhereIn('employee_id', $employeeIds)
+                    ->orWhereHas('assignments', fn (Builder $a) => $a->whereIn('employee_id', $employeeIds))
+                    ->orWhereIn('id', \Illuminate\Support\Facades\DB::table('ticket_watchers')->whereIn('employee_id', $employeeIds)->select('ticket_id'))
+                    ->orWhereIn('team_id', \Illuminate\Support\Facades\DB::table('team_members')->whereIn('employee_id', $employeeIds)->select('team_id'))
+                    ->orWhereIn('team_id', Team::query()->whereIn('supervisor_employee_id', $employeeIds)->select('id'));
             }
 
             if ($companyIds !== []) {

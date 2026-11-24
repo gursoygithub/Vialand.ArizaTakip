@@ -57,9 +57,9 @@ class TeamPerformanceService
             return $query->get();
         }
 
-        $employeeId = $viewer->employee?->id;
+        $employeeIds = $viewer->employeeIds();
 
-        return $employeeId ? $query->where('supervisor_employee_id', $employeeId)->get() : collect();
+        return $employeeIds !== [] ? $query->whereIn('supervisor_employee_id', $employeeIds)->get() : collect();
     }
 
     /**
@@ -113,17 +113,20 @@ class TeamPerformanceService
      */
     public function personReport(Employee $employee): array
     {
+        // Every HR record of the person counts (see Employee::personIds()).
+        $ids = $employee->personIds();
+
         $cycles = TicketSlaCycle::query()
             ->whereNotNull('ended_at')
-            ->where(fn (Builder $q) => $q->where('breach_employee_id', $employee->id)
-                ->orWhereHas('assignments', fn (Builder $a) => $a->where('employee_id', $employee->id)))
+            ->where(fn (Builder $q) => $q->whereIn('breach_employee_id', $ids)
+                ->orWhereHas('assignments', fn (Builder $a) => $a->whereIn('employee_id', $ids)))
             ->with(['team.ticketType', 'workCalendar', 'assignments.employee', 'breachEmployee'])
             ->get();
 
         $rows = $cycles
             ->map(fn (TicketSlaCycle $cycle): array => $this->describe($cycle, $cycles))
             ->filter(fn (array $row): bool => $row['counts']
-                && ($row['resolver']?->id === $employee->id || $row['charged']?->id === $employee->id))
+                && (in_array($row['resolver']?->id, $ids, true) || in_array($row['charged']?->id, $ids, true)))
             ->values();
 
         $since = now()->subDays(30);
@@ -158,7 +161,7 @@ class TeamPerformanceService
     public function holdFigures(Employee $employee, ?CarbonInterface $since = null): array
     {
         $holds = TicketHold::query()
-            ->where('employee_id', $employee->id)
+            ->whereIn('employee_id', $employee->personIds())
             ->when($since, fn (Builder $q) => $q->where('started_at', '>=', $since))
             ->with('team.workCalendar')
             ->get();
@@ -185,7 +188,7 @@ class TeamPerformanceService
     {
         $query = Ticket::query()
             ->whereNotNull('team_id')
-            ->where('employee_id', $employee->id)
+            ->whereIn('employee_id', $employee->personIds())
             ->whereIn('status', self::ACTIVE_STATUSES);
 
         return [
@@ -201,8 +204,9 @@ class TeamPerformanceService
     private function personFigures(Collection $rows, Employee $employee): array
     {
         $total = $rows->count();
-        $charged = $rows->filter(fn (array $row): bool => $row['charged']?->id === $employee->id)->count();
-        $resolved = $rows->filter(fn (array $row): bool => $row['resolver']?->id === $employee->id);
+        $ids = $employee->personIds();
+        $charged = $rows->filter(fn (array $row): bool => in_array($row['charged']?->id, $ids, true))->count();
+        $resolved = $rows->filter(fn (array $row): bool => in_array($row['resolver']?->id, $ids, true));
         $scores = $resolved->pluck('satisfaction')->filter();
         $minutes = $resolved->pluck('resolution_minutes')->filter(fn ($m) => $m !== null);
 
@@ -311,16 +315,17 @@ class TeamPerformanceService
         foreach ($rows->where('counts', true) as $index => $row) {
             foreach (array_filter([$row['resolver'], $row['charged']]) as $employee) {
                 /** @var Employee $employee */
-                $people[$employee->id] ??= ['employee' => $employee, 'cycles' => [], 'resolved' => [], 'charged' => 0];
-                $people[$employee->id]['cycles'][$index] = true;
+                // One row per person across their HR records.
+                $people[$this->personKey($employee)] ??= ['employee' => $employee, 'cycles' => [], 'resolved' => [], 'charged' => 0];
+                $people[$this->personKey($employee)]['cycles'][$index] = true;
             }
 
             if ($row['resolver']) {
-                $people[$row['resolver']->id]['resolved'][] = $row;
+                $people[$this->personKey($row['resolver'])]['resolved'][] = $row;
             }
 
             if ($row['charged']) {
-                $people[$row['charged']->id]['charged']++;
+                $people[$this->personKey($row['charged'])]['charged']++;
             }
         }
 
@@ -347,6 +352,11 @@ class TeamPerformanceService
             ->sortBy([['compliance', 'asc'], ['name', 'asc']])
             ->values()
             ->all();
+    }
+
+    private function personKey(Employee $employee): string
+    {
+        return filled($employee->tc_no) ? 'tc:'.$employee->tc_no : 'id:'.$employee->id;
     }
 
     /**

@@ -104,14 +104,14 @@ class TeamTicketResource extends Resource implements HasShieldPermissions
 
     public static function getNavigationBadge(): ?string
     {
-        $employeeId = auth()->user()?->employee?->id;
+        $employeeIds = auth()->user()?->employeeIds() ?? [];
 
-        if (! $employeeId) {
+        if ($employeeIds === []) {
             return null;
         }
 
         $count = static::getEloquentQuery()
-            ->where('employee_id', $employeeId)
+            ->whereIn('employee_id', $employeeIds)
             ->whereIn('status', [TaskStatusEnum::ASSIGNED, TaskStatusEnum::IN_PROGRESS])
             ->count();
 
@@ -329,7 +329,8 @@ class TeamTicketResource extends Resource implements HasShieldPermissions
             ->where(fn (Builder $query) => CompanyEmail::domains() === []
                 ? $query->whereRaw('1 = 0')
                 : collect(CompanyEmail::domains())->each(fn (string $domain) => $query->orWhere('email', 'like', '%@'.$domain)))
-            ->when(auth()->user()?->employee?->id, fn (Builder $query, int $ownId) => $query->whereKeyNot($ownId))
+            ->onePerPerson()
+            ->when(auth()->user()?->employeeIds(), fn (Builder $query, array $ownIds) => $query->whereKeyNot($ownIds))
             ->orderBy('name');
     }
 

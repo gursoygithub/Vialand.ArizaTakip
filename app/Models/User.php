@@ -162,6 +162,17 @@ class User extends Authenticatable implements FilamentUser
      * The person behind this account, matched by e-mail. When HR keeps more
      * than one record for the same address, the active (and newest) one wins.
      */
+    /**
+     * Record ids of the person behind this account across all their HR
+     * records (see Employee::personIds()); empty without a linked person.
+     *
+     * @return array<int, int>
+     */
+    public function employeeIds(): array
+    {
+        return $this->employee?->personIds() ?? [];
+    }
+
     public function employee()
     {
         return $this->hasOne(Employee::class, 'email', 'email')

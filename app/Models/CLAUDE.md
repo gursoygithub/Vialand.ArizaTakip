@@ -60,3 +60,18 @@ Several relations always eager-load: `Ticket::area` (+company, subAreas), `Compa
 - **TicketAssignment**: ticket, cycle, employee, assignedBy; `END_*` reason constants
 - **Ticket** (+): slaCycles, currentCycle (max cycle_no), assignments, currentAssignment (open period), `usesTeamWorkflow()`; casts `hold_reason` → `HoldReasonEnum`, `auto_close_at`, `reopen_until`
 - Enums: `HoldReasonEnum`, `RejectionReasonEnum`, `BreachAttributionEnum`, `SlaCycleOutcomeEnum` (`countsForPerformance()` = on_time / breached only)
+
+## One person, several HR records (TC kimlik no)
+HR opens a new `employees` row each time someone moves company or project
+(old row inactive, sometimes two active at once). The TC stays the same, so
+**a person = every record with the same `tc_no`**:
+- `Employee::personIds()` / `personRecords()`, `User::employeeIds()` (the
+  account's person). Always use these for "is this me / my team / my work"
+  checks — never a single `employee->id` (visibility scope, supervisor /
+  assignee / member checks, CC, tabs, widgets, reports, exemptions).
+- History is never merged: tickets, assignments, holds keep the record they
+  were done with; reports and the personnel page add the records up.
+- `Employee::scopeOnePerPerson()` keeps pickers to one row per person
+  (newest active record). `User::employee()` prefers the active record.
+- `employee:sync` moves team supervisor/member links from an old record to
+  the person's active one (same TC) and switches off people HR no longer lists.

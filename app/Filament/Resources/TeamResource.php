@@ -76,15 +76,16 @@ class TeamResource extends Resource
     }
 
     /**
-     * Pickers offer active people; people already on the team stay listed
-     * (marked "pasif") so a leaver is visible and can be removed.
+     * Pickers offer each active person once (their newest active HR
+     * record); people already on the team stay listed (marked "pasif") so a
+     * leaver is visible and can be removed.
      *
      * @param  array<int, int>  $keep
      */
     private static function activeEmployees(Builder $query, array $keep = []): Builder
     {
         return $query->with('company')->where(fn (Builder $q) => $q
-            ->where('status', ActiveStatusEnum::ACTIVE)
+            ->where(fn (Builder $active) => $active->where('status', ActiveStatusEnum::ACTIVE)->onePerPerson())
             ->when($keep !== [], fn (Builder $w) => $w->orWhereIn('employees.id', $keep)));
     }
 
