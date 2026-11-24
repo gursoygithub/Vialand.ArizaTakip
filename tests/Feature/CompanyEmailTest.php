@@ -9,7 +9,10 @@ use App\Exceptions\TicketWorkflowException;
 use App\Exports\EmployeeEmailIssuesExport;
 use App\Filament\Pages\ManageGeneralSettings;
 use App\Filament\Resources\EmployeeResource\Pages\ListEmployees;
+use App\Filament\Resources\TeamResource;
 use App\Filament\Resources\TeamResource\Pages\CreateTeam;
+use App\Filament\Resources\TeamResource\Pages\ListTeams;
+use App\Filament\Resources\TeamResource\Pages\ViewTeam;
 use App\Filament\Resources\TeamTicketResource;
 use App\Listeners\BlockNonCorporateMail;
 use App\Models\Employee;
@@ -105,6 +108,24 @@ class CompanyEmailTest extends TestCase
             ->assertSee('Ulaş Demir');
 
         $this->assertDatabaseMissing('teams', ['name' => 'Yazılım Ekibi']);
+    }
+
+    public function test_team_screens_name_people_without_a_company_address(): void
+    {
+        $this->actingAs($this->admin());
+        $team = Team::factory()->create(['supervisor_employee_id' => $this->employee('amir@gursoygrup.com.tr')->id]);
+        $personal = $this->employee('ulas@gmail.com', ['name' => 'Ulaş Demir', 'company_name' => null]);
+        $company = $this->employee('ali@gursoygrup.com.tr', ['name' => 'Ali Kurumsal', 'company_name' => null]);
+        $team->members()->attach([$personal->id, $company->id]);
+
+        Livewire::test(ViewTeam::class, ['record' => $team->getKey()])
+            ->assertSee(__('ui.team_people_without_email_named', ['names' => 'Ulaş Demir']));
+
+        $this->assertSame('Ulaş Demir ⚠ '.__('ui.no_company_email'), TeamResource::employeeLabel($personal));
+        $this->assertSame('Ali Kurumsal', TeamResource::employeeLabel($company));
+
+        Livewire::test(ListTeams::class)
+            ->assertSeeHtml(trim(json_encode(__('ui.team_people_without_email_named', ['names' => 'Ulaş Demir'])), '"'));
     }
 
     public function test_cc_needs_a_company_address_and_the_picker_offers_only_those(): void

@@ -47,8 +47,9 @@ class TeamResource extends Resource
     public static function employeeLabel(Employee $employee): string
     {
         $company = $employee->company?->name ?? $employee->company_name;
+        $label = $company ? "{$employee->name} ({$company})" : $employee->name;
 
-        return $company ? "{$employee->name} ({$company})" : $employee->name;
+        return CompanyEmail::isCorporate($employee->email) ? $label : $label.' ⚠ '.__('ui.no_company_email');
     }
 
     /**
@@ -131,6 +132,11 @@ class TeamResource extends Resource
                             ->searchable(['name', 'email'])
                             ->required()
                             ->rule(self::requireEmail())
+                            ->hint(fn (?Team $record): ?string => $record?->supervisor && ! CompanyEmail::isCorporate($record->supervisor->email)
+                                ? __('ui.team_people_without_email_named', ['names' => $record->supervisor->name])
+                                : null)
+                            ->hintColor('danger')
+                            ->hintIcon(fn (?Team $record): ?string => $record?->supervisor && ! CompanyEmail::isCorporate($record->supervisor->email) ? 'heroicon-m-exclamation-triangle' : null)
                             ->validationMessages(['required' => __('ui.required')]),
 
                         Forms\Components\Select::make('work_calendar_id')
@@ -155,6 +161,11 @@ class TeamResource extends Resource
                             ->multiple()
                             ->searchable(['name', 'email'])
                             ->rule(self::requireEmail())
+                            ->hint(fn (?Team $record): ?string => ($names = self::membersWithoutCompanyEmail($record)) !== []
+                                ? __('ui.team_people_without_email_named', ['names' => implode(', ', $names)])
+                                : null)
+                            ->hintColor('danger')
+                            ->hintIcon(fn (?Team $record): ?string => self::membersWithoutCompanyEmail($record) !== [] ? 'heroicon-m-exclamation-triangle' : null)
                             ->columnSpanFull(),
 
                         Forms\Components\Textarea::make('description')
@@ -242,7 +253,7 @@ class TeamResource extends Resource
     {
         return $table
             ->modifyQueryUsing(fn (Builder $query) => $query
-                ->with(['ticketType', 'supervisor.company', 'workCalendar', 'members:id,email'])
+                ->with(['ticketType', 'supervisor.company', 'workCalendar', 'members:id,name,email'])
                 ->withCount('members'))
             ->defaultSort('name')
             ->columns([
@@ -268,7 +279,7 @@ class TeamResource extends Resource
                     ->color(fn (Team $record): string => self::peopleWithoutEmail($record) > 0 ? 'danger' : 'primary')
                     ->icon(fn (Team $record): ?string => self::peopleWithoutEmail($record) > 0 ? 'heroicon-m-exclamation-triangle' : null)
                     ->tooltip(fn (Team $record): ?string => self::peopleWithoutEmail($record) > 0
-                        ? __('ui.team_people_without_email', ['count' => self::peopleWithoutEmail($record)])
+                        ? __('ui.team_people_without_email_named', ['names' => implode(', ', self::peopleWithoutCompanyEmail($record))])
                         : null)
                     ->sortable(),
 
@@ -302,8 +313,29 @@ class TeamResource extends Resource
      */
     private static function peopleWithoutEmail(Team $team): int
     {
-        return $team->members->reject(fn (Employee $employee): bool => CompanyEmail::isCorporate($employee->email))->count()
-            + ($team->supervisor && ! CompanyEmail::isCorporate($team->supervisor->email) ? 1 : 0);
+        return count(self::peopleWithoutCompanyEmail($team));
+    }
+
+    /**
+     * Names of the supervisor and members without a company e-mail address.
+     *
+     * @return array<int, string>
+     */
+    private static function peopleWithoutCompanyEmail(Team $team): array
+    {
+        $supervisor = $team->supervisor && ! CompanyEmail::isCorporate($team->supervisor->email) ? [$team->supervisor->name] : [];
+
+        return array_merge($supervisor, self::membersWithoutCompanyEmail($team));
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private static function membersWithoutCompanyEmail(?Team $team): array
+    {
+        return $team?->members
+            ->reject(fn (Employee $employee): bool => CompanyEmail::isCorporate($employee->email))
+            ->pluck('name')->values()->all() ?? [];
     }
 
     /**

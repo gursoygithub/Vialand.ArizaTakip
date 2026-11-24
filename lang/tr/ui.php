@@ -925,6 +925,8 @@ return [
     'members_count' => 'Üye Sayısı',
     'team_people_need_email' => 'Kurumsal e-posta adresi olmayan kişi ekibe eklenemez (bildirim alamaz): :names',
     'team_people_without_email' => ':count kişinin kurumsal e-posta adresi yok, mail alamıyor.',
+    'team_people_without_email_named' => 'Kurumsal e-posta adresi yok, mail alamıyor: :names',
+    'no_company_email' => 'kurumsal e-posta yok',
     'teams_count' => 'Ekip Sayısı',
     'sla_targets' => 'SLA Hedefleri',
     'sla_targets_help' => 'Her öncelik için yanıt (işleme alma) ve çözüm süresi. Süreler ekibin çalışma takvimine göre işler.',

@@ -230,10 +230,11 @@ class TeamManagementTest extends TestCase
     public function test_team_list_warns_about_people_without_email(): void
     {
         $team = Team::factory()->create(['ticket_type_id' => $this->type->id]);
-        $team->members()->attach(Employee::factory()->create(['email' => ''])->id);
+        $withoutEmail = Employee::factory()->create(['email' => '']);
+        $team->members()->attach($withoutEmail->id);
         $team->members()->attach(Employee::factory()->create()->id);
 
-        $tooltip = trim(json_encode(__('ui.team_people_without_email', ['count' => 1])), '"');
+        $tooltip = trim(json_encode(__('ui.team_people_without_email_named', ['names' => $withoutEmail->name])), '"');
 
         Livewire::test(ListTeams::class)->assertSeeHtml($tooltip);
     }
