@@ -129,6 +129,12 @@ class TeamTicketResource extends Resource implements HasShieldPermissions
     {
         return $form
             ->schema([
+                Forms\Components\Placeholder::make('own_email_warning')
+                    ->hiddenLabel()
+                    ->content(fn (): ?HtmlString => CompanyEmail::ownWarning(auth()->user()))
+                    ->visible(fn (): bool => CompanyEmail::ownWarning(auth()->user()) !== null)
+                    ->columnSpanFull(),
+
                 Forms\Components\Section::make(__('ui.request_type_step'))
                     ->icon('heroicon-o-rectangle-stack')
                     ->schema([

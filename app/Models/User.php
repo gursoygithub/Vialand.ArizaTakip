@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasEmailStatus;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Enums\BooleanStatusEnum;
 use App\Enums\ManagerStatusEnum;
@@ -26,7 +27,7 @@ use App\Enums\ActiveStatusEnum;
 class User extends Authenticatable implements FilamentUser
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable;
+    use HasEmailStatus, HasFactory, Notifiable;
     use SoftDeletes;
     use HasRoles;
     use LogsActivity;

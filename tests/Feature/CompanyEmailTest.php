@@ -8,12 +8,15 @@ use App\Enums\UserStatusEnum;
 use App\Exceptions\TicketWorkflowException;
 use App\Exports\EmployeeEmailIssuesExport;
 use App\Filament\Pages\ManageGeneralSettings;
+use App\Filament\Pages\NotificationPreferences;
 use App\Filament\Resources\EmployeeResource\Pages\ListEmployees;
 use App\Filament\Resources\TeamResource;
 use App\Filament\Resources\TeamResource\Pages\CreateTeam;
 use App\Filament\Resources\TeamResource\Pages\ListTeams;
 use App\Filament\Resources\TeamResource\Pages\ViewTeam;
 use App\Filament\Resources\TeamTicketResource;
+use App\Filament\Resources\TeamTicketResource\Pages\CreateTeamTicket;
+use App\Filament\Resources\UserResource\Pages\ListUsers;
 use App\Listeners\BlockNonCorporateMail;
 use App\Models\Employee;
 use App\Models\Team;
@@ -218,5 +221,37 @@ class CompanyEmailTest extends TestCase
             ->assertHasNoFormErrors();
 
         $this->assertSame(['guryapi.com', 'gursoygrup.com.tr'], app(GeneralSettings::class)->mail_allowed_domains);
+    }
+
+    public function test_user_without_a_company_address_is_told_on_the_request_form(): void
+    {
+        $personal = User::factory()->create(['email' => 'ali@gmail.com', 'status' => UserStatusEnum::ACTIVE]);
+        $personal->givePermissionTo(['view_any_team::ticket', 'view_team::ticket', 'create_team::ticket']);
+        $this->actingAs($personal);
+
+        Livewire::test(CreateTeamTicket::class)
+            ->assertSee(__('ui.own_email_not_company', ['email' => 'ali@gmail.com']));
+        Livewire::test(NotificationPreferences::class)
+            ->assertSee(__('ui.own_email_not_company', ['email' => 'ali@gmail.com']));
+
+        $company = User::factory()->create(['email' => 'veli@gursoygrup.com.tr', 'status' => UserStatusEnum::ACTIVE]);
+        $company->givePermissionTo(['view_any_team::ticket', 'view_team::ticket', 'create_team::ticket']);
+        $this->actingAs($company);
+
+        Livewire::test(CreateTeamTicket::class)
+            ->assertDontSee(__('ui.own_email_follow_bell'));
+    }
+
+    public function test_users_list_marks_and_filters_addresses(): void
+    {
+        $this->actingAs($admin = $this->admin());
+        $admin->update(['email' => 'admin@gursoygrup.com.tr']);
+        $personal = User::factory()->create(['email' => 'ayse@hotmail.com', 'username' => 'ayse1', 'status' => UserStatusEnum::ACTIVE, 'created_by' => $admin->id]);
+        $company = User::factory()->create(['email' => 'ayse@vialand.com', 'username' => 'ayse2', 'status' => UserStatusEnum::ACTIVE, 'created_by' => $admin->id]);
+
+        Livewire::test(ListUsers::class)
+            ->filterTable('email_status', CompanyEmail::PERSONAL)
+            ->assertCanSeeTableRecords([$personal])
+            ->assertCanNotSeeTableRecords([$company]);
     }
 }

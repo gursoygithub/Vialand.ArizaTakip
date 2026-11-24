@@ -102,6 +102,10 @@ class NotificationPreferences extends Page implements HasForms
     public function form(Form $form): Form
     {
         $schema = [
+            Placeholder::make('own_email_warning')
+                ->hiddenLabel()
+                ->content(fn (): ?\Illuminate\Support\HtmlString => \App\Support\CompanyEmail::ownWarning(auth()->user()))
+                ->visible(fn (): bool => \App\Support\CompanyEmail::ownWarning(auth()->user()) !== null),
             Placeholder::make('note')
                 ->hiddenLabel()
                 ->content(new \Illuminate\Support\HtmlString(

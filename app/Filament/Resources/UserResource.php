@@ -310,6 +310,10 @@ class UserResource extends Resource
                     ->searchable(),
                 Tables\Columns\TextColumn::make('email')
                     ->label(__('ui.email'))
+                    ->placeholder(__('ui.email_status_missing'))
+                    ->icon(fn (User $record): ?string => \App\Support\CompanyEmail::isCorporate($record->email) ? null : 'heroicon-m-exclamation-triangle')
+                    ->color(fn (User $record): ?string => \App\Support\CompanyEmail::isCorporate($record->email) ? null : 'danger')
+                    ->tooltip(fn (User $record): ?string => \App\Support\CompanyEmail::isCorporate($record->email) ? null : __('ui.user_email_not_company_hint'))
                     ->searchable(),
                 Tables\Columns\TextColumn::make('roles.name')
                     ->label(__('ui.roles'))
@@ -355,6 +359,12 @@ class UserResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
+                Tables\Filters\SelectFilter::make('email_status')
+                    ->label(__('ui.email_status'))
+                    ->options(\Illuminate\Support\Arr::except(EmployeeResource::emailStatusOptions(), ['duplicate']))
+                    ->query(fn (Builder $query, array $data): Builder => filled($data['value'] ?? null)
+                        ? $query->emailStatus($data['value'])
+                        : $query),
                 Tables\Filters\SelectFilter::make('status')
                     ->label(__('ui.status'))
                     ->options(ManagerStatusEnum::class),

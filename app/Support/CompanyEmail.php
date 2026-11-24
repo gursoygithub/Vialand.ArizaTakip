@@ -2,7 +2,9 @@
 
 namespace App\Support;
 
+use App\Models\User;
 use App\Settings\GeneralSettings;
+use Illuminate\Support\HtmlString;
 
 /**
  * Classifies an address against the company domains on Sistem Ayarları.
@@ -33,6 +35,29 @@ class CompanyEmail
         $domain = strtolower(substr(strrchr($email, '@'), 1));
 
         return in_array($domain, self::domains(), true) ? self::CORPORATE : self::PERSONAL;
+    }
+
+    /**
+     * Banner for the signed-in user when their own address cannot receive
+     * notification mail (empty, mistyped or personal), or null.
+     */
+    public static function ownWarning(?User $user): ?HtmlString
+    {
+        $status = $user ? self::status($user->email) : self::CORPORATE;
+
+        if ($status === self::CORPORATE) {
+            return null;
+        }
+
+        $message = $status === self::MISSING
+            ? __('ui.own_email_missing')
+            : __('ui.own_email_not_company', ['email' => $user->email]);
+
+        return new HtmlString(
+            '<div style="display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:10px;'
+            .'border:1px solid rgba(217,119,6,.45);border-left:4px solid #d97706;background:rgba(217,119,6,.08);">'
+            .'<span aria-hidden="true">⚠️</span><span>'.e($message).' '.e(__('ui.own_email_follow_bell')).'</span></div>'
+        );
     }
 
     public static function isCorporate(?string $email): bool
