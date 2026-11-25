@@ -91,6 +91,14 @@ class Ticket extends Model implements HasMedia
         return $this->belongsTo(Team::class);
     }
 
+    /**
+     * Picked when resolving; kept even after the team removes the topic.
+     */
+    public function topic(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(TeamTopic::class, 'topic_id')->withTrashed();
+    }
+
     public function slaCycles(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(TicketSlaCycle::class)->orderBy('cycle_no');

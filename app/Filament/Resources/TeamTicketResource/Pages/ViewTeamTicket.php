@@ -5,11 +5,13 @@ namespace App\Filament\Resources\TeamTicketResource\Pages;
 use App\Enums\ActiveStatusEnum;
 use App\Enums\ExemptionReasonEnum;
 use App\Enums\HoldReasonEnum;
+use App\Enums\LocationRequirementEnum;
 use App\Enums\RejectionReasonEnum;
 use App\Enums\TaskStatusEnum;
 use App\Exceptions\TicketWorkflowException;
 use App\Filament\Resources\TeamResource;
 use App\Filament\Resources\TeamTicketResource;
+use App\Models\Area;
 use App\Models\Employee;
 use App\Models\Team;
 use App\Models\Ticket;
@@ -17,6 +19,7 @@ use App\Models\TicketSlaCycle;
 use App\Services\SlaExemptionService;
 use App\Services\TicketCommentService;
 use App\Services\TicketWorkflowService;
+use App\Support\RichText;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Forms;
@@ -103,6 +106,45 @@ class ViewTeamTicket extends ViewRecord
             ->required($required);
     }
 
+    /**
+     * Only what this team and request type ask for.
+     *
+     * @return array<int, Forms\Components\Component>
+     */
+    private function resolveForm(Ticket $ticket): array
+    {
+        $topics = $ticket->team?->topics()->active()->pluck('name', 'id')->all() ?? [];
+        $location = $ticket->ticketType?->resolve_location_requirement ?? LocationRequirementEnum::Hidden;
+        $required = $location === LocationRequirementEnum::Required;
+
+        return array_values(array_filter([
+            $topics === [] ? null : Forms\Components\Select::make('topic_id')
+                ->label(__('ui.team_topic'))
+                ->helperText(__('ui.resolve_topic_help'))
+                ->options($topics)
+                ->in(array_keys($topics))
+                ->searchable()
+                ->required(),
+
+            $location === LocationRequirementEnum::Hidden ? null : Forms\Components\Select::make('area_id')
+                ->label(__('ui.area'))
+                ->options(fn (): array => Area::where('status', ActiveStatusEnum::ACTIVE)->orderBy('name')->pluck('name', 'id')->all()
+                    + ($ticket->area ? [$ticket->area_id => $ticket->area->name] : []))
+                ->searchable()
+                ->live()
+                ->afterStateUpdated(fn (Forms\Set $set) => $set('sub_area_id', null))
+                ->required($required),
+
+            $location === LocationRequirementEnum::Hidden ? null : Forms\Components\Select::make('sub_area_id')
+                ->label(__('ui.sub_area'))
+                ->options(fn (Forms\Get $get): array => TeamTicketResource::subAreaOptions($get('area_id')))
+                ->searchable()
+                ->required(fn (Forms\Get $get): bool => $required && TeamTicketResource::subAreaOptions($get('area_id')) !== []),
+
+            $this->reasonField('note')->label(__('ui.resolution_notes')),
+        ]));
+    }
+
     protected function getHeaderActions(): array
     {
         $ticket = $this->ticket();
@@ -182,8 +224,19 @@ class ViewTeamTicket extends ViewRecord
                 ->icon('heroicon-o-check-badge')
                 ->color('success')
                 ->visible(fn (): bool => $this->isAssignee() && $this->is(TaskStatusEnum::IN_PROGRESS))
-                ->form([$this->reasonField('note')->label(__('ui.resolution_notes'))])
-                ->action(fn (array $data) => $this->run(fn ($wf, $user) => $wf->resolve($ticket, $user, $data['note']), __('ui.action_done'))),
+                ->fillForm(fn (): array => [
+                    'topic_id' => $ticket->topic_id,
+                    'area_id' => $ticket->area_id,
+                    'sub_area_id' => $ticket->sub_area_id,
+                ])
+                ->form(fn (): array => $this->resolveForm($ticket))
+                ->action(fn (array $data) => $this->run(fn ($wf, $user) => $wf->resolve(
+                    $ticket,
+                    $user,
+                    $data['note'],
+                    filled($data['topic_id'] ?? null) ? (int) $data['topic_id'] : null,
+                    array_intersect_key($data, array_flip(['area_id', 'sub_area_id'])),
+                ), __('ui.action_done'))),
 
             Action::make('confirm')
                 ->label(__('ui.action_confirm'))
@@ -401,8 +454,9 @@ class ViewTeamTicket extends ViewRecord
                         Infolists\Components\TextEntry::make('description')
                             ->label(__('ui.description'))
                             ->state(new HtmlString(
-                                '<div style="white-space:pre-line;font-size:1rem;line-height:1.6;padding:14px 16px;border:1px solid rgba(148,163,184,.35);border-left:4px solid #3b82f6;border-radius:10px;background:rgba(59,130,246,.06);">'
-                                .e($ticket->description)
+                                '<style>.rq-text ul{list-style:disc;padding-left:1.4em}.rq-text ol{list-style:decimal;padding-left:1.4em}.rq-text a{color:#2563eb;text-decoration:underline}.rq-text h2,.rq-text h3{font-weight:700;font-size:1.1em}.rq-text blockquote{border-left:3px solid rgba(148,163,184,.6);padding-left:10px}.rq-text p+p,.rq-text ul,.rq-text ol{margin-top:.5em}</style>'
+                                .'<div class="rq-text" style="overflow-wrap:anywhere;font-size:1rem;line-height:1.6;padding:14px 16px;border:1px solid rgba(148,163,184,.35);border-left:4px solid #3b82f6;border-radius:10px;background:rgba(59,130,246,.06);">'
+                                .RichText::render($ticket->description)
                                 .'</div>'
                             ))
                             ->columnSpanFull(),
@@ -411,6 +465,10 @@ class ViewTeamTicket extends ViewRecord
                             ->state($this->customFieldsHtml($ticket))
                             ->visible(filled($ticket->custom_fields))
                             ->columnSpanFull(),
+                        Infolists\Components\TextEntry::make('topic.name')
+                            ->label(__('ui.team_topic'))
+                            ->badge()
+                            ->visible($ticket->topic_id !== null),
                         Infolists\Components\TextEntry::make('resolution_notes')
                             ->label(__('ui.resolution_notes'))
                             ->visible(filled($ticket->resolution_notes))

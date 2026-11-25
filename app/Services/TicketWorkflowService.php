@@ -2,8 +2,10 @@
 
 namespace App\Services;
 
+use App\Enums\ActiveStatusEnum;
 use App\Enums\BreachAttributionEnum;
 use App\Enums\HoldReasonEnum;
+use App\Enums\LocationRequirementEnum;
 use App\Enums\RejectionReasonEnum;
 use App\Enums\SlaCycleOutcomeEnum;
 use App\Enums\TaskPriorityEnum;
@@ -11,7 +13,9 @@ use App\Enums\TaskStatusEnum;
 use App\Enums\TaskTypeEnum;
 use App\Enums\TeamTicketEventEnum;
 use App\Exceptions\TicketWorkflowException;
+use App\Models\Area;
 use App\Models\Employee;
+use App\Models\SubArea;
 use App\Models\Team;
 use App\Models\Ticket;
 use App\Models\TicketAssignment;
@@ -275,14 +279,20 @@ class TicketWorkflowService
     /**
      * Assignee reports the work done. The outcome is decided now (resolved
      * after the deadline = breach), then the clock pauses while the
-     * requester confirms.
+     * requester confirms. Teams with topics need one picked, and the type
+     * may ask for the location.
+     *
+     * @param  array{area_id?: int|string|null, sub_area_id?: int|string|null}  $location
      */
-    public function resolve(Ticket $ticket, User $actor, ?string $note = null): Ticket
+    public function resolve(Ticket $ticket, User $actor, ?string $note = null, ?int $topicId = null, array $location = []): Ticket
     {
         $this->ensureAssignee($ticket, $actor);
         $this->ensureStatus($ticket, [TaskStatusEnum::IN_PROGRESS]);
 
-        return DB::transaction(function () use ($ticket, $actor, $note): Ticket {
+        $topicId = $this->topicFor($ticket, $topicId);
+        [$areaId, $subAreaId] = $this->locationFor($ticket, $location);
+
+        return DB::transaction(function () use ($ticket, $actor, $note, $topicId, $areaId, $subAreaId): Ticket {
             $now = CarbonImmutable::now();
             $cycle = $this->cycle($ticket);
 
@@ -292,10 +302,66 @@ class TicketWorkflowService
 
             $ticket->resolved_at = $now;
             $ticket->resolution_notes = $note;
+            $ticket->topic_id = $topicId;
+            $ticket->area_id = $areaId;
+            $ticket->sub_area_id = $subAreaId;
             $ticket->auto_close_at = $now->addDays($this->settings->auto_close_days);
 
             return $this->moveTo($ticket, TaskStatusEnum::RESOLVED, $actor, $note, $cycle, TeamTicketEventEnum::Resolved, ['note' => $note]);
         });
+    }
+
+    /**
+     * The topic must be an active one of the ticket's team; it may only be
+     * left out when the team keeps no topics.
+     */
+    private function topicFor(Ticket $ticket, ?int $topicId): ?int
+    {
+        $topics = $ticket->team->topics()->active()->pluck('id');
+
+        if ($topics->isEmpty()) {
+            return $ticket->topic_id;
+        }
+
+        return $topics->contains($topicId) ? $topicId : throw TicketWorkflowException::topicRequired();
+    }
+
+    /**
+     * Location after resolving. Not asked: unchanged. A sub area always
+     * belongs to the area, and is required only where the area has any.
+     *
+     * @param  array{area_id?: int|string|null, sub_area_id?: int|string|null}  $location
+     * @return array{0: ?int, 1: ?int}
+     */
+    private function locationFor(Ticket $ticket, array $location): array
+    {
+        $requirement = $ticket->ticketType?->resolve_location_requirement ?? LocationRequirementEnum::Hidden;
+        $current = [$ticket->area_id, $ticket->sub_area_id];
+
+        if ($requirement === LocationRequirementEnum::Hidden) {
+            return $current;
+        }
+
+        $areaId = array_key_exists('area_id', $location) ? ((int) $location['area_id'] ?: null) : $ticket->area_id;
+        $subAreaId = array_key_exists('sub_area_id', $location) ? ((int) $location['sub_area_id'] ?: null) : $ticket->sub_area_id;
+
+        // An unknown or inactive area is only accepted when it is unchanged.
+        if ($areaId !== null && (int) $areaId !== (int) $ticket->area_id
+            && ! Area::where('status', ActiveStatusEnum::ACTIVE)->whereKey($areaId)->exists()) {
+            throw TicketWorkflowException::locationRequired();
+        }
+
+        $subAreas = $areaId ? SubArea::where('area_id', $areaId)->pluck('id') : collect();
+
+        if ($subAreaId !== null && ! $subAreas->contains($subAreaId)) {
+            throw TicketWorkflowException::locationRequired();
+        }
+
+        if ($requirement === LocationRequirementEnum::Required && ($areaId === null || ($subAreaId === null && $subAreas->isNotEmpty()))) {
+            throw TicketWorkflowException::locationRequired();
+        }
+
+        return [$areaId, $subAreaId];
     }
 
     // ── Requester decisions ─────────────────────────────────────────────
@@ -491,6 +557,7 @@ class TicketWorkflowService
 
             $ticket->team_id = $target->id;
             $ticket->ticket_type_id = $target->ticket_type_id;
+            $ticket->topic_id = null; // topics belong to one team
             $ticket->employee_id = null;
             $ticket->assigned_at = null;
 

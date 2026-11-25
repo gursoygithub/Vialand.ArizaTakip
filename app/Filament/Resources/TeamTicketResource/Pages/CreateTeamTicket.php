@@ -8,6 +8,7 @@ use App\Filament\Resources\TeamTicketResource;
 use App\Models\Team;
 use App\Models\TicketType;
 use App\Services\TicketWorkflowService;
+use App\Support\RichText;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Validation\ValidationException;
@@ -59,7 +60,7 @@ class CreateTeamTicket extends CreateRecord
                 auth()->user(),
                 $team,
                 $priority,
-                $data['description'],
+                RichText::clean($data['description']),
                 $customFields,
                 array_filter([
                     'area_id' => $data['area_id'] ?? null,

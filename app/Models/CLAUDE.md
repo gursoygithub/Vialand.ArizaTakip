@@ -84,3 +84,8 @@ has that TC, else by e-mail; `Employee::panelUser()` / `personUserIds()` go the
 other way (TC first). Use `panelUser()`, not the e-mail-only `user` relation,
 to reach a person's account (bell, roles). Mail always goes to the AD address
 of the account; the HR address is only used for CC people without an account.
+
+## Topics, resolve location, description
+- `TeamTopic`: the team's own list (Ekipler form, soft deleted). `resolve()` requires an active one when the team has any; `tickets.topic_id` is cleared on transfer, `Ticket::topic()` includes trashed.
+- `TicketType::resolve_location_requirement`: whether the resolver is asked for area / sub area.
+- `tickets.description` is rich text: save through `RichText::clean()`, print only through `RichText::render()` (older rows are plain text). The editor has no attachFiles on purpose (public URLs).

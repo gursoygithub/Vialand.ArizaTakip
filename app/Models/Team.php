@@ -101,6 +101,11 @@ class Team extends Model
         return $this->hasMany(TeamSlaPolicy::class)->orderBy('priority');
     }
 
+    public function topics(): HasMany
+    {
+        return $this->hasMany(TeamTopic::class)->orderBy('sort_order')->orderBy('id');
+    }
+
     public function tickets(): HasMany
     {
         return $this->hasMany(Ticket::class);

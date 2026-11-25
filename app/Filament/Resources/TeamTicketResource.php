@@ -12,11 +12,15 @@ use App\Models\Area;
 use App\Models\Employee;
 use App\Models\SubArea;
 use App\Models\Team;
+use App\Models\TeamTopic;
 use App\Models\Ticket;
 use App\Models\TicketType;
+use App\Models\User;
 use App\Services\TicketWorkflowService;
 use App\Support\CompanyEmail;
+use App\Support\RichText;
 use BezhanSalleh\FilamentShield\Contracts\HasShieldPermissions;
+use Closure;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Forms\Get;
@@ -26,6 +30,7 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\HtmlString;
 
 /**
@@ -224,11 +229,20 @@ class TeamTicketResource extends Resource implements HasShieldPermissions
                             ->columns(2)
                             ->schema(fn (Get $get): array => self::customFieldComponents($get('ticket_type_id'))),
 
-                        Forms\Components\Textarea::make('description')
+                        // No attachFiles: the editor would put files on a public
+                        // URL; they belong in the attachments field below.
+                        Forms\Components\RichEditor::make('description')
                             ->label(__('ui.description'))
+                            ->helperText(__('ui.request_description_help'))
+                            ->toolbarButtons(['bold', 'italic', 'underline', 'strike', 'link', 'bulletList', 'orderedList', 'h3', 'blockquote', 'undo', 'redo'])
                             ->required()
-                            ->minLength(10)
-                            ->rows(4),
+                            ->rule(fn (): Closure => function (string $attribute, mixed $value, Closure $fail): void {
+                                if (mb_strlen(RichText::plain($value)) < 10) {
+                                    $fail(__('ui.request_description_short'));
+                                } elseif (strlen((string) $value) > 50000) {
+                                    $fail(__('ui.request_description_long'));
+                                }
+                            }),
 
                         Forms\Components\Select::make('watchers')
                             ->label(__('ui.watchers'))
@@ -340,6 +354,14 @@ class TeamTicketResource extends Resource implements HasShieldPermissions
             ->orderBy('name');
     }
 
+    /**
+     * @return array<int, string>
+     */
+    public static function subAreaOptions(mixed $areaId): array
+    {
+        return $areaId ? SubArea::where('area_id', $areaId)->orderBy('name')->pluck('name', 'id')->all() : [];
+    }
+
     public static function locationRequirement(mixed $ticketTypeId): LocationRequirementEnum
     {
         return TicketType::find($ticketTypeId)?->location_requirement ?? LocationRequirementEnum::Optional;
@@ -388,7 +410,7 @@ class TeamTicketResource extends Resource implements HasShieldPermissions
     {
         return $table
             ->modifyQueryUsing(fn (Builder $query) => $query->with([
-                'ticketType', 'team', 'employee', 'createdBy', 'currentCycle.workCalendar', 'area', 'subArea',
+                'ticketType', 'team', 'employee', 'createdBy', 'currentCycle.workCalendar', 'area', 'subArea', 'topic',
             ]))
             ->defaultSort('created_at', 'desc')
             ->poll('60s')
@@ -408,6 +430,11 @@ class TeamTicketResource extends Resource implements HasShieldPermissions
                 Tables\Columns\TextColumn::make('team.name')
                     ->label(__('ui.team'))
                     ->toggleable(),
+
+                Tables\Columns\TextColumn::make('topic.name')
+                    ->label(__('ui.team_topic'))
+                    ->placeholder('—')
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 Tables\Columns\TextColumn::make('area.name')
                     ->label(__('ui.area'))
@@ -471,7 +498,62 @@ class TeamTicketResource extends Resource implements HasShieldPermissions
                     ->label(__('ui.priority'))
                     ->multiple()
                     ->options(TaskPriorityEnum::class),
+                // One entry per person; matches all their HR records. Only
+                // people on requests the viewer may see are offered.
+                Tables\Filters\SelectFilter::make('assignee')
+                    ->label(__('ui.assigned_employee'))
+                    ->multiple()
+                    ->searchable()
+                    ->options(fn (): array => Employee::query()
+                        ->whereIn('id', static::getEloquentQuery()->whereNotNull('employee_id')->select('employee_id'))
+                        ->orderByDesc('id')
+                        ->get(['id', 'name', 'tc_no'])
+                        ->unique(fn (Employee $employee): string => filled($employee->tc_no) ? $employee->tc_no : 'id:'.$employee->id)
+                        ->sortBy('name')
+                        ->pluck('name', 'id')
+                        ->all())
+                    ->query(fn (Builder $query, array $data): Builder => $query->when($data['values'] ?? [], fn (Builder $q, array $ids) => $q
+                        ->whereIn('employee_id', Employee::query()->whereKey($ids)->get()->flatMap(fn (Employee $employee): array => $employee->personIds())))),
+                Tables\Filters\SelectFilter::make('topic_id')
+                    ->label(__('ui.team_topic'))
+                    ->multiple()
+                    ->searchable()
+                    ->options(fn (): array => TeamTopic::withTrashed()->with('team')
+                        ->whereIn('id', static::getEloquentQuery()->whereNotNull('topic_id')->select('topic_id'))
+                        ->orderBy('name')
+                        ->get()
+                        ->mapWithKeys(fn (TeamTopic $topic): array => [$topic->id => $topic->name.' ('.$topic->team?->name.')'])
+                        ->all()),
+                Tables\Filters\SelectFilter::make('created_by')
+                    ->label(__('ui.requester'))
+                    ->multiple()
+                    ->searchable()
+                    ->options(fn (): array => User::query()
+                        ->whereIn('id', static::getEloquentQuery()->select('created_by'))
+                        ->orderBy('name')
+                        ->pluck('name', 'id')
+                        ->all()),
+                Tables\Filters\SelectFilter::make('area_id')
+                    ->label(__('ui.area'))
+                    ->multiple()
+                    ->options(fn (): array => Area::where('status', ActiveStatusEnum::ACTIVE)->orderBy('name')->pluck('name', 'id')->all()),
+                Tables\Filters\TernaryFilter::make('sla_breached')
+                    ->label(__('ui.filter_sla_breached')),
+                Tables\Filters\Filter::make('created_between')
+                    ->form([
+                        Forms\Components\DatePicker::make('from')->label(__('ui.filter_created_from')),
+                        Forms\Components\DatePicker::make('until')->label(__('ui.filter_created_until')),
+                    ])
+                    ->columns(2)
+                    ->query(fn (Builder $query, array $data): Builder => $query
+                        ->when($data['from'] ?? null, fn (Builder $q, string $date) => $q->whereDate('created_at', '>=', $date))
+                        ->when($data['until'] ?? null, fn (Builder $q, string $date) => $q->whereDate('created_at', '<=', $date)))
+                    ->indicateUsing(fn (array $data): array => array_filter([
+                        filled($data['from'] ?? null) ? __('ui.filter_created_from').': '.Carbon::parse($data['from'])->format('d.m.Y') : null,
+                        filled($data['until'] ?? null) ? __('ui.filter_created_until').': '.Carbon::parse($data['until'])->format('d.m.Y') : null,
+                    ])),
             ])
+            ->filtersFormColumns(2)
             ->actions([
                 Tables\Actions\ViewAction::make(),
             ])

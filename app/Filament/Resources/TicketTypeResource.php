@@ -91,6 +91,14 @@ class TicketTypeResource extends Resource
                             ->required()
                             ->native(false),
 
+                        Forms\Components\Select::make('resolve_location_requirement')
+                            ->label(__('ui.resolve_location_requirement'))
+                            ->helperText(__('ui.resolve_location_requirement_help'))
+                            ->options(LocationRequirementEnum::class)
+                            ->default(LocationRequirementEnum::Hidden->value)
+                            ->required()
+                            ->native(false),
+
                         Forms\Components\Select::make('icon')
                             ->label(__('ui.icon'))
                             ->options(self::ICONS)

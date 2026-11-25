@@ -41,6 +41,16 @@ class TicketWorkflowException extends DomainException
         return new self(__('ui.workflow_missing_field', ['field' => $label]));
     }
 
+    public static function topicRequired(): self
+    {
+        return new self(__('ui.workflow_topic_required'));
+    }
+
+    public static function locationRequired(): self
+    {
+        return new self(__('ui.workflow_location_required'));
+    }
+
     public static function reopenWindowClosed(): self
     {
         return new self(__('ui.workflow_reopen_window_closed'));

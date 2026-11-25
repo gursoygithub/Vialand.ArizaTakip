@@ -27,6 +27,7 @@ class TicketType extends Model
         'icon',
         'color',
         'location_requirement',
+        'resolve_location_requirement',
         'form_fields',
         'cc_required',
         'is_active',
@@ -37,6 +38,7 @@ class TicketType extends Model
     {
         return [
             'location_requirement' => LocationRequirementEnum::class,
+            'resolve_location_requirement' => LocationRequirementEnum::class,
             'form_fields' => 'array',
             'cc_required' => 'boolean',
             'is_active' => 'boolean',

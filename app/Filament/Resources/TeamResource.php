@@ -207,6 +207,32 @@ class TeamResource extends Resource
                             ->inline(false),
                     ]),
 
+                Forms\Components\Section::make(__('ui.team_topics'))
+                    ->description(__('ui.team_topics_help'))
+                    ->icon('heroicon-o-tag')
+                    ->collapsible()
+                    ->schema([
+                        Forms\Components\Repeater::make('topics')
+                            ->hiddenLabel()
+                            ->relationship()
+                            ->addActionLabel(__('ui.team_topic_add'))
+                            ->defaultItems(0)
+                            ->orderColumn('sort_order')
+                            ->reorderableWithButtons()
+                            ->grid(2)
+                            ->itemLabel(fn (array $state): ?string => $state['name'] ?? null)
+                            ->schema([
+                                Forms\Components\TextInput::make('name')
+                                    ->label(__('ui.team_topic'))
+                                    ->required()
+                                    ->maxLength(100)
+                                    ->distinct(),
+                                Forms\Components\Toggle::make('is_active')
+                                    ->label(__('ui.active'))
+                                    ->default(true),
+                            ]),
+                    ]),
+
                 Forms\Components\Section::make(__('ui.sla_targets'))
                     ->description(__('ui.sla_targets_help'))
                     ->icon('heroicon-o-clock')
